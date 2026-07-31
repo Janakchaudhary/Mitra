@@ -29,6 +29,9 @@ import com.mitra.learning.ui.books.BookSetupScreen
 import com.mitra.learning.ui.books.BookSetupViewModel
 import com.mitra.learning.ui.books.PdfViewerScreen
 import com.mitra.learning.ui.books.PdfViewerViewModel
+import com.mitra.learning.ui.activity.ActivityHubScreen
+import com.mitra.learning.ui.activity.ColorLabScreen
+import com.mitra.learning.ui.activity.SentenceBuilderScreen
 import com.mitra.learning.ui.child.ChildBookListScreen
 import com.mitra.learning.ui.child.ChildHomeScreen
 import com.mitra.learning.ui.child.ChildHomeViewModel
@@ -46,6 +49,8 @@ import com.mitra.learning.ui.settings.ParentSettingsScreen
 import com.mitra.learning.ui.settings.ParentSettingsViewModel
 import com.mitra.learning.ui.setup.SetupPinScreen
 import com.mitra.learning.ui.setup.SetupPinViewModel
+import com.mitra.learning.ui.study.StudyChatScreen
+import com.mitra.learning.ui.study.StudyChatViewModel
 import com.mitra.learning.ui.theme.MitraTheme
 
 class MainActivity : ComponentActivity() {
@@ -74,6 +79,10 @@ private object Routes {
     const val ChildBooks = "child/books"
     const val Learning = "child/learning"
     const val LearningSkills = "child/learning-skills"
+    const val StudyChat = "child/study-chat"
+    const val Activities = "child/activities"
+    const val ColorLab = "child/activities/colors"
+    const val SentenceBuilder = "child/activities/sentences"
     const val ParentPin = "parent-pin"
     const val Parent = "parent"
     const val AiSettings = "parent/ai-settings"
@@ -129,6 +138,8 @@ private fun MitraNav(container: AppContainer) {
                 state = state,
                 onPlay = { if (state.canPlay) nav.navigate(Routes.Learning) },
                 onSkills = { if (state.canPlay) nav.navigate(Routes.LearningSkills) },
+                onTalk = { if (state.canPlay) nav.navigate(Routes.StudyChat) },
+                onActivities = { if (state.canPlay) nav.navigate(Routes.Activities) },
                 onBooks = { nav.navigate(Routes.ChildBooks) },
                 onParent = { nav.navigate(Routes.ParentPin) },
             )
@@ -196,6 +207,48 @@ private fun MitraNav(container: AppContainer) {
             )
         }
 
+
+        composable(Routes.StudyChat) {
+            val vm: StudyChatViewModel = viewModel(
+                key = "study-chat",
+                factory = simpleViewModelFactory {
+                    StudyChatViewModel(
+                        contextService = container.studyContextService,
+                        aiGateway = container.aiGateway,
+                        speechInput = container.speechInput,
+                        speechOutput = container.speechOutput,
+                    )
+                }
+            )
+            val state by vm.state.collectAsStateWithLifecycle()
+            StudyChatScreen(
+                state = state,
+                onInput = vm::updateInput,
+                onAsk = vm::askCurrent,
+                onStartVoice = vm::startVoice,
+                onStopVoice = vm::stopVoice,
+                onMicDenied = vm::microphoneDenied,
+                onReplay = vm::replayLastAnswer,
+                onBack = { nav.popBackStack() },
+            )
+        }
+
+        composable(Routes.Activities) {
+            ActivityHubScreen(
+                onColorLab = { nav.navigate(Routes.ColorLab) },
+                onSentenceBuilder = { nav.navigate(Routes.SentenceBuilder) },
+                onBack = { nav.popBackStack() },
+            )
+        }
+
+        composable(Routes.ColorLab) {
+            ColorLabScreen(onBack = { nav.popBackStack() })
+        }
+
+        composable(Routes.SentenceBuilder) {
+            SentenceBuilderScreen(onBack = { nav.popBackStack() })
+        }
+
         composable(Routes.ChildBooks) {
             val vm: BookListViewModel = viewModel(
                 factory = simpleViewModelFactory { BookListViewModel(container.bookRepository) }
@@ -246,7 +299,7 @@ private fun MitraNav(container: AppContainer) {
             ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
                 val vm: ParentSettingsViewModel = viewModel(
                     factory = simpleViewModelFactory {
-                        ParentSettingsViewModel(container.learningSettingsRepository, container.dataResetService)
+                        ParentSettingsViewModel(container.learningSettingsRepository, container.dataResetService, container.speechOutput)
                     }
                 )
                 val state by vm.state.collectAsStateWithLifecycle()
@@ -261,6 +314,8 @@ private fun MitraNav(container: AppContainer) {
                     onSessionMinutes = vm::setSessionMinutes,
                     onDailyMinutes = vm::setDailyMinutes,
                     onParentAccessMinutes = vm::setParentAccessMinutes,
+                    onVoiceStyle = vm::setVoiceStyle,
+                    onPreviewVoice = vm::previewVoice,
                     onSave = vm::save,
                     onResetProgress = vm::resetProgress,
                     onResetBookAnalysis = vm::resetBookAnalysis,

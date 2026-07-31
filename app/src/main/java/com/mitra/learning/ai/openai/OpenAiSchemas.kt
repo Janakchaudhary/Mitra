@@ -83,6 +83,16 @@ object OpenAiSchemas {
         )
     )
 
+
+    val studyAnswer: JsonObject = schemaObject(
+        properties = mapOf(
+            "answerGujarati" to type("string"),
+            "followUpGujarati" to type("string"),
+            "sourceLabels" to arrayOfStrings(),
+            "grounded" to type("boolean"),
+        )
+    )
+
     private fun schemaObject(properties: Map<String, JsonObject>): JsonObject = buildJsonObject {
         put("type", "object")
         put("properties", JsonObject(properties))

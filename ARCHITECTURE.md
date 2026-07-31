@@ -112,3 +112,9 @@ Runtime learning limits are stored in local DataStore. `LearningLimitPolicy` ind
 
 ### Milestone 9 — complete in this source
 The offline Standard 2 skill engine expands built-in curriculum into separate mastery concepts for two-digit addition/subtraction (including carrying/borrowing), missing numbers, comparison, word problems, multiplication meaning, tables 2–10, Gujarati spelling/reading/language skills, and English spelling/reading skills. Built-in skill sessions never require the remote AI provider. Dictation activities separate visible prompt text from TTS text so spelling answers are not exposed on screen. Parent progress lists each built-in skill independently.
+
+## Milestone 10 study conversation boundary
+
+`StudyContextService` is the retrieval boundary for child free-form study questions. It reads prepared local `PageKnowledgeEntity` rows, ranks relevant pages locally, and supplies a bounded set of excerpts to `AiGateway.answerStudyQuestion`. The remote model is instructed to answer only from those excerpts. Raw audio and complete conversation transcripts are not persisted. `StudyChatViewModel` keeps a small in-memory recent-turn window only.
+
+Creative activities (`ColorLabScreen`, `SentenceBuilderScreen`) are deterministic child UI modules and require no remote AI call.

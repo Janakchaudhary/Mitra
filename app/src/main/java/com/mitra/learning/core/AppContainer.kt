@@ -29,6 +29,11 @@ import com.mitra.learning.voice.AndroidSpeechInput
 import com.mitra.learning.voice.AndroidSpeechOutput
 import com.mitra.learning.voice.SpeechInput
 import com.mitra.learning.voice.SpeechOutput
+import com.mitra.learning.study.StudyContextService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -85,6 +90,19 @@ class AppContainer(context: Context) {
 
     val speechInput: SpeechInput = AndroidSpeechInput(appContext)
     val speechOutput: SpeechOutput = AndroidSpeechOutput(appContext)
+    val studyContextService = StudyContextService(
+        bookDao = database.bookDao(),
+        chapterDao = database.chapterDao(),
+        pageKnowledgeDao = database.pageKnowledgeDao(),
+    )
+
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    init {
+        appScope.launch {
+            speechOutput.setStyle(learningSettingsRepository.get().voiceStyle)
+        }
+    }
 
     val learningEngine: LearningEngine = DefaultLearningEngine(
         repository = learningRepository,

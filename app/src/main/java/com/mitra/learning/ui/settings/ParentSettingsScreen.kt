@@ -31,6 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.mitra.learning.voice.VoiceStyle
 
 @Composable
 fun ParentSettingsScreen(
@@ -38,6 +39,8 @@ fun ParentSettingsScreen(
     onSessionMinutes: (Int) -> Unit,
     onDailyMinutes: (Int) -> Unit,
     onParentAccessMinutes: (Int) -> Unit,
+    onVoiceStyle: (VoiceStyle) -> Unit,
+    onPreviewVoice: () -> Unit,
     onSave: () -> Unit,
     onResetProgress: () -> Unit,
     onResetBookAnalysis: () -> Unit,
@@ -72,6 +75,23 @@ fun ParentSettingsScreen(
                     OptionGrid(listOf(15, 30, 45, 60), state.dailyMinutes, onDailyMinutes, suffix = "min")
                     Text("Parent access relock")
                     OptionGrid(listOf(2, 5, 10, 15), state.parentAccessMinutes, onParentAccessMinutes, suffix = "min")
+                    Text("Mitra voice", style = MaterialTheme.typography.titleMedium)
+                    VoiceStyle.entries.forEach { style ->
+                        if (style == state.voiceStyle) {
+                            Button(onClick = { onVoiceStyle(style) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                                Text(style.label)
+                            }
+                        } else {
+                            OutlinedButton(onClick = { onVoiceStyle(style) }, modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp)) {
+                                Text(style.label)
+                            }
+                        }
+                        Text(style.description, style = MaterialTheme.typography.bodySmall)
+                    }
+                    OutlinedButton(
+                        onClick = onPreviewVoice,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                    ) { Text("Preview voice") }
                     Button(
                         onClick = onSave,
                         enabled = !state.busy,

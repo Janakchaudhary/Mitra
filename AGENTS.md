@@ -46,3 +46,11 @@ Milestone 9 is implemented in this source. It adds the offline Standard 2 skill 
 - Participation-only activities must never improve mastery.
 - Book-derived concepts may use remote AI; built-in skill practice must remain usable offline.
 - Keep session and daily learning limits enforced for both normal and skill-only sessions.
+
+## Milestone 10 constraints
+
+- Study Talk must answer only from `StudyContextService` prepared textbook grounding. Do not add web search.
+- Do not persist child free-form study conversations or raw microphone audio.
+- Voice presets are style presets only; do not label or ship exact copyrighted-character voice clones.
+- Keep Color Lab and Sentence Builder deterministic/offline.
+- Preserve Room schema version 3 unless a real database schema change is introduced.

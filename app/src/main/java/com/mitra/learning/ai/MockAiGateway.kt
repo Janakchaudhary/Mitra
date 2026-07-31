@@ -11,6 +11,8 @@ import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.data.db.entity.ConceptEntity
 import com.mitra.learning.learning.curriculum.Standard2SkillActivityFactory
 import com.mitra.learning.learning.model.LearningQuestion
+import com.mitra.learning.study.StudyAnswer
+import com.mitra.learning.study.StudyQuestionRequest
 
 /**
  * Development-only AI implementation.
@@ -90,6 +92,11 @@ class MockAiGateway : AiGateway {
         count: Int,
         context: PracticeContext?,
     ): List<LearningQuestion> = Standard2SkillActivityFactory.create(concept, count)
+
+    override suspend fun answerStudyQuestion(request: StudyQuestionRequest): StudyAnswer = StudyAnswer(
+        answerGujarati = "પુસ્તક વિશે વાત કરવા Parent settings માં Remote AI ચાલુ કરો. તૈયાર પુસ્તકોમાંથી જ જવાબ આપવામાં આવશે.",
+        grounded = false,
+    )
 
     override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String = when (result) {
         AttemptResult.CORRECT -> "હા! સાચું. તમે કેવી રીતે શોધ્યું તે યાદ રાખજો."

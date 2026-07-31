@@ -77,3 +77,9 @@ gradle assembleDebug
 Books, prepared knowledge, progress and settings remain on the phone. Remote AI receives only the parent-selected book material/context required for analysis/activity generation. Child microphone recordings, child answer transcripts, mastery and session history are not sent to the remote model.
 
 A parent-entered API key inside a mobile APK is only appropriate for this private development/personal-use setup; do not publish an APK containing or depending on a shared client-side secret.
+
+## Milestone 10
+
+Milestone 10 adds a textbook-grounded child Study Talk screen, parent-selectable voice styles, an activity-first Color Lab and English Sentence Builder, and a more playful child UI. Study Talk retrieves only locally prepared uploaded-book page knowledge and asks the configured AI provider to answer from that grounding. Conversation history is memory-only.
+
+Voice presets are style controls (pitch/rate), not exact character voice cloning. The included presets are Warm Mitra, Energetic Hero, Playful Hero, and Storyteller.

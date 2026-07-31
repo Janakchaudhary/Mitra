@@ -11,6 +11,9 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ChapterDao {
+    @Query("SELECT * FROM chapters ORDER BY bookId, startPage, chapterNumber")
+    suspend fun getAll(): List<ChapterEntity>
+
     @Query("SELECT * FROM chapters WHERE bookId = :bookId ORDER BY startPage, chapterNumber")
     fun observeForBook(bookId: String): Flow<List<ChapterEntity>>
 

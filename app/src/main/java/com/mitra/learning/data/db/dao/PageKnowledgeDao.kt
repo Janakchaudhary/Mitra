@@ -8,6 +8,9 @@ import com.mitra.learning.data.db.entity.PageKnowledgeEntity
 
 @Dao
 interface PageKnowledgeDao {
+    @Query("SELECT * FROM page_knowledge ORDER BY analyzedAt DESC, pageNumber")
+    suspend fun getAll(): List<PageKnowledgeEntity>
+
     @Query("SELECT * FROM page_knowledge WHERE chapterId = :chapterId ORDER BY pageNumber")
     suspend fun forChapter(chapterId: String): List<PageKnowledgeEntity>
 

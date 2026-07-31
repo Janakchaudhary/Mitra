@@ -21,6 +21,9 @@ import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -141,14 +144,23 @@ private fun SessionContent(
 
         val current = state.currentQuestion
         if (current != null) {
-            Text(
-                "પ્રવૃત્તિ ${state.questionIndex + 1} / ${state.questions.size} • ${activityLabel(current.type)}",
-                style = MaterialTheme.typography.labelLarge,
-            )
-            current.sourcePage?.let {
-                Text("📖 પુસ્તક પાનું $it", style = MaterialTheme.typography.bodySmall)
+            val progress = (state.questionIndex + 1).toFloat() / state.questions.size.coerceAtLeast(1).toFloat()
+            LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "${activityEmoji(current.type)}  ${activityLabel(current.type)} • ${state.questionIndex + 1}/${state.questions.size}",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    current.sourcePage?.let {
+                        Text("📖 પુસ્તક પાનું $it", style = MaterialTheme.typography.labelMedium)
+                    }
+                    Text(current.promptGujarati, style = MaterialTheme.typography.headlineSmall)
+                }
             }
-            Text(current.promptGujarati, style = MaterialTheme.typography.headlineSmall)
 
             OutlinedButton(
                 onClick = onReplayPrompt,
@@ -380,4 +392,23 @@ private fun activityLabel(type: ActivityType): String = when (type) {
     ActivityType.DRAW -> "ચિત્ર"
     ActivityType.TEACH_MITRA -> "મિત્રને શીખવો"
     ActivityType.RECAP -> "યાદ કરીએ"
+}
+
+
+private fun activityEmoji(type: ActivityType): String = when (type) {
+    ActivityType.QUESTION -> "🧠"
+    ActivityType.MULTIPLE_CHOICE -> "🎯"
+    ActivityType.RIDDLE -> "🕵️"
+    ActivityType.STORY -> "📚"
+    ActivityType.BOOK_LOOK -> "🔎"
+    ActivityType.READING -> "📖"
+    ActivityType.VOCABULARY -> "🗣️"
+    ActivityType.SPELLING -> "✏️"
+    ActivityType.MISSING_LETTER -> "🔤"
+    ActivityType.TABLES -> "✖️"
+    ActivityType.WORD_PROBLEM -> "🍎"
+    ActivityType.PHYSICAL_MISSION -> "🏃"
+    ActivityType.DRAW -> "🎨"
+    ActivityType.TEACH_MITRA -> "🦁"
+    ActivityType.RECAP -> "⭐"
 }

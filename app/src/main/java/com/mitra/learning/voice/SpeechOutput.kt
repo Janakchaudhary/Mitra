@@ -15,6 +15,7 @@ interface SpeechOutput {
 
     suspend fun speakGujarati(text: String)
     suspend fun speak(text: String, languageTag: String) = speakGujarati(text)
+    fun setStyle(style: VoiceStyle) = Unit
     fun stop()
     fun close()
 }

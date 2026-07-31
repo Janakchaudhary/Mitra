@@ -11,7 +11,7 @@ import org.junit.Test
 class OpenAiSchemasTest {
     @Test
     fun strictSchemasRequireEveryTopLevelPropertyAndRejectExtras() {
-        listOf(OpenAiSchemas.toc, OpenAiSchemas.chapter, OpenAiSchemas.practiceQuestions).forEach { schema ->
+        listOf(OpenAiSchemas.toc, OpenAiSchemas.chapter, OpenAiSchemas.practiceQuestions, OpenAiSchemas.studyAnswer).forEach { schema ->
             val properties = schema["properties"] as JsonObject
             val required = schema["required"] as JsonArray
             assertEquals(properties.size, required.size)
@@ -37,6 +37,13 @@ class OpenAiSchemasTest {
             "hintGujarati",
             "completionButtonGujarati",
         ).forEach { key -> assertTrue(itemProperties.containsKey(key)) }
+    }
+
+    @Test
+    fun studyAnswerSchemaContainsGroundingFields() {
+        val properties = OpenAiSchemas.studyAnswer["properties"] as JsonObject
+        listOf("answerGujarati", "followUpGujarati", "sourceLabels", "grounded")
+            .forEach { key -> assertTrue(properties.containsKey(key)) }
     }
 
 }

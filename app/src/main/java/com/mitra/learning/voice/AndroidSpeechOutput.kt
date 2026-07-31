@@ -25,6 +25,7 @@ class AndroidSpeechOutput(
     private val initialized = CompletableDeferred<Boolean>()
     private val mainHandler = Handler(Looper.getMainLooper())
     private var tts: TextToSpeech? = null
+    private var voiceStyle: VoiceStyle = VoiceStyle.WARM
 
     init {
         val engine = TextToSpeech(appContext) { status ->
@@ -72,6 +73,7 @@ class AndroidSpeechOutput(
                 _state.value = SpeechOutputState.Error("આ ભાષાનો અવાજ ફોનમાં ઉપલબ્ધ નથી; લખાણ ચાલુ રહેશે.")
                 return@withContext
             }
+            applyVoiceStyle()
             tts?.speak(
                 text,
                 TextToSpeech.QUEUE_FLUSH,
@@ -79,6 +81,15 @@ class AndroidSpeechOutput(
                 UUID.randomUUID().toString(),
             )
         }
+    }
+
+    override fun setStyle(style: VoiceStyle) {
+        voiceStyle = style
+    }
+
+    private fun applyVoiceStyle() {
+        tts?.setPitch(voiceStyle.pitch)
+        tts?.setSpeechRate(voiceStyle.rate)
     }
 
     override fun stop() {
@@ -108,6 +119,7 @@ class AndroidSpeechOutput(
         val supported = languageResult != TextToSpeech.LANG_MISSING_DATA &&
             languageResult != TextToSpeech.LANG_NOT_SUPPORTED
 
+        if (supported) applyVoiceStyle()
         _state.value = if (supported) SpeechOutputState.Ready else SpeechOutputState.Unavailable
         initialized.completeIfNeeded(supported)
     }

@@ -13,6 +13,8 @@ import com.mitra.learning.data.db.entity.ConceptEntity
 import com.mitra.learning.learning.model.LearningQuestion
 import com.mitra.learning.security.AndroidKeystoreSecretStore
 import com.mitra.learning.security.SecretStore
+import com.mitra.learning.study.StudyAnswer
+import com.mitra.learning.study.StudyQuestionRequest
 
 class ConfigurableAiGateway(
     private val settingsRepository: AiSettingsRepository,
@@ -37,6 +39,9 @@ class ConfigurableAiGateway(
         if (concept.builtIn) return mock.createPracticeQuestions(concept, count, context)
         return currentGateway().createPracticeQuestions(concept, count, context)
     }
+
+    override suspend fun answerStudyQuestion(request: StudyQuestionRequest): StudyAnswer =
+        currentGateway().answerStudyQuestion(request)
 
     override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String =
         OpenAiGateway.localFeedback(result, expectedAnswer)
