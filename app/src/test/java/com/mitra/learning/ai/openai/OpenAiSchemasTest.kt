@@ -19,4 +19,21 @@ class OpenAiSchemasTest {
             assertFalse((schema["additionalProperties"] as JsonPrimitive).content.toBoolean())
         }
     }
+    @Test
+    fun practiceSchemaContainsRichActivityFields() {
+        val properties = OpenAiSchemas.practiceQuestions["properties"] as JsonObject
+        val activities = properties["activities"] as JsonObject
+        val item = activities["items"] as JsonObject
+        val itemProperties = item["properties"] as JsonObject
+
+        listOf(
+            "activityType",
+            "evaluationMode",
+            "acceptedAnswers",
+            "optionsGujarati",
+            "hintGujarati",
+            "completionButtonGujarati",
+        ).forEach { key -> assertTrue(itemProperties.containsKey(key)) }
+    }
+
 }

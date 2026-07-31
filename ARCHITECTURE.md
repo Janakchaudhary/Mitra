@@ -18,9 +18,9 @@ The goal is not to maximize screen time. Learning sessions should increasingly d
 - `LearningEngine` owns concept selection, evaluation and mastery updates.
 - `AiGateway` is replaceable and must never own curriculum/mastery decisions.
 - `SpeechInput` and `SpeechOutput` isolate Android speech services from session logic.
-- Milestone 4 still uses `MockAiGateway`; remote textbook understanding is not enabled yet.
+- `AiGateway` can use mock/offline behavior or the parent-configured remote provider. Child answers are never sent through the gateway.
 
-## Book lifecycle — Milestone 4
+## Book lifecycle
 
 1. Parent unlocks Parent Mode.
 2. Parent chooses a PDF using Android Storage Access Framework.
@@ -37,7 +37,7 @@ The goal is not to maximize screen time. Learning sessions should increasingly d
 13. Structured page knowledge and concepts are cached in Room.
 14. Book/chapter preparation status is updated locally.
 
-`MockAiGateway` clearly labels its results and creates book concepts with `practiceReady = false`. This lets the full pipeline be tested without pretending the mock provider understood a child's textbook. Milestone 5 can replace the provider and enable validated book concepts without changing the database/session architecture.
+`MockAiGateway` clearly labels its results and keeps mock book concepts disabled. A configured remote provider can enable validated concepts. Chapters can be prepared again when activity capabilities change.
 
 ## Learning lifecycle
 
@@ -46,11 +46,12 @@ The goal is not to maximize screen time. Learning sessions should increasingly d
 3. Only `practiceReady` concepts are eligible.
 4. `ConceptSelector` considers prerequisites and mastery.
 5. `LearningEngine` creates a persisted session.
-6. The current gateway creates practice questions.
-7. Child can type or speak a Gujarati answer.
-8. Numeric answers are evaluated locally.
-9. Attempts and mastery are stored in Room.
-10. Session is completed or stopped and persisted.
+6. The current gateway creates a bounded activity plan grounded in local prepared book knowledge.
+7. `ActivityPlanPolicy` sanitizes physical/drawing activities and ensures off-screen variety.
+8. Child can type, choose, speak, explore, draw, use the book, or teach Mitra depending on the activity.
+9. Numeric/choice/short-text/keyword answers are evaluated locally; participation activities are recorded as `UNKNOWN`.
+10. Only assessed results affect mastery. Attempts and summaries are stored in Room.
+11. Session is completed or stopped and persisted.
 
 ## Room schema
 
@@ -84,11 +85,14 @@ Local curriculum, prerequisites, mastery, sessions, attempts, learning engine, d
 ### Milestone 3 — complete
 Push-to-talk Gujarati recognition, Gujarati TTS, spoken stop commands and text fallback.
 
-### Milestone 4 — complete in this source
+### Milestone 4 — complete
 Parent-controlled contents-page selection, editable/manual chapters, chapter preparation, page-knowledge cache, book-derived concept storage, schema v3 and mock analysis boundary.
 
-### Milestone 5 — next
-Real parent-configured AI provider for textbook image understanding and grounded Gujarati tutoring. Structured output must be validated, and only valid analyzed concepts may be enabled for child practice.
+### Milestone 5 — complete
+Parent-configured remote textbook image analysis and book-grounded activity generation with structured output and local privacy boundaries.
+
+### Milestone 6 — complete in this source
+Mixed activity types, local non-numeric evaluation, hints, participation-only mastery protection, Teach-Mitra, drawing, book exploration, and local physical-mission safety policy.
 
 ## Safety constraints
 

@@ -6,7 +6,7 @@ import com.mitra.learning.learning.model.SessionPlan
 import com.mitra.learning.learning.model.SessionSummary
 
 interface LearningEngine {
-    suspend fun startSession(questionCount: Int = 5): SessionPlan?
+    suspend fun startSession(questionCount: Int = 6): SessionPlan?
 
     suspend fun submitAnswer(
         sessionId: String,
@@ -14,6 +14,12 @@ interface LearningEngine {
         question: LearningQuestion,
         answerText: String,
         hintsUsed: Int = 0,
+    ): AnswerFeedback
+
+    suspend fun completeParticipation(
+        sessionId: String,
+        conceptId: String,
+        question: LearningQuestion,
     ): AnswerFeedback
 
     suspend fun skipQuestion(

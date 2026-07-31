@@ -1,6 +1,7 @@
 package com.mitra.learning.learning.engine
 
 import com.mitra.learning.ai.AiGateway
+import com.mitra.learning.ai.PracticeContext
 import com.mitra.learning.data.db.entity.AttemptEntity
 import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.data.db.entity.MasteryEntity
@@ -9,10 +10,11 @@ import com.mitra.learning.data.db.entity.SessionStatus
 import com.mitra.learning.data.repository.BookKnowledgeRepository
 import com.mitra.learning.data.repository.BookRepository
 import com.mitra.learning.data.repository.LearningRepository
-import com.mitra.learning.learning.evaluation.GujaratiNumberNormalizer
+import com.mitra.learning.learning.activity.ActivityPlanPolicy
+import com.mitra.learning.learning.evaluation.ActivityEvaluator
 import com.mitra.learning.learning.evaluation.MasteryPolicy
-import com.mitra.learning.ai.PracticeContext
 import com.mitra.learning.learning.model.AnswerFeedback
+import com.mitra.learning.learning.model.EvaluationMode
 import com.mitra.learning.learning.model.LearningQuestion
 import com.mitra.learning.learning.model.SessionPlan
 import com.mitra.learning.learning.model.SessionSummary
@@ -46,12 +48,19 @@ class DefaultLearningEngine(
         )
         repository.insertSession(session)
 
-        val questions = aiGateway.createPracticeQuestions(
-            concept = concept,
-            count = questionCount.coerceAtLeast(1),
-            context = buildPracticeContext(concept),
+        val activities = ActivityPlanPolicy.apply(
+            aiGateway.createPracticeQuestions(
+                concept = concept,
+                count = questionCount.coerceIn(1, 8),
+                context = buildPracticeContext(concept),
+            )
         )
-        return SessionPlan(session.id, concept, questions)
+
+        if (activities.isEmpty()) {
+            repository.updateSession(session.copy(endedAt = now(), status = SessionStatus.STOPPED))
+            return null
+        }
+        return SessionPlan(session.id, concept, activities)
     }
 
     override suspend fun submitAnswer(
@@ -61,14 +70,24 @@ class DefaultLearningEngine(
         answerText: String,
         hintsUsed: Int,
     ): AnswerFeedback {
-        val parsed = GujaratiNumberNormalizer.parseInt(answerText)
-        val result = if (parsed != null && parsed == question.expectedAnswer) {
-            AttemptResult.CORRECT
-        } else {
-            AttemptResult.INCORRECT
+        require(question.evaluationMode != EvaluationMode.PARTICIPATION) {
+            "Participation activities must be completed with completeParticipation()."
         }
+        val result = ActivityEvaluator.evaluate(question, answerText)
         return recordResult(sessionId, conceptId, question, result, hintsUsed)
     }
+
+    override suspend fun completeParticipation(
+        sessionId: String,
+        conceptId: String,
+        question: LearningQuestion,
+    ): AnswerFeedback = recordResult(
+        sessionId = sessionId,
+        conceptId = conceptId,
+        question = question,
+        result = AttemptResult.UNKNOWN,
+        hintsUsed = 0,
+    )
 
     override suspend fun skipQuestion(
         sessionId: String,
@@ -87,6 +106,7 @@ class DefaultLearningEngine(
         val end = now()
         val attempts = repository.attemptsForSession(sessionId)
         val mastery = session.primaryConceptId?.let { repository.getMastery(it)?.mastery } ?: 0f
+        val assessed = attempts.filter { it.result != AttemptResult.UNKNOWN }
 
         repository.updateSession(
             session.copy(
@@ -100,8 +120,10 @@ class DefaultLearningEngine(
         return SessionSummary(
             conceptTitleGujarati = conceptTitleGujarati,
             attempts = attempts.size,
-            correct = attempts.count { it.result == AttemptResult.CORRECT },
+            correct = assessed.count { it.result == AttemptResult.CORRECT },
             mastery = mastery,
+            assessed = assessed.size,
+            participationActivities = attempts.count { it.result == AttemptResult.UNKNOWN },
         )
     }
 
@@ -150,12 +172,17 @@ class DefaultLearningEngine(
             )
         )
 
-        val nextMastery = MasteryPolicy.update(current.mastery, result, hintsUsed)
+        val assessed = result != AttemptResult.UNKNOWN
+        val nextMastery = if (assessed) {
+            MasteryPolicy.update(current.mastery, result, hintsUsed)
+        } else {
+            current.mastery
+        }
         val updated = current.copy(
             mastery = nextMastery,
-            totalAttempts = current.totalAttempts + 1,
+            totalAttempts = current.totalAttempts + if (assessed) 1 else 0,
             correctAttempts = current.correctAttempts + if (result == AttemptResult.CORRECT) 1 else 0,
-            hintCount = current.hintCount + hintsUsed,
+            hintCount = current.hintCount + if (assessed) hintsUsed else 0,
             lastPracticedAt = timestamp,
             lastSuccessAt = if (result == AttemptResult.CORRECT) timestamp else current.lastSuccessAt,
         )
@@ -163,11 +190,27 @@ class DefaultLearningEngine(
 
         return AnswerFeedback(
             result = result,
-            messageGujarati = aiGateway.feedbackGujarati(result, question.expectedAnswer),
+            messageGujarati = feedbackFor(result, question),
             expectedAnswer = question.expectedAnswer,
             mastery = nextMastery,
         )
     }
+
+    private fun feedbackFor(result: AttemptResult, question: LearningQuestion): String = when (result) {
+        AttemptResult.UNKNOWN -> "સરસ. હવે આગળ શું શોધીએ તે જોઈએ."
+        AttemptResult.CORRECT -> "હા! સાચું. તમે કેવી રીતે શોધ્યું તે યાદ રાખજો."
+        AttemptResult.PARTIAL -> "લગભગ સાચું. એક નાની મદદ લઈને ફરી અજમાવીએ."
+        AttemptResult.SKIPPED -> "ઠીક છે. આ પ્રવૃત્તિ પછી ફરી અજમાવીશું."
+        AttemptResult.INCORRECT -> when (question.evaluationMode) {
+            EvaluationMode.NUMERIC -> question.expectedAnswer?.let {
+                "ફરી વિચારીએ. સંકેત યાદ કરો. આ વખતે જવાબ $it છે."
+            } ?: "ફરી વિચારીએ. સંકેત લઈને ફરી અજમાવો."
+            else -> question.hintGujarati?.takeIf { it.isNotBlank() }?.let {
+                "ફરી વિચારીએ. સંકેત: $it"
+            } ?: "ફરી વિચારીએ. એક વાર ધીમે વાંચીને ફરી અજમાવો."
+        }
+    }
+
     private suspend fun buildPracticeContext(concept: com.mitra.learning.data.db.entity.ConceptEntity): PracticeContext? {
         val chapterId = concept.chapterId ?: return null
         val knowledgeRepository = bookKnowledgeRepository ?: return null
@@ -198,5 +241,4 @@ class DefaultLearningEngine(
             groundedBookText = grounded,
         )
     }
-
 }

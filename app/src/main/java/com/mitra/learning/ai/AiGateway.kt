@@ -19,5 +19,5 @@ interface AiGateway {
         context: PracticeContext? = null,
     ): List<LearningQuestion>
 
-    fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int): String
+    fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String
 }

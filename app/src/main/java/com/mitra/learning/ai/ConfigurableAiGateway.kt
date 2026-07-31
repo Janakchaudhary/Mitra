@@ -38,7 +38,7 @@ class ConfigurableAiGateway(
             }
     }
 
-    override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int): String =
+    override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String =
         OpenAiGateway.localFeedback(result, expectedAnswer)
 
     suspend fun testConfiguredProvider(): String {

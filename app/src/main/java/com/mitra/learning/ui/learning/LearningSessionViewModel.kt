@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.learning.engine.LearningEngine
+import com.mitra.learning.learning.model.EvaluationMode
 import com.mitra.learning.learning.model.LearningQuestion
 import com.mitra.learning.learning.model.SessionPlan
 import com.mitra.learning.learning.model.SessionSummary
@@ -37,6 +38,8 @@ data class LearningSessionUiState(
     val ttsAvailable: Boolean? = null,
     val voiceMessage: String? = null,
     val exitRequested: Boolean = false,
+    val hintText: String? = null,
+    val hintsUsed: Int = 0,
 ) {
     val currentQuestion: LearningQuestion?
         get() = questions.getOrNull(questionIndex)
@@ -63,16 +66,69 @@ class LearningSessionViewModel(
 
     fun updateAnswer(value: String) {
         if (_state.value.awaitingNext) return
-        _state.update { it.copy(answer = value.take(32), error = null) }
+        _state.update { it.copy(answer = value.take(160), error = null) }
     }
 
     fun submit() {
-        val answer = _state.value.answer
-        if (answer.isBlank()) {
+        val current = _state.value
+        val activity = current.currentQuestion ?: return
+        if (activity.evaluationMode == EvaluationMode.PARTICIPATION) {
+            completeParticipation()
+            return
+        }
+        if (current.answer.isBlank()) {
             _state.update { it.copy(error = "જવાબ લખો, બોલો અથવા છોડો દબાવો.") }
             return
         }
-        submitAnswer(answer)
+        submitAnswer(current.answer)
+    }
+
+    fun selectOption(option: String) {
+        val current = _state.value
+        if (current.loading || current.awaitingNext) return
+        _state.update { it.copy(answer = option, error = null) }
+        submitAnswer(option)
+    }
+
+    fun showHint() {
+        val current = _state.value
+        val hint = current.currentQuestion?.hintGujarati?.takeIf { it.isNotBlank() } ?: return
+        if (current.awaitingNext || current.loading) return
+        _state.update {
+            it.copy(
+                hintText = hint,
+                hintsUsed = (it.hintsUsed + 1).coerceAtMost(3),
+                error = null,
+            )
+        }
+        speak("સંકેત: $hint")
+    }
+
+    fun completeParticipation() {
+        val current = _state.value
+        val sessionId = current.sessionId ?: return
+        val conceptId = current.conceptId ?: return
+        val activity = current.currentQuestion ?: return
+        if (current.awaitingNext || current.loading) return
+
+        viewModelScope.launch {
+            _state.update { it.copy(loading = true, error = null, listening = false) }
+            runCatching { engine.completeParticipation(sessionId, conceptId, activity) }
+                .onSuccess { feedback ->
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            feedback = feedback.messageGujarati,
+                            lastResult = feedback.result,
+                            awaitingNext = true,
+                        )
+                    }
+                    speak(feedback.messageGujarati)
+                }
+                .onFailure { failure ->
+                    _state.update { it.copy(loading = false, error = failure.message ?: "કંઈક ખોટું થયું.") }
+                }
+        }
     }
 
     fun skip() {
@@ -120,6 +176,8 @@ class LearningSessionViewModel(
                     error = null,
                     partialTranscript = "",
                     voiceMessage = null,
+                    hintText = null,
+                    hintsUsed = 0,
                 )
             }
             current.questions.getOrNull(nextIndex)?.let { speak(it.promptGujarati) }
@@ -148,9 +206,7 @@ class LearningSessionViewModel(
     }
 
     fun stopVoiceInput() {
-        viewModelScope.launch {
-            runCatching { speechInput.stopListening() }
-        }
+        viewModelScope.launch { runCatching { speechInput.stopListening() } }
     }
 
     fun onMicrophonePermissionDenied() {
@@ -202,6 +258,7 @@ class LearningSessionViewModel(
                     conceptId = conceptId,
                     question = question,
                     answerText = answerText,
+                    hintsUsed = current.hintsUsed,
                 )
             }.onSuccess { feedback ->
                 _state.update {
@@ -267,30 +324,16 @@ class LearningSessionViewModel(
         viewModelScope.launch {
             speechInput.state.collect { speechState ->
                 when (speechState) {
-                    SpeechInputState.Idle -> _state.update {
-                        it.copy(listening = false, partialTranscript = "")
-                    }
+                    SpeechInputState.Idle -> _state.update { it.copy(listening = false, partialTranscript = "") }
                     SpeechInputState.Listening -> _state.update {
-                        it.copy(
-                            listening = true,
-                            partialTranscript = "",
-                            voiceMessage = "સાંભળું છું…",
-                        )
+                        it.copy(listening = true, partialTranscript = "", voiceMessage = "સાંભળું છું…")
                     }
                     is SpeechInputState.Partial -> _state.update {
-                        it.copy(
-                            listening = true,
-                            partialTranscript = speechState.text,
-                            voiceMessage = "સાંભળું છું…",
-                        )
+                        it.copy(listening = true, partialTranscript = speechState.text, voiceMessage = "સાંભળું છું…")
                     }
                     is SpeechInputState.Result -> handleSpeechResult(speechState.text)
                     is SpeechInputState.Error -> _state.update {
-                        it.copy(
-                            listening = false,
-                            partialTranscript = "",
-                            voiceMessage = speechState.messageGujarati,
-                        )
+                        it.copy(listening = false, partialTranscript = "", voiceMessage = speechState.messageGujarati)
                     }
                 }
             }
@@ -302,20 +345,11 @@ class LearningSessionViewModel(
             speechOutput.state.collect { outputState ->
                 when (outputState) {
                     SpeechOutputState.Initializing -> Unit
-                    SpeechOutputState.Ready -> _state.update {
-                        it.copy(ttsSpeaking = false, ttsAvailable = true)
-                    }
-                    SpeechOutputState.Speaking -> _state.update {
-                        it.copy(ttsSpeaking = true, ttsAvailable = true)
-                    }
-                    SpeechOutputState.Unavailable -> _state.update {
-                        it.copy(ttsSpeaking = false, ttsAvailable = false)
-                    }
+                    SpeechOutputState.Ready -> _state.update { it.copy(ttsSpeaking = false, ttsAvailable = true) }
+                    SpeechOutputState.Speaking -> _state.update { it.copy(ttsSpeaking = true, ttsAvailable = true) }
+                    SpeechOutputState.Unavailable -> _state.update { it.copy(ttsSpeaking = false, ttsAvailable = false) }
                     is SpeechOutputState.Error -> _state.update {
-                        it.copy(
-                            ttsSpeaking = false,
-                            voiceMessage = outputState.messageGujarati,
-                        )
+                        it.copy(ttsSpeaking = false, voiceMessage = outputState.messageGujarati)
                     }
                 }
             }
@@ -336,31 +370,25 @@ class LearningSessionViewModel(
             return
         }
 
+        val activity = _state.value.currentQuestion
         _state.update {
             it.copy(
-                answer = text.take(32),
+                answer = text.take(160),
                 listening = false,
                 partialTranscript = "",
                 voiceMessage = "મેં સાંભળ્યું: $text",
             )
         }
-        submitAnswer(text)
-    }
-
-    private fun speak(text: String) {
-        viewModelScope.launch {
-            runCatching { speechOutput.speakGujarati(text) }
+        if (activity?.evaluationMode != EvaluationMode.PARTICIPATION) {
+            submitAnswer(text)
         }
     }
 
+    private fun speak(text: String) {
+        viewModelScope.launch { runCatching { speechOutput.speakGujarati(text) } }
+    }
+
     private companion object {
-        val STOP_WORDS = setOf(
-            "બસ",
-            "બંધ",
-            "બંધ કરો",
-            "રોકો",
-            "stop",
-            "stop it",
-        )
+        val STOP_WORDS = setOf("બસ", "બંધ", "બંધ કરો", "રોકો", "stop", "stop it")
     }
 }

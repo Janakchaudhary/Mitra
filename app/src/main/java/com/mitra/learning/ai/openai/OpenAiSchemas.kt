@@ -59,14 +59,21 @@ object OpenAiSchemas {
 
     val practiceQuestions: JsonObject = schemaObject(
         properties = mapOf(
-            "questions" to buildJsonObject {
+            "activities" to buildJsonObject {
                 put("type", "array")
                 put("items", schemaObject(
                     properties = mapOf(
                         "id" to type("string"),
                         "promptGujarati" to type("string"),
-                        "expectedAnswer" to type("integer"),
                         "activityType" to type("string"),
+                        "evaluationMode" to type("string"),
+                        "expectedAnswer" to type("integer"),
+                        "expectedText" to type("string"),
+                        "acceptedAnswers" to arrayOfStrings(),
+                        "optionsGujarati" to arrayOfStrings(),
+                        "hintGujarati" to type("string"),
+                        "completionButtonGujarati" to type("string"),
+                        "sourcePage" to type("integer"),
                     )
                 ))
             }

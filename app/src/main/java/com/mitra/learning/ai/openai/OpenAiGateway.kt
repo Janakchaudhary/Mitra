@@ -13,6 +13,8 @@ import com.mitra.learning.books.analysis.TocAnalysisResult
 import com.mitra.learning.books.analysis.TocChapterSuggestion
 import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.data.db.entity.ConceptEntity
+import com.mitra.learning.learning.model.ActivityType
+import com.mitra.learning.learning.model.EvaluationMode
 import com.mitra.learning.learning.model.LearningQuestion
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -83,9 +85,10 @@ class OpenAiGateway(
             exercises, and concepts. Keep Gujarati simple and faithful to the page.
 
             Extract lesson concepts suitable for a Standard 2 child.
-            `practiceReady` MUST be true only when the concept can currently be assessed safely with short questions
-            whose answer is one integer (for example counting, addition, subtraction, before/after, quantity).
-            Set practiceReady=false for reading, vocabulary, open-ended language, drawing, or other non-integer tasks.
+            `practiceReady` means this concept is suitable for one of Mitra's supported child-safe activities:
+            numeric answer, multiple choice, short spoken/text answer, reading/vocabulary check, story/book exploration,
+            drawing, Teach-Mitra, or a locally constrained physical mission. Mark normal Standard 2 lesson concepts true.
+            Set it false only when the page is administrative, answer-key-only, too ambiguous, unsafe, or not a learnable concept.
             Use difficulty 1 to 5. Source page numbers must stay inside ${request.startPage}-${request.endPage}.
             Do not introduce topics that are not supported by these pages.
         """.trimIndent()
@@ -145,10 +148,11 @@ class OpenAiGateway(
         count: Int,
         context: PracticeContext?,
     ): List<LearningQuestion> {
-        require(concept.practiceReady) { "This concept is not ready for numeric practice yet." }
+        require(concept.practiceReady) { "This concept is not ready for child practice yet." }
         val grounded = context?.groundedBookText.orEmpty().take(12_000)
+        val targetCount = count.coerceIn(1, 8)
         val prompt = """
-            Create exactly ${count.coerceIn(1, 8)} short practice questions for one Standard 2 Gujarati-medium child.
+            Create exactly $targetCount short learning activities for one Standard 2 Gujarati-medium child.
             Concept: ${concept.titleGujarati}
             Description: ${concept.descriptionGujarati}
             Learning outcome: ${concept.expectedLearningOutcome}
@@ -158,40 +162,80 @@ class OpenAiGateway(
             Grounding from prepared textbook pages:
             $grounded
 
+            Supported activityType values:
+            QUESTION, MULTIPLE_CHOICE, RIDDLE, STORY, BOOK_LOOK, READING, VOCABULARY,
+            PHYSICAL_MISSION, DRAW, TEACH_MITRA, RECAP.
+
+            Supported evaluationMode values:
+            NUMERIC, MULTIPLE_CHOICE, SHORT_TEXT, KEYWORD, PARTICIPATION.
+
             Rules:
-            - Write each prompt primarily in very simple Gujarati.
-            - Ask only questions whose answer is ONE integer.
-            - Keep numbers and difficulty appropriate for Standard 2 and the concept.
-            - Do not reveal the answer inside the prompt.
-            - Do not use outside facts not supported by the concept/book context.
-            - Do not ask for personal information or send the child anywhere.
-            - activityType must be QUESTION, RIDDLE, STORY, or BOOK_LOOK.
+            - Write prompts primarily in very simple Gujarati, one instruction/question at a time.
+            - Ground factual/book questions only in the supplied concept and prepared page text.
+            - Prefer variety. For $targetCount >= 5 include at least one PARTICIPATION activity and at least one locally assessable activity.
+            - NUMERIC: expectedAnswer must contain the integer answer. Other answer fields may be empty.
+            - MULTIPLE_CHOICE: provide 2-4 optionsGujarati and put the correct displayed option in expectedText and acceptedAnswers.
+            - SHORT_TEXT: expectedText plus a small acceptedAnswers list containing only clearly equivalent short answers.
+            - KEYWORD: acceptedAnswers contains 1-4 short required keywords/phrases.
+            - PARTICIPATION: use for STORY exploration, BOOK_LOOK without a check, PHYSICAL_MISSION, DRAW, TEACH_MITRA, or RECAP.
+              Set expectedAnswer=0 and answer lists/text empty.
+            - For PHYSICAL_MISSION, give only a topic-level request. The app replaces it with a local safety-approved instruction.
+            - Never ask the child to go outside, climb, use appliances/tools/medicine/electricity, contact strangers, share personal data, or keep secrets.
+            - hintGujarati must be a small hint, never a full answer. It may be empty for participation activities.
+            - completionButtonGujarati should be a short Gujarati action label, e.g. “થઈ ગયું”, “સમજાવી દીધું”.
+            - sourcePage is the relevant PDF page number when known, otherwise 0.
+            - Do not reveal answers in the prompt.
         """.trimIndent()
 
         val structured = createStructuredResponse(
-            schemaName = "mitra_practice",
+            schemaName = "mitra_activities",
             schema = OpenAiSchemas.practiceQuestions,
             prompt = prompt,
             pages = emptyList(),
-            maxOutputTokens = 2500,
+            maxOutputTokens = 4000,
         )
-        val questions = structured.array("questions").mapNotNull { element ->
+        val activities = structured.array("activities").mapNotNull { element ->
             val item = element as? JsonObject ?: return@mapNotNull null
             val text = item.string("promptGujarati").orEmpty().trim()
-            val answer = item.int("expectedAnswer") ?: return@mapNotNull null
             if (text.isBlank()) return@mapNotNull null
+
+            val activityType = item.string("activityType")
+                ?.let { raw -> runCatching { ActivityType.valueOf(raw) }.getOrNull() }
+                ?: ActivityType.QUESTION
+            val evaluationMode = item.string("evaluationMode")
+                ?.let { raw -> runCatching { EvaluationMode.valueOf(raw) }.getOrNull() }
+                ?: EvaluationMode.PARTICIPATION
+            val expectedAnswer = item.int("expectedAnswer")
+                ?.takeIf { evaluationMode == EvaluationMode.NUMERIC }
+            val expectedText = item.string("expectedText")?.trim()?.takeIf { it.isNotBlank() }
+            val acceptedAnswers = item.stringList("acceptedAnswers").map { it.trim() }.filter { it.isNotBlank() }.take(6)
+            val options = item.stringList("optionsGujarati").map { it.trim() }.filter { it.isNotBlank() }.take(4)
+            val safeMode = when {
+                evaluationMode == EvaluationMode.NUMERIC && expectedAnswer == null -> EvaluationMode.PARTICIPATION
+                evaluationMode == EvaluationMode.MULTIPLE_CHOICE && (expectedText == null || options.size < 2) -> EvaluationMode.PARTICIPATION
+                evaluationMode in setOf(EvaluationMode.SHORT_TEXT, EvaluationMode.KEYWORD) && expectedText == null && acceptedAnswers.isEmpty() -> EvaluationMode.PARTICIPATION
+                else -> evaluationMode
+            }
+
             LearningQuestion(
                 id = item.string("id").orEmpty().ifBlank { "ai-${text.hashCode()}" },
                 promptGujarati = text,
-                expectedAnswer = answer,
-                activityType = item.string("activityType").orEmpty().ifBlank { "QUESTION" },
+                expectedAnswer = expectedAnswer,
+                activityType = activityType.name,
+                evaluationMode = safeMode,
+                expectedText = expectedText,
+                acceptedAnswers = acceptedAnswers,
+                optionsGujarati = options,
+                hintGujarati = item.string("hintGujarati")?.trim()?.takeIf { it.isNotBlank() },
+                completionButtonGujarati = item.string("completionButtonGujarati")?.trim().orEmpty().ifBlank { "થઈ ગયું" },
+                sourcePage = item.int("sourcePage")?.takeIf { it > 0 },
             )
-        }.take(count.coerceAtLeast(1))
-        require(questions.isNotEmpty()) { "AI returned no usable practice questions" }
-        return questions
+        }.take(targetCount)
+        require(activities.isNotEmpty()) { "AI returned no usable learning activities" }
+        return activities
     }
 
-    override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int): String = localFeedback(result, expectedAnswer)
+    override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String = localFeedback(result, expectedAnswer)
 
     suspend fun testConnection(): String {
         val root = OpenAiResponseParser.parseRoot(
@@ -263,9 +307,9 @@ class OpenAiGateway(
         "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(bytes)
 
     companion object {
-        fun localFeedback(result: AttemptResult, expectedAnswer: Int): String = when (result) {
+        fun localFeedback(result: AttemptResult, expectedAnswer: Int?): String = when (result) {
             AttemptResult.CORRECT -> "હા! સાચું. તમે કેવી રીતે શોધ્યું તે યાદ રાખજો."
-            AttemptResult.INCORRECT -> "ફરી વિચારીએ. વસ્તુઓ ગણીને અથવા આંગળીઓથી અજમાવો. સાચો જવાબ $expectedAnswer છે."
+            AttemptResult.INCORRECT -> "ફરી વિચારીએ. વસ્તુઓ ગણીને અથવા આંગળીઓથી અજમાવો." + (expectedAnswer?.let { " સાચો જવાબ $it છે." } ?: "")
             AttemptResult.PARTIAL -> "લગભગ સાચું. એક વાર ફરી ધીમે વિચારીએ."
             AttemptResult.SKIPPED -> "ઠીક છે. આ પ્રશ્ન પછી ફરી અજમાવીશું."
             AttemptResult.UNKNOWN -> "ચાલો આ પ્રશ્ન ફરીથી અજમાવીએ."
@@ -277,3 +321,7 @@ private fun JsonObject.array(name: String): JsonArray = this[name] as? JsonArray
 private fun JsonObject.string(name: String): String? = (this[name] as? JsonPrimitive)?.contentOrNull
 private fun JsonObject.int(name: String): Int? = (this[name] as? JsonPrimitive)?.intOrNull
 private fun JsonObject.boolean(name: String): Boolean? = (this[name] as? JsonPrimitive)?.booleanOrNull
+private fun JsonObject.stringList(name: String): List<String> {
+    val array = this[name] as? JsonArray ?: return emptyList()
+    return array.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
+}

@@ -2,63 +2,34 @@
 
 A local-first Android learning companion for one Standard 2 Gujarati-medium child.
 
-## What is implemented
+## Current version — Milestone 6 (0.6.0)
 
-### Milestone 1
-- First launch parent PIN.
-- Child and PIN-protected parent areas.
-- Add PDF books through Android document picker.
-- Copy PDF into app-private storage.
-- SHA-256 duplicate detection.
-- Room book library.
-- Local `PdfRenderer` viewer.
-- Remove a book and its private files.
+Mitra now supports the full local-first path from PDF books to richer child learning sessions:
 
-### Milestone 2
-- Room v1 → v2 migration that preserves existing books.
-- Local curriculum/concept storage.
-- Concept prerequisite model.
-- Per-concept mastery tracking.
-- Learning sessions and attempt history.
-- Deterministic concept selection controlled by the app.
-- Deterministic numeric answer evaluation, including Gujarati digits and common Gujarati number words.
-- `AiGateway` abstraction plus `MockAiGateway`; no network/API key is required.
-- Five built-in Standard 2 maths concepts for exercising the engine until book analysis is added.
-- Child **રમીએ** flow with five-question Gujarati practice sessions.
+- Parent PIN and separate child/parent areas.
+- Private PDF import, SHA-256 duplicate detection and local PDF viewer.
+- Room curriculum, concepts, prerequisites, mastery, sessions and attempts.
+- Gujarati push-to-talk and Gujarati TTS with text fallback.
+- Parent-reviewed chapter detection and manual chapter editing.
+- Real optional OpenAI textbook page analysis through a replaceable `AiGateway`.
+- Book-grounded activity generation from locally cached page knowledge.
+- Numeric questions, multiple choice, short text, keyword checks, riddles, reading, vocabulary, stories, book-look, drawing, physical missions, Teach-Mitra and recap activities.
+- Hints that reduce mastery gain on assessed answers.
+- Participation-only activities recorded without changing mastery.
+- Local safety replacement for physical/drawing instructions.
+- Automatic off-screen activity injection for longer sessions.
+- No Firebase, Supabase, PostgreSQL, account system, browser, feed, ads or social features.
 
-### Milestone 3
-- Gujarati push-to-talk using Android `SpeechRecognizer`.
-- Runtime microphone permission handling.
-- Gujarati `TextToSpeech` using `gu-IN` when supported by the phone.
-- Questions and feedback are spoken automatically.
-- Current question can be replayed with **ફરી સાંભળો**.
-- Child can hold the microphone control and speak the answer.
-- Recognized speech is submitted to the same deterministic learning engine.
-- Partial recognition text is visible while listening.
-- Spoken **બસ / બંધ / રોકો** stops the session.
-- Text answer entry remains available at all times as fallback.
-- Voice features live behind replaceable `SpeechInput` / `SpeechOutput` interfaces.
-- Unit tests cover spoken answer submission and spoken stop behavior.
+## Important Milestone 6 note
 
-### Milestone 4 — current
-- CI compatibility fix (0.4.1): scoped Compose `weight` imports corrected and `SpeechInput.stopListening()` now explicitly satisfies the `suspend Unit` contract.
-- Room v2 → v3 migration preserving existing data.
-- Table-of-contents/index page selection with PDF preview.
-- Chapter detection behind `AiGateway` plus full manual editing fallback.
-- Local chapter entities and preparation status.
-- Page-knowledge cache and book-derived concepts.
-- Prepare chapters in small page chunks rather than repeatedly processing the entire PDF.
-- Book-derived concepts are currently saved with `practiceReady = false` while `MockAiGateway` is active, preventing fake textbook questions.
-- Removing a book also removes its local chapter/page/concept analysis.
-
-No remote AI/API key is required yet. Milestone 4 uses clearly-labelled mock analysis to validate the complete book-preparation pipeline.
+Milestone 5 marked reading/vocabulary/open-ended concepts `practiceReady=false` because only integer evaluation existed then. After upgrading to 0.6.0, use **Prepare again** on a textbook chapter to let the new analysis rules enable appropriate language/story concepts.
 
 ## Build online with GitHub
 
-1. Create/update a private GitHub repository with this project.
+1. Update your private GitHub repository with this project.
 2. Push to `main`.
-3. Open the **Actions** tab and run **Android build**.
-4. Download the `mitra-debug-apk` artifact from the completed workflow.
+3. Open **Actions** and run **Android build**.
+4. Download the `mitra-debug-apk` artifact.
 5. Install `app-debug.apk` over the existing Mitra APK.
 
 The workflow runs:
@@ -69,22 +40,21 @@ gradle lintDebug
 gradle assembleDebug
 ```
 
-## Develop in Codespaces
+## Recommended physical-device test
 
-The included `.devcontainer` installs Java 17, Gradle and Android SDK 35. Codex can run the same Gradle checks from the browser workspace.
+1. Upgrade over 0.5.1; do not uninstall first.
+2. Confirm existing books/PIN/progress remain.
+3. In Parent Mode, configure/test the AI provider if not already configured.
+4. Open one real textbook chapter and press **Prepare again**.
+5. Start **રમીએ**.
+6. Verify mixed activities appear, including a locally assessed question and an exploration/off-screen activity.
+7. Use **સંકેત** on an assessed question.
+8. Try a multiple-choice activity.
+9. Complete a physical/drawing/Teach-Mitra activity and confirm it advances without claiming a correct answer.
+10. Say **બસ** and confirm immediate exit still works.
 
-## Voice testing checklist
+## Privacy/runtime boundary
 
-Use a physical Android phone when possible:
+Books, prepared knowledge, progress and settings remain on the phone. Remote AI receives only the parent-selected book material/context required for analysis/activity generation. Child microphone recordings, child answer transcripts, mastery and session history are not sent to the remote model.
 
-1. Start **રમીએ**.
-2. Confirm the question is spoken in Gujarati if Gujarati TTS is installed.
-3. Hold the microphone control and say a numeric answer such as **પાંચ**.
-4. Confirm the recognized text appears and the answer is evaluated.
-5. Say **બસ** and confirm the session exits.
-6. Deny microphone permission and confirm typed answers still work.
-7. Disable network temporarily and verify the learning session/text fallback still works.
-
-## Next milestone
-
-Milestone 5 should connect a real parent-configured AI provider to the existing `AiGateway` for textbook image understanding and grounded tutoring, while keeping the local learning engine in control of mastery and curriculum.
+A parent-entered API key inside a mobile APK is only appropriate for this private development/personal-use setup; do not publish an APK containing or depending on a shared client-side secret.

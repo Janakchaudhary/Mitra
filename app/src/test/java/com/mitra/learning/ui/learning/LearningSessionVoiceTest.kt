@@ -141,6 +141,17 @@ class LearningSessionVoiceTest {
             )
         }
 
+        override suspend fun completeParticipation(
+            sessionId: String,
+            conceptId: String,
+            question: LearningQuestion,
+        ): AnswerFeedback = AnswerFeedback(
+            result = AttemptResult.UNKNOWN,
+            messageGujarati = "સરસ.",
+            expectedAnswer = null,
+            mastery = 0f,
+        )
+
         override suspend fun skipQuestion(
             sessionId: String,
             conceptId: String,

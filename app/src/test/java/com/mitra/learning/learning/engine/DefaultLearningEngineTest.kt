@@ -10,11 +10,11 @@ import com.mitra.learning.data.db.entity.SessionEntity
 import com.mitra.learning.data.db.entity.SessionStatus
 import com.mitra.learning.data.repository.LearningRepository
 import com.mitra.learning.learning.curriculum.BuiltInCurriculum
+import com.mitra.learning.learning.model.EvaluationMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class DefaultLearningEngineTest {
@@ -51,8 +51,24 @@ class DefaultLearningEngineTest {
         val summary = engine.completeSession(plan.sessionId, plan.concept.titleGujarati)
 
         assertEquals(1, summary.correct)
+        assertEquals(1, summary.assessed)
         assertEquals(SessionStatus.COMPLETED, repo.sessions[plan.sessionId]?.status)
         assertEquals(10, repo.sessions[plan.sessionId]?.durationSeconds)
+    }
+
+    @Test
+    fun participationIsRecordedWithoutIncreasingMastery() = runTest {
+        val repo = FakeLearningRepository()
+        val engine = DefaultLearningEngine(repo, MockAiGateway(), now = { 1_000L })
+        val plan = requireNotNull(engine.startSession(questionCount = 6))
+        val activity = plan.questions.first { it.evaluationMode == EvaluationMode.PARTICIPATION }
+
+        val feedback = engine.completeParticipation(plan.sessionId, plan.concept.id, activity)
+
+        assertEquals(AttemptResult.UNKNOWN, feedback.result)
+        assertEquals(0f, feedback.mastery, 0.0001f)
+        assertEquals(0, repo.masteries[plan.concept.id]?.totalAttempts)
+        assertEquals(1, repo.attempts.size)
     }
 }
 

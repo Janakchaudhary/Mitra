@@ -1,0 +1,7 @@
+cd C:\Users\Janak\Downloads\mitra-android-milestone1\mitra-android
+
+git remote -v
+git add -A
+git commit -m "Replace old project with new Android project"
+git fetch origin
+git push --force-with-lease -u origin main
