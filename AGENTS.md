@@ -12,7 +12,9 @@ Read `ARCHITECTURE.md` before architectural changes.
 - Do not embed cloud API secrets in source or BuildConfig.
 - `LearningEngine` controls curriculum, answer evaluation and mastery.
 - `AiGateway` controls presentation/content only; it must never assign mastery.
-- `MockAiGateway` must keep Milestone 2 usable without internet.
+- `MockAiGateway` must keep learning sessions usable without internet.
+- Voice input/output must remain replaceable behind `SpeechInput` and `SpeechOutput`.
+- Text answer entry must continue working when voice is unavailable or permission is denied.
 
 ## Development process
 Implement one milestone at a time. For every milestone:
@@ -25,9 +27,16 @@ Implement one milestone at a time. For every milestone:
 7. Preserve Room data with explicit migrations; never use destructive migration in release behavior.
 
 ## Current scope
-Milestone 2 is implemented: local curriculum/concepts/prerequisites, mastery, sessions, attempts, learning engine, deterministic numeric evaluation, `AiGateway` + `MockAiGateway`, and a text-based Gujarati practice session.
+Milestone 3 is implemented: local curriculum/mastery/session logic plus push-to-talk Gujarati speech recognition and Gujarati TTS with text fallback.
 
-Verify Milestone 2 is green before beginning Milestone 3.
+Before starting another milestone, verify Milestone 3 is green in GitHub Actions and on a physical Android device.
 
-## Next scope — Milestone 3 only
-Add push-to-talk Gujarati speech input/output behind interfaces. Keep text entry working as fallback. Do not add remote AI or book analysis in Milestone 3.
+## Next scope — Milestone 4 only
+Implement book understanding behind `AiGateway`:
+- table-of-contents page selection
+- editable chapter structure
+- chapter preparation
+- page knowledge
+- concept extraction
+
+Do not add continuous/full-duplex voice or a parent analytics dashboard in Milestone 4.

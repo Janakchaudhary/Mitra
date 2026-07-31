@@ -12,6 +12,10 @@ import com.mitra.learning.data.repository.LocalLearningRepository
 import com.mitra.learning.learning.engine.DefaultLearningEngine
 import com.mitra.learning.learning.engine.LearningEngine
 import com.mitra.learning.security.ParentPinRepository
+import com.mitra.learning.voice.AndroidSpeechInput
+import com.mitra.learning.voice.AndroidSpeechOutput
+import com.mitra.learning.voice.SpeechInput
+import com.mitra.learning.voice.SpeechOutput
 
 class AppContainer(context: Context) {
     private val appContext = context.applicationContext
@@ -33,6 +37,9 @@ class AppContainer(context: Context) {
     )
 
     val aiGateway: AiGateway = MockAiGateway()
+
+    val speechInput: SpeechInput = AndroidSpeechInput(appContext)
+    val speechOutput: SpeechOutput = AndroidSpeechOutput(appContext)
 
     val learningEngine: LearningEngine = DefaultLearningEngine(
         repository = learningRepository,

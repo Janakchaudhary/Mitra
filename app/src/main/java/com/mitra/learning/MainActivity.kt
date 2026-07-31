@@ -97,7 +97,13 @@ private fun MitraNav(container: AppContainer) {
         }
         composable(Routes.Learning) {
             val vm: LearningSessionViewModel = viewModel(
-                factory = simpleViewModelFactory { LearningSessionViewModel(container.learningEngine) }
+                factory = simpleViewModelFactory {
+                    LearningSessionViewModel(
+                        engine = container.learningEngine,
+                        speechInput = container.speechInput,
+                        speechOutput = container.speechOutput,
+                    )
+                }
             )
             val state by vm.state.collectAsStateWithLifecycle()
             LearningSessionScreen(
@@ -106,6 +112,10 @@ private fun MitraNav(container: AppContainer) {
                 onSubmit = vm::submit,
                 onSkip = vm::skip,
                 onNext = vm::next,
+                onStartVoice = vm::startVoiceInput,
+                onStopVoice = vm::stopVoiceInput,
+                onMicPermissionDenied = vm::onMicrophonePermissionDenied,
+                onReplayPrompt = vm::replayPrompt,
                 onStop = { vm.stop { nav.popBackStack() } },
                 onDone = { nav.popBackStack() },
             )
