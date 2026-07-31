@@ -10,7 +10,9 @@ Read `ARCHITECTURE.md` before architectural changes.
 - Imported PDFs are copied into `files/books/{bookId}/source.pdf`.
 - Parent-only configuration is PIN protected.
 - Do not embed cloud API secrets in source or BuildConfig.
-- Learning engine controls curriculum; AI will later control only conversational presentation.
+- `LearningEngine` controls curriculum, answer evaluation and mastery.
+- `AiGateway` controls presentation/content only; it must never assign mastery.
+- `MockAiGateway` must keep Milestone 2 usable without internet.
 
 ## Development process
 Implement one milestone at a time. For every milestone:
@@ -20,7 +22,12 @@ Implement one milestone at a time. For every milestone:
 4. Run `gradle lintDebug`.
 5. Run `gradle assembleDebug`.
 6. Do not disable tests or lint just to make builds pass.
+7. Preserve Room data with explicit migrations; never use destructive migration in release behavior.
 
 ## Current scope
-Milestone 1 only: parent PIN, child/parent navigation, PDF import, private copy, SHA-256 duplicate detection, Room book library, PDF viewer, delete book.
-Do not implement AI or voice yet.
+Milestone 2 is implemented: local curriculum/concepts/prerequisites, mastery, sessions, attempts, learning engine, deterministic numeric evaluation, `AiGateway` + `MockAiGateway`, and a text-based Gujarati practice session.
+
+Verify Milestone 2 is green before beginning Milestone 3.
+
+## Next scope — Milestone 3 only
+Add push-to-talk Gujarati speech input/output behind interfaces. Keep text entry working as fallback. Do not add remote AI or book analysis in Milestone 3.

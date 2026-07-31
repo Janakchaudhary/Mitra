@@ -10,7 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -23,6 +23,7 @@ import androidx.compose.ui.unit.dp
 
 @Composable
 fun ChildHomeScreen(
+    onPlay: () -> Unit,
     onBooks: () -> Unit,
     onParent: () -> Unit,
 ) {
@@ -35,9 +36,9 @@ fun ChildHomeScreen(
         Text("મિત્ર", style = MaterialTheme.typography.displayMedium)
         Text("શીખો • રમો • શોધો", style = MaterialTheme.typography.titleMedium)
         Spacer(Modifier.height(32.dp))
-        Button(onClick = {}, enabled = false, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.Mic, contentDescription = null)
-            Text("  રમીએ — coming in Milestone 3")
+        Button(onClick = onPlay, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.PlayArrow, contentDescription = null)
+            Text("  રમીએ")
         }
         Spacer(Modifier.height(12.dp))
         Button(onClick = onBooks, modifier = Modifier.fillMaxWidth()) {

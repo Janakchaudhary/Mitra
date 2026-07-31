@@ -28,6 +28,8 @@ import com.mitra.learning.ui.books.BookListViewModel
 import com.mitra.learning.ui.books.PdfViewerScreen
 import com.mitra.learning.ui.books.PdfViewerViewModel
 import com.mitra.learning.ui.child.ChildHomeScreen
+import com.mitra.learning.ui.learning.LearningSessionScreen
+import com.mitra.learning.ui.learning.LearningSessionViewModel
 import com.mitra.learning.ui.child.ChildBookListScreen
 import com.mitra.learning.ui.common.simpleViewModelFactory
 import com.mitra.learning.ui.parent.ParentHomeScreen
@@ -51,6 +53,7 @@ private object Routes {
     const val Setup = "setup"
     const val Child = "child"
     const val ChildBooks = "child/books"
+    const val Learning = "child/learning"
     const val ParentPin = "parent-pin"
     const val Parent = "parent"
     const val Books = "books"
@@ -87,8 +90,24 @@ private fun MitraNav(container: AppContainer) {
         }
         composable(Routes.Child) {
             ChildHomeScreen(
+                onPlay = { nav.navigate(Routes.Learning) },
                 onBooks = { nav.navigate(Routes.ChildBooks) },
                 onParent = { nav.navigate(Routes.ParentPin) },
+            )
+        }
+        composable(Routes.Learning) {
+            val vm: LearningSessionViewModel = viewModel(
+                factory = simpleViewModelFactory { LearningSessionViewModel(container.learningEngine) }
+            )
+            val state by vm.state.collectAsStateWithLifecycle()
+            LearningSessionScreen(
+                state = state,
+                onAnswerChange = vm::updateAnswer,
+                onSubmit = vm::submit,
+                onSkip = vm::skip,
+                onNext = vm::next,
+                onStop = { vm.stop { nav.popBackStack() } },
+                onDone = { nav.popBackStack() },
             )
         }
         composable(Routes.ChildBooks) {

@@ -5,24 +5,126 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
+import com.mitra.learning.data.db.dao.AttemptDao
 import com.mitra.learning.data.db.dao.BookDao
+import com.mitra.learning.data.db.dao.ConceptDao
+import com.mitra.learning.data.db.dao.MasteryDao
+import com.mitra.learning.data.db.dao.SessionDao
+import com.mitra.learning.data.db.entity.AttemptEntity
 import com.mitra.learning.data.db.entity.BookEntity
+import com.mitra.learning.data.db.entity.ConceptEntity
+import com.mitra.learning.data.db.entity.ConceptPrerequisiteEntity
+import com.mitra.learning.data.db.entity.MasteryEntity
+import com.mitra.learning.data.db.entity.SessionEntity
 
 @Database(
-    entities = [BookEntity::class],
-    version = 1,
+    entities = [
+        BookEntity::class,
+        ConceptEntity::class,
+        ConceptPrerequisiteEntity::class,
+        MasteryEntity::class,
+        SessionEntity::class,
+        AttemptEntity::class,
+    ],
+    version = 2,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
 abstract class MitraDatabase : RoomDatabase() {
     abstract fun bookDao(): BookDao
+    abstract fun conceptDao(): ConceptDao
+    abstract fun masteryDao(): MasteryDao
+    abstract fun sessionDao(): SessionDao
+    abstract fun attemptDao(): AttemptDao
 
     companion object {
+        private val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS concepts (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        subject TEXT NOT NULL,
+                        standard INTEGER NOT NULL,
+                        language TEXT NOT NULL,
+                        titleGujarati TEXT NOT NULL,
+                        titleEnglish TEXT,
+                        descriptionGujarati TEXT NOT NULL,
+                        difficulty INTEGER NOT NULL,
+                        expectedLearningOutcome TEXT NOT NULL,
+                        sortOrder INTEGER NOT NULL,
+                        builtIn INTEGER NOT NULL,
+                        bookId TEXT,
+                        chapterId TEXT,
+                        sourcePageStart INTEGER,
+                        sourcePageEnd INTEGER
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_concepts_bookId ON concepts(bookId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_concepts_subject ON concepts(subject)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS concept_prerequisites (
+                        conceptId TEXT NOT NULL,
+                        prerequisiteConceptId TEXT NOT NULL,
+                        PRIMARY KEY(conceptId, prerequisiteConceptId)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS mastery (
+                        conceptId TEXT NOT NULL PRIMARY KEY,
+                        mastery REAL NOT NULL,
+                        totalAttempts INTEGER NOT NULL,
+                        correctAttempts INTEGER NOT NULL,
+                        hintCount INTEGER NOT NULL,
+                        lastPracticedAt INTEGER,
+                        lastSuccessAt INTEGER
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS learning_sessions (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        startedAt INTEGER NOT NULL,
+                        endedAt INTEGER,
+                        primaryConceptId TEXT,
+                        activityCount INTEGER NOT NULL,
+                        durationSeconds INTEGER NOT NULL,
+                        status TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS attempts (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        sessionId TEXT NOT NULL,
+                        conceptId TEXT NOT NULL,
+                        activityType TEXT NOT NULL,
+                        result TEXT NOT NULL,
+                        hintCount INTEGER NOT NULL,
+                        createdAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_attempts_sessionId ON attempts(sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_attempts_conceptId ON attempts(conceptId)")
+            }
+        }
+
         fun create(context: Context): MitraDatabase =
             Room.databaseBuilder(
                 context,
                 MitraDatabase::class.java,
                 "mitra.db",
-            ).build()
+            )
+                .addMigrations(MIGRATION_1_2)
+                .build()
     }
 }

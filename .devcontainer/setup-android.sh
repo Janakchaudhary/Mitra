@@ -9,9 +9,12 @@ if ! command -v gradle >/dev/null 2>&1; then
   if [ ! -s "$HOME/.sdkman/bin/sdkman-init.sh" ]; then
     curl -fsSL https://get.sdkman.io | bash
   fi
+  # SDKMAN init references unset variables, so temporarily disable nounset.
+  set +u
   # shellcheck disable=SC1091
   source "$HOME/.sdkman/bin/sdkman-init.sh"
   sdk install gradle "$GRADLE_VERSION" || sdk use gradle "$GRADLE_VERSION"
+  set -u
 fi
 
 mkdir -p "$ANDROID_HOME/cmdline-tools"
