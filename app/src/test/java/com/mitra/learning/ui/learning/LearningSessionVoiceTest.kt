@@ -42,7 +42,8 @@ class LearningSessionVoiceTest {
         assertEquals("૫", engine.lastSubmittedAnswer)
         assertTrue(vm.state.value.awaitingNext)
         assertEquals(AttemptResult.CORRECT, vm.state.value.lastResult)
-        assertTrue(output.spoken.contains("સાચું"))
+        // Tutor feedback may include friendly Gujarati around the keyword (for example, "હા! સાચું.").
+        assertTrue(output.spoken.any { it.contains("સાચું") })
     }
 
     @Test
