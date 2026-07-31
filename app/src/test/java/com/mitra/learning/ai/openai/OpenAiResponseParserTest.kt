@@ -1,31 +1,43 @@
 package com.mitra.learning.ai.openai
 
+import kotlinx.serialization.json.buildJsonArray
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class OpenAiResponseParserTest {
     @Test
     fun extractsStructuredOutputText() {
-        val body = """
-            {
-              "id":"resp_123",
-              "output":[
-                {
-                  "type":"message",
-                  "content":[
-                    {
-                      "type":"output_text",
-                      "text":"{\\"chapters\\":[{\\"chapterNumber\\":1}]}"
-                    }
-                  ]
-                }
-              ]
-            }
-        """.trimIndent()
+        val structuredText = """{"chapters":[{"chapterNumber":1}]}"""
+        val body = buildJsonObject {
+            put("id", "resp_123")
+            put("output", buildJsonArray {
+                add(buildJsonObject {
+                    put("type", "message")
+                    put("content", buildJsonArray {
+                        add(buildJsonObject {
+                            put("type", "output_text")
+                            put("text", structuredText)
+                        })
+                    })
+                })
+            })
+        }.toString()
 
         val structured = OpenAiResponseParser.parseStructuredText(body)
         val chapters = structured["chapters"].toString()
         assertEquals("[{\"chapterNumber\":1}]", chapters)
+    }
+
+    @Test
+    fun extractsConvenienceOutputText() {
+        val body = buildJsonObject {
+            put("output_text", """{"chapters":[{"chapterNumber":2}]}""")
+        }.toString()
+
+        val structured = OpenAiResponseParser.parseStructuredText(body)
+        assertEquals("[{\"chapterNumber\":2}]", structured["chapters"].toString())
     }
 
     @Test

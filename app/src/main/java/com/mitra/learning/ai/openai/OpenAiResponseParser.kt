@@ -14,6 +14,13 @@ object OpenAiResponseParser {
         ?: error("AI response was not a JSON object")
 
     fun outputText(root: JsonObject): String {
+        // Some clients/adapters may expose the convenience field directly.
+        (root["output_text"] as? JsonPrimitive)
+            ?.contentOrNull
+            ?.takeIf { it.isNotBlank() }
+            ?.let { return it }
+
+        // Canonical Responses API shape: output[] -> message -> content[] -> output_text.text
         val output = root["output"] as? JsonArray ?: error("AI response has no output")
         output.forEach { item ->
             val itemObject = item as? JsonObject ?: return@forEach
