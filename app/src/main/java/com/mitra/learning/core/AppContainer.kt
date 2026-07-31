@@ -3,10 +3,13 @@ package com.mitra.learning.core
 import android.content.Context
 import com.mitra.learning.ai.AiGateway
 import com.mitra.learning.ai.MockAiGateway
+import com.mitra.learning.books.analysis.BookPreparationService
 import com.mitra.learning.books.pdf.AndroidPdfPageRenderer
 import com.mitra.learning.data.db.MitraDatabase
+import com.mitra.learning.data.repository.BookKnowledgeRepository
 import com.mitra.learning.data.repository.BookRepository
 import com.mitra.learning.data.repository.LearningRepository
+import com.mitra.learning.data.repository.LocalBookKnowledgeRepository
 import com.mitra.learning.data.repository.LocalBookRepository
 import com.mitra.learning.data.repository.LocalLearningRepository
 import com.mitra.learning.learning.engine.DefaultLearningEngine
@@ -23,10 +26,17 @@ class AppContainer(context: Context) {
     val database: MitraDatabase = MitraDatabase.create(appContext)
     val pdfRenderer = AndroidPdfPageRenderer()
 
+    val bookKnowledgeRepository: BookKnowledgeRepository = LocalBookKnowledgeRepository(
+        chapterDao = database.chapterDao(),
+        pageKnowledgeDao = database.pageKnowledgeDao(),
+        conceptDao = database.conceptDao(),
+    )
+
     val bookRepository: BookRepository = LocalBookRepository(
         context = appContext,
         bookDao = database.bookDao(),
         pdfRenderer = pdfRenderer,
+        knowledgeRepository = bookKnowledgeRepository,
     )
 
     val learningRepository: LearningRepository = LocalLearningRepository(
@@ -37,6 +47,14 @@ class AppContainer(context: Context) {
     )
 
     val aiGateway: AiGateway = MockAiGateway()
+
+    val bookPreparationService = BookPreparationService(
+        bookRepository = bookRepository,
+        knowledgeRepository = bookKnowledgeRepository,
+        bookDao = database.bookDao(),
+        pdfRenderer = pdfRenderer,
+        aiGateway = aiGateway,
+    )
 
     val speechInput: SpeechInput = AndroidSpeechInput(appContext)
     val speechOutput: SpeechOutput = AndroidSpeechOutput(appContext)

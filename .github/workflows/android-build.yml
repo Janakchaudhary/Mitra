@@ -6,23 +6,52 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    # Pin the runner image so the Android SDK baseline is predictable.
+    runs-on: ubuntu-24.04
 
-      - uses: actions/setup-java@v4
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v6
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: android-actions/setup-android@v3
+      # GitHub's Ubuntu 24.04 runner already includes Android command-line tools,
+      # ANDROID_HOME, Android 35, and Build Tools 35.0.0. Install only if a
+      # future runner image does not contain the versions this project needs.
+      - name: Ensure Android SDK 35
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          test -x "$SDKMANAGER"
 
-      - name: Install Android SDK
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          PACKAGES=()
+          if [ ! -d "$ANDROID_HOME/platforms/android-35" ]; then
+            PACKAGES+=("platforms;android-35")
+          fi
+          if [ ! -d "$ANDROID_HOME/build-tools/35.0.0" ]; then
+            PACKAGES+=("build-tools;35.0.0")
+          fi
 
-      - uses: gradle/actions/setup-gradle@v4
+          if [ ${#PACKAGES[@]} -gt 0 ]; then
+            "$SDKMANAGER" "${PACKAGES[@]}"
+          fi
+
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          test -d "$ANDROID_HOME/platforms/android-35"
+          test -d "$ANDROID_HOME/build-tools/35.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.11.1'
 
@@ -36,7 +65,8 @@ jobs:
         run: gradle assembleDebug
 
       - name: Upload APK
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mitra-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error

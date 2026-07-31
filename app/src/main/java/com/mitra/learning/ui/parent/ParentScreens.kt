@@ -65,7 +65,7 @@ fun ParentHomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Parent dashboard", style = MaterialTheme.typography.headlineLarge)
-        Text("Milestone 2 — books + local learning engine")
+        Text("Milestone 4 — books + voice + chapter preparation")
         Button(onClick = onBooks, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.MenuBook, contentDescription = null)
             Text("  My books")

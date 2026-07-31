@@ -22,7 +22,7 @@ class LocalLearningRepository(
 
     override fun observeMastery(): Flow<List<MasteryEntity>> = masteryDao.observeAll()
 
-    override suspend fun getConcepts(): List<ConceptEntity> = conceptDao.getAll()
+    override suspend fun getConcepts(): List<ConceptEntity> = conceptDao.getPracticeReady()
 
     override suspend fun getPrerequisites(): List<ConceptPrerequisiteEntity> = conceptDao.getPrerequisites()
 

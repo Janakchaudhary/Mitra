@@ -18,7 +18,7 @@ object ConceptSelector {
         val masteryById = mastery.associateBy { it.conceptId }
         val prereqByConcept = prerequisites.groupBy { it.conceptId }
 
-        val eligible = concepts.filter { concept ->
+        val eligible = concepts.filter { it.practiceReady }.filter { concept ->
             prereqByConcept[concept.id].orEmpty().all { link ->
                 (masteryById[link.prerequisiteConceptId]?.mastery ?: 0f) >= prerequisiteThreshold
             }

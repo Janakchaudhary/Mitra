@@ -3,6 +3,7 @@ package com.mitra.learning.data.db
 import androidx.room.TypeConverter
 import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.data.db.entity.BookAnalysisStatus
+import com.mitra.learning.data.db.entity.ChapterAnalysisStatus
 import com.mitra.learning.data.db.entity.SessionStatus
 
 class Converters {
@@ -11,6 +12,12 @@ class Converters {
 
     @TypeConverter
     fun toAnalysisStatus(value: String): BookAnalysisStatus = BookAnalysisStatus.valueOf(value)
+
+    @TypeConverter
+    fun fromChapterAnalysisStatus(value: ChapterAnalysisStatus): String = value.name
+
+    @TypeConverter
+    fun toChapterAnalysisStatus(value: String): ChapterAnalysisStatus = ChapterAnalysisStatus.valueOf(value)
 
     @TypeConverter
     fun fromSessionStatus(value: SessionStatus): String = value.name

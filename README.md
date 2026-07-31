@@ -26,7 +26,7 @@ A local-first Android learning companion for one Standard 2 Gujarati-medium chil
 - Five built-in Standard 2 maths concepts for exercising the engine until book analysis is added.
 - Child **રમીએ** flow with five-question Gujarati practice sessions.
 
-### Milestone 3 — current
+### Milestone 3
 - Gujarati push-to-talk using Android `SpeechRecognizer`.
 - Runtime microphone permission handling.
 - Gujarati `TextToSpeech` using `gu-IN` when supported by the phone.
@@ -40,7 +40,18 @@ A local-first Android learning companion for one Standard 2 Gujarati-medium chil
 - Voice features live behind replaceable `SpeechInput` / `SpeechOutput` interfaces.
 - Unit tests cover spoken answer submission and spoken stop behavior.
 
-No remote AI/API key is required yet.
+### Milestone 4 — current
+- CI compatibility fix (0.4.1): scoped Compose `weight` imports corrected and `SpeechInput.stopListening()` now explicitly satisfies the `suspend Unit` contract.
+- Room v2 → v3 migration preserving existing data.
+- Table-of-contents/index page selection with PDF preview.
+- Chapter detection behind `AiGateway` plus full manual editing fallback.
+- Local chapter entities and preparation status.
+- Page-knowledge cache and book-derived concepts.
+- Prepare chapters in small page chunks rather than repeatedly processing the entire PDF.
+- Book-derived concepts are currently saved with `practiceReady = false` while `MockAiGateway` is active, preventing fake textbook questions.
+- Removing a book also removes its local chapter/page/concept analysis.
+
+No remote AI/API key is required yet. Milestone 4 uses clearly-labelled mock analysis to validate the complete book-preparation pipeline.
 
 ## Build online with GitHub
 
@@ -76,4 +87,4 @@ Use a physical Android phone when possible:
 
 ## Next milestone
 
-Milestone 4 should implement book understanding: contents-page selection, editable chapter structure, chapter preparation, page knowledge, and concept extraction behind the existing `AiGateway` boundary.
+Milestone 5 should connect a real parent-configured AI provider to the existing `AiGateway` for textbook image understanding and grounded tutoring, while keeping the local learning engine in control of mastery and curriculum.

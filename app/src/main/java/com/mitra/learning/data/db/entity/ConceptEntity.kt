@@ -24,4 +24,5 @@ data class ConceptEntity(
     val chapterId: String?,
     val sourcePageStart: Int?,
     val sourcePageEnd: Int?,
+    val practiceReady: Boolean = true,
 )

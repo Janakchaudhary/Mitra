@@ -16,14 +16,29 @@ interface ConceptDao {
     @Query("SELECT * FROM concepts ORDER BY sortOrder, titleGujarati")
     suspend fun getAll(): List<ConceptEntity>
 
+    @Query("SELECT * FROM concepts WHERE practiceReady = 1 ORDER BY sortOrder, titleGujarati")
+    suspend fun getPracticeReady(): List<ConceptEntity>
+
+    @Query("SELECT * FROM concepts WHERE chapterId = :chapterId ORDER BY sortOrder, titleGujarati")
+    suspend fun forChapter(chapterId: String): List<ConceptEntity>
+
     @Query("SELECT * FROM concepts WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): ConceptEntity?
 
     @Query("SELECT COUNT(*) FROM concepts WHERE builtIn = 1")
     suspend fun builtInCount(): Int
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertAll(concepts: List<ConceptEntity>)
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(concepts: List<ConceptEntity>)
+
+    @Query("DELETE FROM concepts WHERE chapterId = :chapterId")
+    suspend fun deleteForChapter(chapterId: String)
+
+    @Query("DELETE FROM concepts WHERE bookId = :bookId")
+    suspend fun deleteForBook(bookId: String)
 
     @Query("SELECT * FROM concept_prerequisites")
     suspend fun getPrerequisites(): List<ConceptPrerequisiteEntity>

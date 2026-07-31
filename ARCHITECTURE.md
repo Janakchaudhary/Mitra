@@ -17,9 +17,10 @@ The goal is not to maximize screen time. Learning sessions should increasingly d
 - No external database/account/cloud synchronization.
 - `LearningEngine` owns concept selection, evaluation and mastery updates.
 - `AiGateway` is replaceable and must never own curriculum/mastery decisions.
-- Milestone 2 uses `MockAiGateway`, so practice is fully local/offline.
+- `SpeechInput` and `SpeechOutput` isolate Android speech services from session logic.
+- Milestone 4 still uses `MockAiGateway`; remote textbook understanding is not enabled yet.
 
-## Book lifecycle
+## Book lifecycle — Milestone 4
 
 1. Parent unlocks Parent Mode.
 2. Parent chooses a PDF using Android Storage Access Framework.
@@ -27,22 +28,29 @@ The goal is not to maximize screen time. Learning sessions should increasingly d
 4. App computes SHA-256; duplicate hashes are rejected.
 5. App reads page count with `PdfRenderer` and renders a cover thumbnail.
 6. Book metadata is stored in Room.
-7. Future milestones add TOC/chapter analysis incrementally, never mandatory full-book upload.
+7. Parent opens **Set up chapters**.
+8. Parent previews PDF pages and marks one or more contents/index pages.
+9. `BookPreparationService` renders only those pages and calls `AiGateway.analyzeTableOfContents`.
+10. Suggestions become editable `ChapterDraft` objects; parent can also add/remove chapters manually.
+11. Saved chapters are persisted locally. Changed chapter ranges invalidate stale page knowledge/concepts.
+12. Parent prepares one chapter at a time. Pages are rendered in chunks of four and sent through `AiGateway.analyzeChapter`.
+13. Structured page knowledge and concepts are cached in Room.
+14. Book/chapter preparation status is updated locally.
 
-## Learning lifecycle — Milestone 2
+`MockAiGateway` clearly labels its results and creates book concepts with `practiceReady = false`. This lets the full pipeline be tested without pretending the mock provider understood a child's textbook. Milestone 5 can replace the provider and enable validated book concepts without changing the database/session architecture.
+
+## Learning lifecycle
 
 1. Child presses **રમીએ**.
 2. Local built-in curriculum is seeded if needed.
-3. `ConceptSelector` considers prerequisites and mastery.
-4. `LearningEngine` creates a persisted session.
-5. `MockAiGateway` creates five deterministic Gujarati practice questions.
-6. Child types an answer using Gujarati or English digits (common Gujarati number words are also accepted).
-7. App evaluates the answer locally.
-8. Attempt is stored in Room.
-9. `MasteryPolicy` updates mastery; the gateway never writes mastery.
+3. Only `practiceReady` concepts are eligible.
+4. `ConceptSelector` considers prerequisites and mastery.
+5. `LearningEngine` creates a persisted session.
+6. The current gateway creates practice questions.
+7. Child can type or speak a Gujarati answer.
+8. Numeric answers are evaluated locally.
+9. Attempts and mastery are stored in Room.
 10. Session is completed or stopped and persisted.
-
-The built-in curriculum is temporary scaffolding. Book-derived concepts added later use the same `ConceptEntity`/mastery/session architecture.
 
 ## Room schema
 
@@ -57,29 +65,35 @@ Version 2:
 - learning_sessions
 - attempts
 
-A non-destructive `1 -> 2` migration preserves existing book data.
+Version 3:
+- all v2 tables
+- chapters
+- page_knowledge
+- `concepts.practiceReady`
+
+Explicit `1 -> 2` and `2 -> 3` migrations preserve installed app data.
 
 ## Milestones
 
 ### Milestone 1 — complete
 Parent PIN, child/parent navigation, private PDF import, duplicate detection, Room book library, PDF viewer and delete.
 
-### Milestone 2 — complete in this source
+### Milestone 2 — complete
 Local curriculum, prerequisites, mastery, sessions, attempts, learning engine, deterministic evaluation and mock tutor practice UI.
 
-### Milestone 3 — next
-Push-to-talk Gujarati speech input/output behind interfaces. Keep text input as fallback. Do not add remote AI yet.
+### Milestone 3 — complete
+Push-to-talk Gujarati recognition, Gujarati TTS, spoken stop commands and text fallback.
 
-### Milestone 4
-Parent-controlled chapter setup and incremental book analysis through a replaceable AI gateway.
+### Milestone 4 — complete in this source
+Parent-controlled contents-page selection, editable/manual chapters, chapter preparation, page-knowledge cache, book-derived concept storage, schema v3 and mock analysis boundary.
 
-### Milestone 5+
-Grounded tutor AI, safe activities, physical missions, attention/session limits and parent progress dashboard.
+### Milestone 5 — next
+Real parent-configured AI provider for textbook image understanding and grounded Gujarati tutoring. Structured output must be validated, and only valid analyzed concepts may be enabled for child practice.
 
 ## Safety constraints
 
 - No browser/web-search tools in child mode.
 - No location, contacts, school/address collection or raw voice retention.
 - Child can always stop immediately.
-- Physical missions will come from a safe allowlist.
+- Physical missions must come from a safe allowlist.
 - No streaks, loot boxes, infinite feeds, variable rewards or pressure mechanics.

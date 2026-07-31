@@ -19,6 +19,7 @@ class LocalBookRepository(
     private val context: Context,
     private val bookDao: BookDao,
     private val pdfRenderer: PdfPageRenderer,
+    private val knowledgeRepository: BookKnowledgeRepository,
 ) : BookRepository {
 
     override fun observeBooks(): Flow<List<BookEntity>> = bookDao.observeAll()
@@ -107,6 +108,7 @@ class LocalBookRepository(
 
     override suspend fun deleteBook(id: String) = withContext(Dispatchers.IO) {
         val book = bookDao.findById(id) ?: return@withContext
+        knowledgeRepository.deleteAllForBook(id)
         bookDao.delete(book)
         File(context.filesDir, "books/${book.id}").deleteRecursively()
     }

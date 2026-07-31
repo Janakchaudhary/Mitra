@@ -27,16 +27,16 @@ Implement one milestone at a time. For every milestone:
 7. Preserve Room data with explicit migrations; never use destructive migration in release behavior.
 
 ## Current scope
-Milestone 3 is implemented: local curriculum/mastery/session logic plus push-to-talk Gujarati speech recognition and Gujarati TTS with text fallback.
+Milestone 4 is implemented: local book preparation, chapter structure, page knowledge, and concept extraction plumbing behind `AiGateway`. `MockAiGateway` intentionally produces only development analysis and leaves book-derived concepts disabled for child practice.
 
-Before starting another milestone, verify Milestone 3 is green in GitHub Actions and on a physical Android device.
+Before starting another milestone, verify Milestone 4 is green in GitHub Actions and on a physical Android device.
 
-## Next scope — Milestone 4 only
-Implement book understanding behind `AiGateway`:
-- table-of-contents page selection
-- editable chapter structure
-- chapter preparation
-- page knowledge
-- concept extraction
+## Next scope — Milestone 5 only
+Connect a real parent-configured AI provider behind `AiGateway` for:
+- table-of-contents understanding from selected PDF pages
+- chapter/page understanding
+- grounded Gujarati tutor turns
+- structured output validation and fallback
+- enabling only valid analyzed book concepts for practice
 
-Do not add continuous/full-duplex voice or a parent analytics dashboard in Milestone 4.
+Do not let the provider assign mastery or select curriculum. Never embed the provider secret in source or BuildConfig.

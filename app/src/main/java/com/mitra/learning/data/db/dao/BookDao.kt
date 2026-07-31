@@ -5,6 +5,7 @@ import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.mitra.learning.data.db.entity.BookEntity
 import kotlinx.coroutines.flow.Flow
 
@@ -24,6 +25,9 @@ interface BookDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(book: BookEntity)
+
+    @Update
+    suspend fun update(book: BookEntity)
 
     @Delete
     suspend fun delete(book: BookEntity)

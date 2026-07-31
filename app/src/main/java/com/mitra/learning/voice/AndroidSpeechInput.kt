@@ -56,8 +56,9 @@ class AndroidSpeechInput(
         speechRecognizer.startListening(recognizerIntent())
     }
 
-    override suspend fun stopListening() = withContext(Dispatchers.Main.immediate) {
+    override suspend fun stopListening(): Unit = withContext(Dispatchers.Main.immediate) {
         recognizer?.stopListening()
+        Unit
     }
 
     override fun cancel() {

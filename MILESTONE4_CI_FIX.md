@@ -36,3 +36,7 @@ The prior expression body could infer `Unit?` because `recognizer?.stopListening
 ```bash
 gradle clean testDebugUnitTest lintDebug assembleDebug
 ```
+
+## Node 24 workflow update
+
+See `MILESTONE4_NODE24_CI_FIX.md`. The workflow now uses Node-24-compatible major versions of checkout/setup-java/setup-gradle/upload-artifact and no longer uses `android-actions/setup-android@v3`.

@@ -24,6 +24,8 @@ import com.mitra.learning.ui.books.AddBookViewModel
 import com.mitra.learning.ui.books.BookDetailScreen
 import com.mitra.learning.ui.books.BookDetailViewModel
 import com.mitra.learning.ui.books.BookListScreen
+import com.mitra.learning.ui.books.BookSetupScreen
+import com.mitra.learning.ui.books.BookSetupViewModel
 import com.mitra.learning.ui.books.BookListViewModel
 import com.mitra.learning.ui.books.PdfViewerScreen
 import com.mitra.learning.ui.books.PdfViewerViewModel
@@ -60,9 +62,11 @@ private object Routes {
     const val AddBook = "books/add"
     const val Book = "books/{bookId}"
     const val Pdf = "books/{bookId}/pdf"
+    const val BookSetup = "books/{bookId}/setup"
 
     fun book(id: String) = "books/$id"
     fun pdf(id: String) = "books/$id/pdf"
+    fun setupBook(id: String) = "books/$id/setup"
 }
 
 @Composable
@@ -185,13 +189,62 @@ private fun MitraNav(container: AppContainer) {
             val bookId = requireNotNull(entry.arguments?.getString("bookId"))
             val vm: BookDetailViewModel = viewModel(
                 key = "book-$bookId",
-                factory = simpleViewModelFactory { BookDetailViewModel(bookId, container.bookRepository) }
+                factory = simpleViewModelFactory {
+                    BookDetailViewModel(
+                        bookId = bookId,
+                        repository = container.bookRepository,
+                        knowledgeRepository = container.bookKnowledgeRepository,
+                        preparationService = container.bookPreparationService,
+                    )
+                }
             )
             val book by vm.book.collectAsStateWithLifecycle()
+            val chapters by vm.chapters.collectAsStateWithLifecycle()
+            val preparingChapterId by vm.preparingChapterId.collectAsStateWithLifecycle()
+            val message by vm.message.collectAsStateWithLifecycle()
             BookDetailScreen(
                 book = book,
+                chapters = chapters,
+                preparingChapterId = preparingChapterId,
+                message = message,
                 onOpenPdf = { nav.navigate(Routes.pdf(bookId)) },
+                onSetupChapters = { nav.navigate(Routes.setupBook(bookId)) },
+                onPrepareChapter = vm::prepareChapter,
                 onDelete = { vm.delete { nav.popBackStack() } },
+                onBack = { nav.popBackStack() },
+            )
+        }
+
+        composable(
+            route = Routes.BookSetup,
+            arguments = listOf(navArgument("bookId") { type = NavType.StringType }),
+        ) { entry ->
+            val bookId = requireNotNull(entry.arguments?.getString("bookId"))
+            val vm: BookSetupViewModel = viewModel(
+                key = "book-setup-$bookId",
+                factory = simpleViewModelFactory {
+                    BookSetupViewModel(
+                        bookId = bookId,
+                        bookRepository = container.bookRepository,
+                        knowledgeRepository = container.bookKnowledgeRepository,
+                        renderer = container.pdfRenderer,
+                        preparationService = container.bookPreparationService,
+                    )
+                }
+            )
+            val state by vm.state.collectAsStateWithLifecycle()
+            BookSetupScreen(
+                state = state,
+                onPreviousPage = vm::previousPage,
+                onNextPage = vm::nextPage,
+                onToggleTocPage = vm::toggleCurrentTocPage,
+                onDetect = vm::detectChapters,
+                onAddChapter = vm::addDraft,
+                onRemoveChapter = vm::removeDraft,
+                onTitleChange = vm::updateTitle,
+                onStartPageChange = vm::updateStartPage,
+                onEndPageChange = vm::updateEndPage,
+                onSave = vm::save,
                 onBack = { nav.popBackStack() },
             )
         }

@@ -51,6 +51,29 @@ class ConceptSelectorTest {
         assertEquals(BuiltInCurriculum.SUBTRACT_UNDER_10, selected?.id)
     }
 
+
+    @Test
+    fun bookConceptNotReadyForPracticeIsIgnored() {
+        val hidden = BuiltInCurriculum.concepts.first().copy(
+            id = "book-hidden",
+            sortOrder = -100,
+            practiceReady = false,
+        )
+        val ready = BuiltInCurriculum.concepts.first().copy(
+            id = "ready",
+            sortOrder = 1,
+            practiceReady = true,
+        )
+
+        val selected = ConceptSelector.select(
+            concepts = listOf(hidden, ready),
+            mastery = emptyList(),
+            prerequisites = emptyList(),
+        )
+
+        assertEquals("ready", selected?.id)
+    }
+
     private fun mastery(id: String, value: Float) = MasteryEntity(
         conceptId = id,
         mastery = value,
