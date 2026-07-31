@@ -23,6 +23,9 @@ interface BookDao {
     @Query("SELECT * FROM books WHERE sha256 = :sha256 LIMIT 1")
     suspend fun findBySha256(sha256: String): BookEntity?
 
+    @Query("SELECT * FROM books ORDER BY createdAt DESC")
+    suspend fun getAll(): List<BookEntity>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(book: BookEntity)
 

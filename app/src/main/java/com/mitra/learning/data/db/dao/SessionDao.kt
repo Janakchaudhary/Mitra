@@ -19,4 +19,7 @@ interface SessionDao {
 
     @Query("SELECT * FROM learning_sessions ORDER BY startedAt DESC")
     suspend fun getAll(): List<SessionEntity>
+
+    @Query("DELETE FROM learning_sessions")
+    suspend fun deleteAll()
 }

@@ -35,3 +35,12 @@ Before starting another milestone, verify Milestone 7 is green in GitHub Actions
 Polish the personal-use APK without changing the local-first architecture. Priorities: session/daily limits, parent settings, parent relock behavior, offline/error UX, accessibility, Gujarati UI copy, data-reset controls, and final physical-device hardening.
 
 Do not introduce a backend, account system, ads, browser, feeds, or cloud progress storage.
+
+## Milestone 8 guardrails
+
+- Do not bypass `LearningLimitService` when starting child learning sessions.
+- Do not make parent routes reachable without `ParentAccessManager` being unlocked.
+- Keep reset actions parent-only and confirmation-gated.
+- `resetLearningProgress()` must preserve books.
+- `resetBookAnalysis()` must preserve imported PDF files and chapter ranges.
+- `resetEverything()` may clear PIN/settings/books only after explicit parent confirmation.

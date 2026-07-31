@@ -34,4 +34,8 @@ class ParentPinRepository(private val context: Context) {
             PinCodec.verify(pin.toCharArray(), EncodedPin(salt, hash))
         }.getOrDefault(false)
     }
+
+    suspend fun clear() {
+        context.securityDataStore.edit { it.clear() }
+    }
 }

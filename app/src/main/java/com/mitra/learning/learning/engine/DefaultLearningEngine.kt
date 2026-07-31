@@ -31,11 +31,44 @@ class DefaultLearningEngine(
     override suspend fun startSession(questionCount: Int): SessionPlan? {
         repository.seedBuiltInCurriculumIfNeeded()
 
-        val concept = ConceptSelector.select(
-            concepts = repository.getConcepts(),
-            mastery = repository.getMastery(),
-            prerequisites = repository.getPrerequisites(),
-        ) ?: return null
+        val concepts = repository.getConcepts()
+        val mastery = repository.getMastery()
+        val prerequisites = repository.getPrerequisites()
+        val selected = ConceptSelector.select(concepts, mastery, prerequisites) ?: return null
+
+        suspend fun activitiesFor(concept: com.mitra.learning.data.db.entity.ConceptEntity): List<LearningQuestion> =
+            ActivityPlanPolicy.apply(
+                aiGateway.createPracticeQuestions(
+                    concept = concept,
+                    count = questionCount.coerceIn(1, 8),
+                    context = buildPracticeContext(concept),
+                )
+            )
+
+        var concept = selected
+        var activities = runCatching { activitiesFor(concept) }.getOrElse { failure ->
+            if (concept.builtIn) throw failure
+            val fallback = ConceptSelector.select(
+                concepts = concepts.filter { it.builtIn },
+                mastery = mastery,
+                prerequisites = prerequisites,
+            ) ?: throw failure
+            concept = fallback
+            activitiesFor(fallback)
+        }
+
+        if (activities.isEmpty() && !concept.builtIn) {
+            val fallback = ConceptSelector.select(
+                concepts = concepts.filter { it.builtIn },
+                mastery = mastery,
+                prerequisites = prerequisites,
+            )
+            if (fallback != null) {
+                concept = fallback
+                activities = activitiesFor(fallback)
+            }
+        }
+        if (activities.isEmpty()) return null
 
         val session = SessionEntity(
             id = UUID.randomUUID().toString(),
@@ -47,19 +80,6 @@ class DefaultLearningEngine(
             status = SessionStatus.ACTIVE,
         )
         repository.insertSession(session)
-
-        val activities = ActivityPlanPolicy.apply(
-            aiGateway.createPracticeQuestions(
-                concept = concept,
-                count = questionCount.coerceIn(1, 8),
-                context = buildPracticeContext(concept),
-            )
-        )
-
-        if (activities.isEmpty()) {
-            repository.updateSession(session.copy(endedAt = now(), status = SessionStatus.STOPPED))
-            return null
-        }
         return SessionPlan(session.id, concept, activities)
     }
 

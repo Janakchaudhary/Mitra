@@ -15,6 +15,11 @@ import com.mitra.learning.data.repository.LocalBookRepository
 import com.mitra.learning.data.repository.LocalLearningRepository
 import com.mitra.learning.data.repository.LocalProgressRepository
 import com.mitra.learning.data.repository.ProgressRepository
+import com.mitra.learning.data.reset.AppDataResetService
+import com.mitra.learning.learning.limits.LearningLimitService
+import com.mitra.learning.network.NetworkMonitor
+import com.mitra.learning.security.ParentAccessManager
+import com.mitra.learning.settings.LearningSettingsRepository
 import com.mitra.learning.learning.engine.DefaultLearningEngine
 import com.mitra.learning.learning.engine.LearningEngine
 import com.mitra.learning.security.AndroidKeystoreSecretStore
@@ -59,6 +64,10 @@ class AppContainer(context: Context) {
     )
 
     val aiSettingsRepository = AiSettingsRepository(appContext)
+    val learningSettingsRepository = LearningSettingsRepository(appContext)
+    val parentAccessManager = ParentAccessManager()
+    val networkMonitor = NetworkMonitor(appContext)
+    val learningLimitService = LearningLimitService(learningSettingsRepository, database.sessionDao())
     val secretStore: SecretStore = AndroidKeystoreSecretStore(appContext)
     val configurableAiGateway = ConfigurableAiGateway(
         settingsRepository = aiSettingsRepository,
@@ -85,4 +94,14 @@ class AppContainer(context: Context) {
     )
 
     val parentPinRepository = ParentPinRepository(appContext)
+
+    val dataResetService = AppDataResetService(
+        context = appContext,
+        database = database,
+        bookKnowledgeRepository = bookKnowledgeRepository,
+        parentPinRepository = parentPinRepository,
+        aiSettingsRepository = aiSettingsRepository,
+        learningSettingsRepository = learningSettingsRepository,
+        secretStore = secretStore,
+    )
 }

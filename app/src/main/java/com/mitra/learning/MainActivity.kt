@@ -24,16 +24,17 @@ import com.mitra.learning.ui.books.AddBookViewModel
 import com.mitra.learning.ui.books.BookDetailScreen
 import com.mitra.learning.ui.books.BookDetailViewModel
 import com.mitra.learning.ui.books.BookListScreen
+import com.mitra.learning.ui.books.BookListViewModel
 import com.mitra.learning.ui.books.BookSetupScreen
 import com.mitra.learning.ui.books.BookSetupViewModel
-import com.mitra.learning.ui.books.BookListViewModel
 import com.mitra.learning.ui.books.PdfViewerScreen
 import com.mitra.learning.ui.books.PdfViewerViewModel
+import com.mitra.learning.ui.child.ChildBookListScreen
 import com.mitra.learning.ui.child.ChildHomeScreen
+import com.mitra.learning.ui.child.ChildHomeViewModel
+import com.mitra.learning.ui.common.simpleViewModelFactory
 import com.mitra.learning.ui.learning.LearningSessionScreen
 import com.mitra.learning.ui.learning.LearningSessionViewModel
-import com.mitra.learning.ui.child.ChildBookListScreen
-import com.mitra.learning.ui.common.simpleViewModelFactory
 import com.mitra.learning.ui.parent.AiSettingsScreen
 import com.mitra.learning.ui.parent.AiSettingsViewModel
 import com.mitra.learning.ui.parent.ParentHomeScreen
@@ -41,6 +42,8 @@ import com.mitra.learning.ui.parent.ParentPinScreen
 import com.mitra.learning.ui.parent.ParentPinViewModel
 import com.mitra.learning.ui.progress.ProgressScreen
 import com.mitra.learning.ui.progress.ProgressViewModel
+import com.mitra.learning.ui.settings.ParentSettingsScreen
+import com.mitra.learning.ui.settings.ParentSettingsViewModel
 import com.mitra.learning.ui.setup.SetupPinScreen
 import com.mitra.learning.ui.setup.SetupPinViewModel
 import com.mitra.learning.ui.theme.MitraTheme
@@ -53,6 +56,16 @@ class MainActivity : ComponentActivity() {
             MitraTheme { MitraNav(app.container) }
         }
     }
+
+    override fun onStart() {
+        super.onStart()
+        (application as MitraApplication).container.parentAccessManager.onAppForegrounded()
+    }
+
+    override fun onStop() {
+        (application as MitraApplication).container.parentAccessManager.onAppBackgrounded()
+        super.onStop()
+    }
 }
 
 private object Routes {
@@ -63,6 +76,7 @@ private object Routes {
     const val ParentPin = "parent-pin"
     const val Parent = "parent"
     const val AiSettings = "parent/ai-settings"
+    const val Settings = "parent/settings"
     const val Progress = "parent/progress"
     const val Books = "books"
     const val AddBook = "books/add"
@@ -85,6 +99,8 @@ private fun MitraNav(container: AppContainer) {
     }
 
     val nav = rememberNavController()
+    val parentUnlocked by container.parentAccessManager.unlocked.collectAsStateWithLifecycle()
+
     NavHost(navController = nav, startDestination = if (hasPin == true) Routes.Child else Routes.Setup) {
         composable(Routes.Setup) {
             val vm: SetupPinViewModel = viewModel(
@@ -93,18 +109,29 @@ private fun MitraNav(container: AppContainer) {
             val state by vm.state.collectAsStateWithLifecycle()
             LaunchedEffect(state.completed) {
                 if (state.completed) {
+                    hasPin = true
                     nav.navigate(Routes.Child) { popUpTo(Routes.Setup) { inclusive = true } }
                 }
             }
             SetupPinScreen(state, vm::updatePin, vm::updateConfirmation, vm::save)
         }
+
         composable(Routes.Child) {
+            val vm: ChildHomeViewModel = viewModel(
+                factory = simpleViewModelFactory {
+                    ChildHomeViewModel(container.learningLimitService, container.networkMonitor)
+                }
+            )
+            val state by vm.state.collectAsStateWithLifecycle()
+            LaunchedEffect(Unit) { vm.refresh() }
             ChildHomeScreen(
-                onPlay = { nav.navigate(Routes.Learning) },
+                state = state,
+                onPlay = { if (state.canPlay) nav.navigate(Routes.Learning) },
                 onBooks = { nav.navigate(Routes.ChildBooks) },
                 onParent = { nav.navigate(Routes.ParentPin) },
             )
         }
+
         composable(Routes.Learning) {
             val vm: LearningSessionViewModel = viewModel(
                 factory = simpleViewModelFactory {
@@ -112,6 +139,7 @@ private fun MitraNav(container: AppContainer) {
                         engine = container.learningEngine,
                         speechInput = container.speechInput,
                         speechOutput = container.speechOutput,
+                        limitService = container.learningLimitService,
                     )
                 }
             )
@@ -133,6 +161,7 @@ private fun MitraNav(container: AppContainer) {
                 onDone = { nav.popBackStack() },
             )
         }
+
         composable(Routes.ChildBooks) {
             val vm: BookListViewModel = viewModel(
                 factory = simpleViewModelFactory { BookListViewModel(container.bookRepository) }
@@ -144,155 +173,218 @@ private fun MitraNav(container: AppContainer) {
                 onBack = { nav.popBackStack() },
             )
         }
+
         composable(Routes.ParentPin) {
             val vm: ParentPinViewModel = viewModel(
-                factory = simpleViewModelFactory { ParentPinViewModel(container.parentPinRepository) }
-            )
-            val state by vm.state.collectAsStateWithLifecycle()
-            LaunchedEffect(state.unlocked) {
-                if (state.unlocked) nav.navigate(Routes.Parent) { popUpTo(Routes.ParentPin) { inclusive = true } }
-            }
-            ParentPinScreen(state, vm::updatePin, vm::unlock) { nav.popBackStack() }
-        }
-        composable(Routes.Parent) {
-            ParentHomeScreen(
-                onBooks = { nav.navigate(Routes.Books) },
-                onProgress = { nav.navigate(Routes.Progress) },
-                onAiSettings = { nav.navigate(Routes.AiSettings) },
-                onChildMode = { nav.navigate(Routes.Child) { popUpTo(Routes.Child) { inclusive = true } } },
-            )
-        }
-        composable(Routes.Progress) {
-            val vm: ProgressViewModel = viewModel(
-                factory = simpleViewModelFactory { ProgressViewModel(container.progressRepository) }
-            )
-            val state by vm.state.collectAsStateWithLifecycle()
-            ProgressScreen(
-                state = state,
-                onRefresh = vm::refresh,
-                onBack = { nav.popBackStack() },
-            )
-        }
-        composable(Routes.AiSettings) {
-            val vm: AiSettingsViewModel = viewModel(
                 factory = simpleViewModelFactory {
-                    AiSettingsViewModel(
-                        repository = container.aiSettingsRepository,
-                        secretStore = container.secretStore,
-                        gateway = container.configurableAiGateway,
+                    ParentPinViewModel(
+                        repository = container.parentPinRepository,
+                        accessManager = container.parentAccessManager,
+                        settingsRepository = container.learningSettingsRepository,
                     )
                 }
             )
             val state by vm.state.collectAsStateWithLifecycle()
-            AiSettingsScreen(
-                state = state,
-                onRemoteEnabledChange = vm::setRemoteEnabled,
-                onBaseUrlChange = vm::setBaseUrl,
-                onModelChange = vm::setModel,
-                onApiKeyChange = vm::setApiKey,
-                onSave = vm::save,
-                onTest = vm::testConnection,
-                onClearKey = vm::clearApiKey,
-                onBack = { nav.popBackStack() },
-            )
-        }
-        composable(Routes.Books) {
-            val vm: BookListViewModel = viewModel(
-                factory = simpleViewModelFactory { BookListViewModel(container.bookRepository) }
-            )
-            val books by vm.books.collectAsStateWithLifecycle()
-            BookListScreen(
-                books = books,
-                onAdd = { nav.navigate(Routes.AddBook) },
-                onOpen = { nav.navigate(Routes.book(it)) },
-                onBack = { nav.popBackStack() },
-            )
-        }
-        composable(Routes.AddBook) {
-            val vm: AddBookViewModel = viewModel(
-                factory = simpleViewModelFactory { AddBookViewModel(container.bookRepository) }
-            )
-            val state by vm.state.collectAsStateWithLifecycle()
-            LaunchedEffect(state.importedBookId) {
-                state.importedBookId?.let { id ->
-                    nav.navigate(Routes.book(id)) { popUpTo(Routes.AddBook) { inclusive = true } }
+            LaunchedEffect(state.unlocked) {
+                if (state.unlocked) {
+                    nav.navigate(Routes.Parent) { popUpTo(Routes.ParentPin) { inclusive = true } }
                 }
             }
-            AddBookScreen(
-                state = state,
-                onPdfSelected = vm::onPdfSelected,
-                onTitleChange = vm::updateTitle,
-                onSubjectChange = vm::updateSubject,
-                onImport = vm::import,
-                onBack = { nav.popBackStack() },
-            )
+            ParentPinScreen(state, vm::updatePin, vm::unlock) { nav.popBackStack() }
         }
+
+        composable(Routes.Parent) {
+            ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                ParentHomeScreen(
+                    onBooks = { nav.navigate(Routes.Books) },
+                    onProgress = { nav.navigate(Routes.Progress) },
+                    onSettings = { nav.navigate(Routes.Settings) },
+                    onAiSettings = { nav.navigate(Routes.AiSettings) },
+                    onChildMode = {
+                        container.parentAccessManager.lock()
+                        nav.navigate(Routes.Child) { popUpTo(Routes.Child) { inclusive = true } }
+                    },
+                )
+            }
+        }
+
+        composable(Routes.Settings) {
+            ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                val vm: ParentSettingsViewModel = viewModel(
+                    factory = simpleViewModelFactory {
+                        ParentSettingsViewModel(container.learningSettingsRepository, container.dataResetService)
+                    }
+                )
+                val state by vm.state.collectAsStateWithLifecycle()
+                LaunchedEffect(state.fullResetCompleted) {
+                    if (state.fullResetCompleted) {
+                        hasPin = false
+                        nav.navigate(Routes.Setup) { popUpTo(Routes.Child) { inclusive = true } }
+                    }
+                }
+                ParentSettingsScreen(
+                    state = state,
+                    onSessionMinutes = vm::setSessionMinutes,
+                    onDailyMinutes = vm::setDailyMinutes,
+                    onParentAccessMinutes = vm::setParentAccessMinutes,
+                    onSave = vm::save,
+                    onResetProgress = vm::resetProgress,
+                    onResetBookAnalysis = vm::resetBookAnalysis,
+                    onResetEverything = vm::resetEverything,
+                    onBack = { nav.popBackStack() },
+                )
+            }
+        }
+
+        composable(Routes.Progress) {
+            ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                val vm: ProgressViewModel = viewModel(
+                    factory = simpleViewModelFactory { ProgressViewModel(container.progressRepository) }
+                )
+                val state by vm.state.collectAsStateWithLifecycle()
+                ProgressScreen(
+                    state = state,
+                    onRefresh = vm::refresh,
+                    onBack = { nav.popBackStack() },
+                )
+            }
+        }
+
+        composable(Routes.AiSettings) {
+            ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                val vm: AiSettingsViewModel = viewModel(
+                    factory = simpleViewModelFactory {
+                        AiSettingsViewModel(
+                            repository = container.aiSettingsRepository,
+                            secretStore = container.secretStore,
+                            gateway = container.configurableAiGateway,
+                        )
+                    }
+                )
+                val state by vm.state.collectAsStateWithLifecycle()
+                AiSettingsScreen(
+                    state = state,
+                    onRemoteEnabledChange = vm::setRemoteEnabled,
+                    onBaseUrlChange = vm::setBaseUrl,
+                    onModelChange = vm::setModel,
+                    onApiKeyChange = vm::setApiKey,
+                    onSave = vm::save,
+                    onTest = vm::testConnection,
+                    onClearKey = vm::clearApiKey,
+                    onBack = { nav.popBackStack() },
+                )
+            }
+        }
+
+        composable(Routes.Books) {
+            ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                val vm: BookListViewModel = viewModel(
+                    factory = simpleViewModelFactory { BookListViewModel(container.bookRepository) }
+                )
+                val books by vm.books.collectAsStateWithLifecycle()
+                BookListScreen(
+                    books = books,
+                    onAdd = { nav.navigate(Routes.AddBook) },
+                    onOpen = { nav.navigate(Routes.book(it)) },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+        }
+
+        composable(Routes.AddBook) {
+            ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                val vm: AddBookViewModel = viewModel(
+                    factory = simpleViewModelFactory { AddBookViewModel(container.bookRepository) }
+                )
+                val state by vm.state.collectAsStateWithLifecycle()
+                LaunchedEffect(state.importedBookId) {
+                    state.importedBookId?.let { id ->
+                        nav.navigate(Routes.book(id)) { popUpTo(Routes.AddBook) { inclusive = true } }
+                    }
+                }
+                AddBookScreen(
+                    state = state,
+                    onPdfSelected = vm::onPdfSelected,
+                    onTitleChange = vm::updateTitle,
+                    onSubjectChange = vm::updateSubject,
+                    onImport = vm::import,
+                    onBack = { nav.popBackStack() },
+                )
+            }
+        }
+
         composable(
             route = Routes.Book,
             arguments = listOf(navArgument("bookId") { type = NavType.StringType }),
         ) { entry ->
-            val bookId = requireNotNull(entry.arguments?.getString("bookId"))
-            val vm: BookDetailViewModel = viewModel(
-                key = "book-$bookId",
-                factory = simpleViewModelFactory {
-                    BookDetailViewModel(
-                        bookId = bookId,
-                        repository = container.bookRepository,
-                        knowledgeRepository = container.bookKnowledgeRepository,
-                        preparationService = container.bookPreparationService,
-                    )
-                }
-            )
-            val book by vm.book.collectAsStateWithLifecycle()
-            val chapters by vm.chapters.collectAsStateWithLifecycle()
-            val preparingChapterId by vm.preparingChapterId.collectAsStateWithLifecycle()
-            val message by vm.message.collectAsStateWithLifecycle()
-            BookDetailScreen(
-                book = book,
-                chapters = chapters,
-                preparingChapterId = preparingChapterId,
-                message = message,
-                onOpenPdf = { nav.navigate(Routes.pdf(bookId)) },
-                onSetupChapters = { nav.navigate(Routes.setupBook(bookId)) },
-                onPrepareChapter = vm::prepareChapter,
-                onDelete = { vm.delete { nav.popBackStack() } },
-                onBack = { nav.popBackStack() },
-            )
+            ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                val bookId = requireNotNull(entry.arguments?.getString("bookId"))
+                val vm: BookDetailViewModel = viewModel(
+                    key = "book-$bookId",
+                    factory = simpleViewModelFactory {
+                        BookDetailViewModel(
+                            bookId = bookId,
+                            repository = container.bookRepository,
+                            knowledgeRepository = container.bookKnowledgeRepository,
+                            preparationService = container.bookPreparationService,
+                        )
+                    }
+                )
+                val book by vm.book.collectAsStateWithLifecycle()
+                val chapters by vm.chapters.collectAsStateWithLifecycle()
+                val preparingChapterId by vm.preparingChapterId.collectAsStateWithLifecycle()
+                val message by vm.message.collectAsStateWithLifecycle()
+                BookDetailScreen(
+                    book = book,
+                    chapters = chapters,
+                    preparingChapterId = preparingChapterId,
+                    message = message,
+                    onOpenPdf = { nav.navigate(Routes.pdf(bookId)) },
+                    onSetupChapters = { nav.navigate(Routes.setupBook(bookId)) },
+                    onPrepareChapter = vm::prepareChapter,
+                    onDelete = { vm.delete { nav.popBackStack() } },
+                    onBack = { nav.popBackStack() },
+                )
+            }
         }
 
         composable(
             route = Routes.BookSetup,
             arguments = listOf(navArgument("bookId") { type = NavType.StringType }),
         ) { entry ->
-            val bookId = requireNotNull(entry.arguments?.getString("bookId"))
-            val vm: BookSetupViewModel = viewModel(
-                key = "book-setup-$bookId",
-                factory = simpleViewModelFactory {
-                    BookSetupViewModel(
-                        bookId = bookId,
-                        bookRepository = container.bookRepository,
-                        knowledgeRepository = container.bookKnowledgeRepository,
-                        renderer = container.pdfRenderer,
-                        preparationService = container.bookPreparationService,
-                    )
-                }
-            )
-            val state by vm.state.collectAsStateWithLifecycle()
-            BookSetupScreen(
-                state = state,
-                onPreviousPage = vm::previousPage,
-                onNextPage = vm::nextPage,
-                onToggleTocPage = vm::toggleCurrentTocPage,
-                onDetect = vm::detectChapters,
-                onAddChapter = vm::addDraft,
-                onRemoveChapter = vm::removeDraft,
-                onTitleChange = vm::updateTitle,
-                onStartPageChange = vm::updateStartPage,
-                onEndPageChange = vm::updateEndPage,
-                onSave = vm::save,
-                onBack = { nav.popBackStack() },
-            )
+            ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                val bookId = requireNotNull(entry.arguments?.getString("bookId"))
+                val vm: BookSetupViewModel = viewModel(
+                    key = "book-setup-$bookId",
+                    factory = simpleViewModelFactory {
+                        BookSetupViewModel(
+                            bookId = bookId,
+                            bookRepository = container.bookRepository,
+                            knowledgeRepository = container.bookKnowledgeRepository,
+                            renderer = container.pdfRenderer,
+                            preparationService = container.bookPreparationService,
+                        )
+                    }
+                )
+                val state by vm.state.collectAsStateWithLifecycle()
+                BookSetupScreen(
+                    state = state,
+                    onPreviousPage = vm::previousPage,
+                    onNextPage = vm::nextPage,
+                    onToggleTocPage = vm::toggleCurrentTocPage,
+                    onDetect = vm::detectChapters,
+                    onAddChapter = vm::addDraft,
+                    onRemoveChapter = vm::removeDraft,
+                    onTitleChange = vm::updateTitle,
+                    onStartPageChange = vm::updateStartPage,
+                    onEndPageChange = vm::updateEndPage,
+                    onSave = vm::save,
+                    onBack = { nav.popBackStack() },
+                )
+            }
         }
+
+        // PDF viewing is intentionally shared by child and parent modes, so it is not PIN-gated.
         composable(
             route = Routes.Pdf,
             arguments = listOf(navArgument("bookId") { type = NavType.StringType }),
@@ -308,4 +400,16 @@ private fun MitraNav(container: AppContainer) {
             PdfViewerScreen(state, vm::previous, vm::next) { nav.popBackStack() }
         }
     }
+}
+
+@Composable
+private fun ParentProtected(
+    unlocked: Boolean,
+    onLocked: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    LaunchedEffect(unlocked) {
+        if (!unlocked) onLocked()
+    }
+    if (unlocked) content() else CircularProgressIndicator()
 }

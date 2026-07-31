@@ -130,6 +130,14 @@ private fun SessionContent(
         if (state.conceptTitleGujarati.isNotBlank()) {
             Text(state.conceptTitleGujarati, style = MaterialTheme.typography.titleMedium)
         }
+        state.remainingSessionSeconds?.let { remaining ->
+            val minutes = remaining / 60
+            val seconds = remaining % 60
+            Text(
+                "સમય બાકી %02d:%02d".format(minutes, seconds),
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
 
         val current = state.currentQuestion
         if (current != null) {
@@ -345,7 +353,10 @@ private fun CompletedContent(state: LearningSessionUiState, onDone: () -> Unit) 
         if (summary.assessed > 0) Text("${summary.correct} / ${summary.assessed} ચકાસેલા જવાબ સાચા")
         if (summary.participationActivities > 0) Text("${summary.participationActivities} શોધ/રમત પ્રવૃત્તિ")
         Spacer(Modifier.height(24.dp))
-        Text("હવે ફોનને થોડો આરામ આપીએ. 😊")
+        Text(
+            if (state.timeLimitReached) "આજની રમતનો સમય પૂરો થયો. હવે ફોનને થોડો આરામ આપીએ. 😊"
+            else "હવે ફોનને થોડો આરામ આપીએ. 😊"
+        )
         Spacer(Modifier.height(24.dp))
         Button(onClick = onDone, modifier = Modifier.fillMaxWidth()) { Text("ઘરે પાછા") }
     }

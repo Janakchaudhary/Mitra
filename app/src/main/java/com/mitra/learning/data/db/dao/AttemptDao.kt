@@ -15,4 +15,7 @@ interface AttemptDao {
 
     @Query("SELECT * FROM attempts ORDER BY createdAt DESC")
     suspend fun getAll(): List<AttemptEntity>
+
+    @Query("DELETE FROM attempts")
+    suspend fun deleteAll()
 }

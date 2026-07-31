@@ -2,7 +2,9 @@ package com.mitra.learning.ui.parent
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.mitra.learning.security.ParentAccessManager
 import com.mitra.learning.security.ParentPinRepository
+import com.mitra.learning.settings.LearningSettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -15,7 +17,11 @@ data class ParentPinUiState(
     val error: String? = null,
 )
 
-class ParentPinViewModel(private val repository: ParentPinRepository) : ViewModel() {
+class ParentPinViewModel(
+    private val repository: ParentPinRepository,
+    private val accessManager: ParentAccessManager,
+    private val settingsRepository: LearningSettingsRepository,
+) : ViewModel() {
     private val _state = MutableStateFlow(ParentPinUiState())
     val state: StateFlow<ParentPinUiState> = _state.asStateFlow()
 
@@ -31,6 +37,9 @@ class ParentPinViewModel(private val repository: ParentPinRepository) : ViewMode
         }
         _state.value = _state.value.copy(checking = true, error = null)
         val ok = repository.verify(pin)
+        if (ok) {
+            accessManager.unlock(settingsRepository.get().parentAccessMinutes)
+        }
         _state.value = _state.value.copy(
             checking = false,
             unlocked = ok,

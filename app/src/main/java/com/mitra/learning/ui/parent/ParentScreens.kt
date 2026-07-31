@@ -9,8 +9,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -60,6 +61,7 @@ fun ParentPinScreen(
 fun ParentHomeScreen(
     onBooks: () -> Unit,
     onProgress: () -> Unit,
+    onSettings: () -> Unit,
     onAiSettings: () -> Unit,
     onChildMode: () -> Unit,
 ) {
@@ -68,14 +70,18 @@ fun ParentHomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Parent dashboard", style = MaterialTheme.typography.headlineLarge)
-        Text("Milestone 7 — local progress dashboard + adaptive review")
+        Text("Milestone 8 — limits, privacy, offline UX and app hardening")
         Button(onClick = onBooks, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.MenuBook, contentDescription = null)
+            Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null)
             Text("  My books")
         }
         Button(onClick = onProgress, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.ShowChart, contentDescription = null)
             Text("  Learning progress")
+        }
+        OutlinedButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Tune, contentDescription = null)
+            Text("  Learning & privacy settings")
         }
         OutlinedButton(onClick = onAiSettings, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Settings, contentDescription = null)

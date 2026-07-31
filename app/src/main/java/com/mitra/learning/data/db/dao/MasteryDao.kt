@@ -19,4 +19,7 @@ interface MasteryDao {
 
     @Upsert
     suspend fun upsert(entity: MasteryEntity)
+
+    @Query("DELETE FROM mastery")
+    suspend fun deleteAll()
 }

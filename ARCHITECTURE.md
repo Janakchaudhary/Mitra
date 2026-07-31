@@ -104,3 +104,7 @@ Parent-only local progress analytics: time spent, accuracy, subject/concept mast
 - Child can always stop immediately.
 - Physical missions must come from a safe allowlist.
 - No streaks, loot boxes, infinite feeds, variable rewards or pressure mechanics.
+
+## Milestone 8 implementation note
+
+Runtime learning limits are stored in local DataStore. `LearningLimitPolicy` independently enforces daily allowance and per-session maximums. Parent access uses an in-memory `ParentAccessManager`: successful PIN verification unlocks parent routes temporarily, and the access state is cleared after a short background grace period, while brief system surfaces such as the PDF picker can return without losing parent context. Parent settings also expose local reset operations. None of these dashboard/limit/reset features require an AI request.

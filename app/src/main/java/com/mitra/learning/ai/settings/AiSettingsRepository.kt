@@ -40,4 +40,8 @@ class AiSettingsRepository(private val context: Context) {
             prefs[modelKey] = cleanModel
         }
     }
+
+    suspend fun reset() {
+        context.aiSettingsDataStore.edit { it.clear() }
+    }
 }

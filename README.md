@@ -1,8 +1,12 @@
-# Mitra / મિત્ર
+# Mitra Android
+
+**Current milestone: 8 (v0.8.0)** — local learning limits, parent relock, offline-friendly fallback, privacy/data reset controls, and accessibility hardening.
+
+મિત્ર
 
 A local-first Android learning companion for one Standard 2 Gujarati-medium child.
 
-## Current version — Milestone 7 (0.7.0)
+## Current version — Milestone 8 (0.8.0)
 
 Mitra now supports the full local-first path from PDF books to richer child learning sessions:
 
@@ -19,6 +23,10 @@ Mitra now supports the full local-first path from PDF books to richer child lear
 - Local safety replacement for physical/drawing instructions.
 - Automatic off-screen activity injection for longer sessions.
 - Parent-only local progress dashboard with subject/concept mastery, weak areas, recent sessions and next-practice recommendation.
+- Configurable session/daily learning limits with local enforcement and countdown.
+- Parent access relocks on timeout/background.
+- Parent-only privacy/data reset controls.
+- Offline child-home messaging and built-in local fallback when remote book question generation is unavailable.
 - No Firebase, Supabase, PostgreSQL, account system, browser, feed, ads or social features.
 
 ## Important textbook preparation note

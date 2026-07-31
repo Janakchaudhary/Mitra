@@ -1,6 +1,12 @@
 package com.mitra.learning.learning.engine
 
+import com.mitra.learning.ai.AiGateway
 import com.mitra.learning.ai.MockAiGateway
+import com.mitra.learning.ai.PracticeContext
+import com.mitra.learning.books.analysis.ChapterAnalysisRequest
+import com.mitra.learning.books.analysis.ChapterAnalysisResult
+import com.mitra.learning.books.analysis.TocAnalysisRequest
+import com.mitra.learning.books.analysis.TocAnalysisResult
 import com.mitra.learning.data.db.entity.AttemptEntity
 import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.data.db.entity.ConceptEntity
@@ -11,10 +17,12 @@ import com.mitra.learning.data.db.entity.SessionStatus
 import com.mitra.learning.data.repository.LearningRepository
 import com.mitra.learning.learning.curriculum.BuiltInCurriculum
 import com.mitra.learning.learning.model.EvaluationMode
+import com.mitra.learning.learning.model.LearningQuestion
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class DefaultLearningEngineTest {
@@ -70,6 +78,46 @@ class DefaultLearningEngineTest {
         assertEquals(0, repo.masteries[plan.concept.id]?.totalAttempts)
         assertEquals(1, repo.attempts.size)
     }
+    @Test
+    fun remoteBookFailureFallsBackToBuiltInCurriculum() = runTest {
+        val repo = FakeLearningRepository()
+        repo.concepts += BuiltInCurriculum.concepts.first().copy(
+            id = "book-concept",
+            titleGujarati = "પુસ્તક પાઠ",
+            builtIn = false,
+            bookId = "book-1",
+            chapterId = null,
+            sortOrder = -100,
+            practiceReady = true,
+        )
+        val mock = MockAiGateway()
+        val failingForBook = object : AiGateway {
+            override suspend fun analyzeTableOfContents(request: TocAnalysisRequest): TocAnalysisResult =
+                mock.analyzeTableOfContents(request)
+
+            override suspend fun analyzeChapter(request: ChapterAnalysisRequest): ChapterAnalysisResult =
+                mock.analyzeChapter(request)
+
+            override suspend fun createPracticeQuestions(
+                concept: ConceptEntity,
+                count: Int,
+                context: PracticeContext?,
+            ): List<LearningQuestion> {
+                if (!concept.builtIn) error("offline")
+                return mock.createPracticeQuestions(concept, count, context)
+            }
+
+            override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String =
+                mock.feedbackGujarati(result, expectedAnswer)
+        }
+
+        val engine = DefaultLearningEngine(repo, failingForBook, now = { 1_000L })
+        val plan = requireNotNull(engine.startSession(questionCount = 1))
+
+        assertTrue(plan.concept.builtIn)
+        assertEquals(1, plan.questions.size)
+    }
+
 }
 
 private class FakeLearningRepository : LearningRepository {

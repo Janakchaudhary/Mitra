@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.learning.engine.LearningEngine
+import com.mitra.learning.learning.limits.LearningLimitService
 import com.mitra.learning.learning.model.EvaluationMode
 import com.mitra.learning.learning.model.LearningQuestion
 import com.mitra.learning.learning.model.SessionPlan
@@ -12,6 +13,8 @@ import com.mitra.learning.voice.SpeechInput
 import com.mitra.learning.voice.SpeechInputState
 import com.mitra.learning.voice.SpeechOutput
 import com.mitra.learning.voice.SpeechOutputState
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,6 +43,8 @@ data class LearningSessionUiState(
     val exitRequested: Boolean = false,
     val hintText: String? = null,
     val hintsUsed: Int = 0,
+    val remainingSessionSeconds: Int? = null,
+    val timeLimitReached: Boolean = false,
 ) {
     val currentQuestion: LearningQuestion?
         get() = questions.getOrNull(questionIndex)
@@ -52,7 +57,9 @@ class LearningSessionViewModel(
     private val engine: LearningEngine,
     private val speechInput: SpeechInput,
     private val speechOutput: SpeechOutput,
+    private val limitService: LearningLimitService? = null,
 ) : ViewModel() {
+    private var countdownJob: Job? = null
     private val _state = MutableStateFlow(
         LearningSessionUiState(speechInputAvailable = speechInput.isAvailable)
     )
@@ -223,6 +230,7 @@ class LearningSessionViewModel(
     }
 
     fun stop(onStopped: () -> Unit) {
+        countdownJob?.cancel()
         speechInput.cancel()
         speechOutput.stop()
         val id = _state.value.sessionId
@@ -279,15 +287,27 @@ class LearningSessionViewModel(
 
     private fun start() {
         viewModelScope.launch {
+            val limits = limitService?.status()
+            if (limits != null && !limits.canStart) {
+                _state.update {
+                    it.copy(
+                        loading = false,
+                        error = "આજનો શીખવાનો સમય પૂરો થયો. હવે ફોનને આરામ આપીએ. 😊",
+                        timeLimitReached = true,
+                    )
+                }
+                return@launch
+            }
+
             runCatching { engine.startSession() }
-                .onSuccess { plan -> applyPlan(plan) }
+                .onSuccess { plan -> applyPlan(plan, limits?.sessionLimitSeconds) }
                 .onFailure { failure ->
                     _state.update { it.copy(loading = false, error = failure.message ?: "સત્ર શરૂ થઈ શક્યું નહીં.") }
                 }
         }
     }
 
-    private fun applyPlan(plan: SessionPlan?) {
+    private fun applyPlan(plan: SessionPlan?, sessionLimitSeconds: Int?) {
         if (plan == null) {
             _state.update { it.copy(loading = false, error = "હજુ શીખવા માટે કોઈ વિષય તૈયાર નથી.") }
             return
@@ -300,19 +320,42 @@ class LearningSessionViewModel(
             questions = plan.questions,
             speechInputAvailable = speechInput.isAvailable,
             ttsAvailable = _state.value.ttsAvailable,
+            remainingSessionSeconds = sessionLimitSeconds,
         )
+        sessionLimitSeconds?.takeIf { it > 0 }?.let(::startCountdown)
         plan.questions.firstOrNull()?.let { speak(it.promptGujarati) }
     }
 
-    private fun complete() {
+    private fun startCountdown(totalSeconds: Int) {
+        countdownJob?.cancel()
+        countdownJob = viewModelScope.launch {
+            var remaining = totalSeconds
+            while (remaining > 0 && !_state.value.completed) {
+                _state.update { it.copy(remainingSessionSeconds = remaining) }
+                delay(1_000L)
+                remaining -= 1
+            }
+            if (remaining <= 0 && !_state.value.completed && _state.value.sessionId != null) {
+                _state.update { it.copy(remainingSessionSeconds = 0, timeLimitReached = true) }
+                complete(timeLimitReached = true)
+            }
+        }
+    }
+
+    private fun complete(timeLimitReached: Boolean = false) {
         val current = _state.value
         val sessionId = current.sessionId ?: return
+        countdownJob?.cancel()
+        speechInput.cancel()
         viewModelScope.launch {
-            _state.update { it.copy(loading = true) }
+            _state.update { it.copy(loading = true, timeLimitReached = it.timeLimitReached || timeLimitReached) }
             runCatching { engine.completeSession(sessionId, current.conceptTitleGujarati) }
                 .onSuccess { summary ->
                     _state.update { it.copy(loading = false, summary = summary, awaitingNext = false) }
-                    speak("આજની રમત પૂરી! હવે ફોનને થોડો આરામ આપીએ.")
+                    speak(
+                        if (_state.value.timeLimitReached) "આજની રમતનો સમય પૂરો થયો! હવે ફોનને થોડો આરામ આપીએ."
+                        else "આજની રમત પૂરી! હવે ફોનને થોડો આરામ આપીએ."
+                    )
                 }
                 .onFailure { failure ->
                     _state.update { it.copy(loading = false, error = failure.message ?: "સત્ર પૂરુ થઈ શક્યું નહીં.") }
