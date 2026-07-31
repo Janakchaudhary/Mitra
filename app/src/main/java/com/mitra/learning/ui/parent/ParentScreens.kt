@@ -58,6 +58,7 @@ fun ParentPinScreen(
 @Composable
 fun ParentHomeScreen(
     onBooks: () -> Unit,
+    onAiSettings: () -> Unit,
     onChildMode: () -> Unit,
 ) {
     Column(
@@ -65,14 +66,17 @@ fun ParentHomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Parent dashboard", style = MaterialTheme.typography.headlineLarge)
-        Text("Milestone 4 — books + voice + chapter preparation")
+        Text("Milestone 5 — real textbook AI + grounded practice")
         Button(onClick = onBooks, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.MenuBook, contentDescription = null)
             Text("  My books")
         }
-        OutlinedButton(onClick = onChildMode, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = onAiSettings, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Settings, contentDescription = null)
-            Text("  Return to child mode")
+            Text("  AI provider settings")
+        }
+        OutlinedButton(onClick = onChildMode, modifier = Modifier.fillMaxWidth()) {
+            Text("Return to child mode")
         }
     }
 }

@@ -34,6 +34,8 @@ import com.mitra.learning.ui.learning.LearningSessionScreen
 import com.mitra.learning.ui.learning.LearningSessionViewModel
 import com.mitra.learning.ui.child.ChildBookListScreen
 import com.mitra.learning.ui.common.simpleViewModelFactory
+import com.mitra.learning.ui.parent.AiSettingsScreen
+import com.mitra.learning.ui.parent.AiSettingsViewModel
 import com.mitra.learning.ui.parent.ParentHomeScreen
 import com.mitra.learning.ui.parent.ParentPinScreen
 import com.mitra.learning.ui.parent.ParentPinViewModel
@@ -58,6 +60,7 @@ private object Routes {
     const val Learning = "child/learning"
     const val ParentPin = "parent-pin"
     const val Parent = "parent"
+    const val AiSettings = "parent/ai-settings"
     const val Books = "books"
     const val AddBook = "books/add"
     const val Book = "books/{bookId}"
@@ -148,7 +151,31 @@ private fun MitraNav(container: AppContainer) {
         composable(Routes.Parent) {
             ParentHomeScreen(
                 onBooks = { nav.navigate(Routes.Books) },
+                onAiSettings = { nav.navigate(Routes.AiSettings) },
                 onChildMode = { nav.navigate(Routes.Child) { popUpTo(Routes.Child) { inclusive = true } } },
+            )
+        }
+        composable(Routes.AiSettings) {
+            val vm: AiSettingsViewModel = viewModel(
+                factory = simpleViewModelFactory {
+                    AiSettingsViewModel(
+                        repository = container.aiSettingsRepository,
+                        secretStore = container.secretStore,
+                        gateway = container.configurableAiGateway,
+                    )
+                }
+            )
+            val state by vm.state.collectAsStateWithLifecycle()
+            AiSettingsScreen(
+                state = state,
+                onRemoteEnabledChange = vm::setRemoteEnabled,
+                onBaseUrlChange = vm::setBaseUrl,
+                onModelChange = vm::setModel,
+                onApiKeyChange = vm::setApiKey,
+                onSave = vm::save,
+                onTest = vm::testConnection,
+                onClearKey = vm::clearApiKey,
+                onBack = { nav.popBackStack() },
             )
         }
         composable(Routes.Books) {

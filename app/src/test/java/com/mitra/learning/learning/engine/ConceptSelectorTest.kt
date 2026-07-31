@@ -5,6 +5,7 @@ import com.mitra.learning.data.db.entity.MasteryEntity
 import com.mitra.learning.learning.curriculum.BuiltInCurriculum
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ConceptSelectorTest {
@@ -72,6 +73,44 @@ class ConceptSelectorTest {
         )
 
         assertEquals("ready", selected?.id)
+    }
+
+    @Test
+    fun returnsNullWhenNoConceptIsPracticeReady() {
+        val hidden = BuiltInCurriculum.concepts.first().copy(
+            id = "book-hidden-only",
+            practiceReady = false,
+        )
+        val selected = ConceptSelector.select(
+            concepts = listOf(hidden),
+            mastery = emptyList(),
+            prerequisites = emptyList(),
+        )
+        assertNull(selected)
+    }
+
+    @Test
+    fun preparedBookConceptIsPreferredOverBuiltInFallback() {
+        val builtIn = BuiltInCurriculum.concepts.first().copy(
+            id = "built-in-fallback",
+            builtIn = true,
+            practiceReady = true,
+            sortOrder = 1,
+        )
+        val book = BuiltInCurriculum.concepts.first().copy(
+            id = "book-ready",
+            builtIn = false,
+            bookId = "book-1",
+            chapterId = "chapter-1",
+            practiceReady = true,
+            sortOrder = 10000,
+        )
+        val selected = ConceptSelector.select(
+            concepts = listOf(builtIn, book),
+            mastery = emptyList(),
+            prerequisites = emptyList(),
+        )
+        assertEquals("book-ready", selected?.id)
     }
 
     private fun mastery(id: String, value: Float) = MasteryEntity(

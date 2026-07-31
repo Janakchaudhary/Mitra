@@ -24,8 +24,13 @@ object ConceptSelector {
             }
         }
 
-        val pool = eligible.filter { (masteryById[it.id]?.mastery ?: 0f) < masteredThreshold }
-            .ifEmpty { eligible.ifEmpty { concepts } }
+        if (eligible.isEmpty()) return null
+
+        // Once a real textbook has prepared practice-ready concepts, prefer those over the
+        // temporary built-in curriculum. Built-ins remain the offline/fallback curriculum.
+        val preferred = eligible.filter { !it.builtIn }.ifEmpty { eligible }
+        val pool = preferred.filter { (masteryById[it.id]?.mastery ?: 0f) < masteredThreshold }
+            .ifEmpty { preferred }
 
         return pool.minWithOrNull(
             compareBy<ConceptEntity> { masteryById[it.id]?.mastery ?: 0f }

@@ -2,7 +2,8 @@ package com.mitra.learning.core
 
 import android.content.Context
 import com.mitra.learning.ai.AiGateway
-import com.mitra.learning.ai.MockAiGateway
+import com.mitra.learning.ai.ConfigurableAiGateway
+import com.mitra.learning.ai.settings.AiSettingsRepository
 import com.mitra.learning.books.analysis.BookPreparationService
 import com.mitra.learning.books.pdf.AndroidPdfPageRenderer
 import com.mitra.learning.data.db.MitraDatabase
@@ -14,7 +15,9 @@ import com.mitra.learning.data.repository.LocalBookRepository
 import com.mitra.learning.data.repository.LocalLearningRepository
 import com.mitra.learning.learning.engine.DefaultLearningEngine
 import com.mitra.learning.learning.engine.LearningEngine
+import com.mitra.learning.security.AndroidKeystoreSecretStore
 import com.mitra.learning.security.ParentPinRepository
+import com.mitra.learning.security.SecretStore
 import com.mitra.learning.voice.AndroidSpeechInput
 import com.mitra.learning.voice.AndroidSpeechOutput
 import com.mitra.learning.voice.SpeechInput
@@ -46,7 +49,13 @@ class AppContainer(context: Context) {
         attemptDao = database.attemptDao(),
     )
 
-    val aiGateway: AiGateway = MockAiGateway()
+    val aiSettingsRepository = AiSettingsRepository(appContext)
+    val secretStore: SecretStore = AndroidKeystoreSecretStore(appContext)
+    val configurableAiGateway = ConfigurableAiGateway(
+        settingsRepository = aiSettingsRepository,
+        secretStore = secretStore,
+    )
+    val aiGateway: AiGateway = configurableAiGateway
 
     val bookPreparationService = BookPreparationService(
         bookRepository = bookRepository,
@@ -62,6 +71,8 @@ class AppContainer(context: Context) {
     val learningEngine: LearningEngine = DefaultLearningEngine(
         repository = learningRepository,
         aiGateway = aiGateway,
+        bookKnowledgeRepository = bookKnowledgeRepository,
+        bookRepository = bookRepository,
     )
 
     val parentPinRepository = ParentPinRepository(appContext)

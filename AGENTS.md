@@ -27,9 +27,9 @@ Implement one milestone at a time. For every milestone:
 7. Preserve Room data with explicit migrations; never use destructive migration in release behavior.
 
 ## Current scope
-Milestone 4 is implemented: local book preparation, chapter structure, page knowledge, and concept extraction plumbing behind `AiGateway`. `MockAiGateway` intentionally produces only development analysis and leaves book-derived concepts disabled for child practice.
+Milestone 5 is implemented: local book preparation, chapter structure, page knowledge, and concept extraction plumbing behind `AiGateway`. `MockAiGateway` intentionally produces only development analysis and leaves book-derived concepts disabled for child practice.
 
-Before starting another milestone, verify Milestone 4 is green in GitHub Actions and on a physical Android device.
+Before starting another milestone, verify Milestone 5 is green in GitHub Actions and on a physical Android device.
 
 ## Next scope — Milestone 5 only
 Connect a real parent-configured AI provider behind `AiGateway` for:
@@ -40,3 +40,12 @@ Connect a real parent-configured AI provider behind `AiGateway` for:
 - enabling only valid analyzed book concepts for practice
 
 Do not let the provider assign mastery or select curriculum. Never embed the provider secret in source or BuildConfig.
+
+
+## Milestone 5 AI rules
+
+- Keep `AiGateway` provider-neutral.
+- Never compile API keys into the APK.
+- Child transcripts/answers remain local in Milestone 5.
+- Remote AI may analyze parent-selected textbook pages and generate grounded numeric question sets.
+- Never make `practiceReady=false` concepts eligible for child practice.

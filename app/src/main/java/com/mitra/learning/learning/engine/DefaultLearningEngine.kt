@@ -6,9 +6,12 @@ import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.data.db.entity.MasteryEntity
 import com.mitra.learning.data.db.entity.SessionEntity
 import com.mitra.learning.data.db.entity.SessionStatus
+import com.mitra.learning.data.repository.BookKnowledgeRepository
+import com.mitra.learning.data.repository.BookRepository
 import com.mitra.learning.data.repository.LearningRepository
 import com.mitra.learning.learning.evaluation.GujaratiNumberNormalizer
 import com.mitra.learning.learning.evaluation.MasteryPolicy
+import com.mitra.learning.ai.PracticeContext
 import com.mitra.learning.learning.model.AnswerFeedback
 import com.mitra.learning.learning.model.LearningQuestion
 import com.mitra.learning.learning.model.SessionPlan
@@ -18,6 +21,8 @@ import java.util.UUID
 class DefaultLearningEngine(
     private val repository: LearningRepository,
     private val aiGateway: AiGateway,
+    private val bookKnowledgeRepository: BookKnowledgeRepository? = null,
+    private val bookRepository: BookRepository? = null,
     private val now: () -> Long = { System.currentTimeMillis() },
 ) : LearningEngine {
 
@@ -41,7 +46,11 @@ class DefaultLearningEngine(
         )
         repository.insertSession(session)
 
-        val questions = aiGateway.createPracticeQuestions(concept, questionCount.coerceAtLeast(1))
+        val questions = aiGateway.createPracticeQuestions(
+            concept = concept,
+            count = questionCount.coerceAtLeast(1),
+            context = buildPracticeContext(concept),
+        )
         return SessionPlan(session.id, concept, questions)
     }
 
@@ -159,4 +168,35 @@ class DefaultLearningEngine(
             mastery = nextMastery,
         )
     }
+    private suspend fun buildPracticeContext(concept: com.mitra.learning.data.db.entity.ConceptEntity): PracticeContext? {
+        val chapterId = concept.chapterId ?: return null
+        val knowledgeRepository = bookKnowledgeRepository ?: return null
+        val chapter = knowledgeRepository.getChapter(chapterId) ?: return null
+        val pageStart = concept.sourcePageStart ?: chapter.startPage
+        val pageEnd = concept.sourcePageEnd ?: chapter.endPage
+        val grounded = knowledgeRepository.pageKnowledge(chapterId)
+            .filter { it.pageNumber in pageStart..pageEnd }
+            .joinToString("\n\n") { page ->
+                buildString {
+                    append("Page ${page.pageNumber}: ")
+                    append(page.summaryGujarati)
+                    page.visibleTextGujarati?.takeIf { it.isNotBlank() }?.let {
+                        append("\nVisible text: ")
+                        append(it)
+                    }
+                    page.exercisesJson?.takeIf { it.isNotBlank() }?.let {
+                        append("\nExercises: ")
+                        append(it)
+                    }
+                }
+            }
+            .take(12_000)
+        val bookTitle = concept.bookId?.let { bookRepository?.getBook(it)?.title }
+        return PracticeContext(
+            bookTitle = bookTitle,
+            chapterTitleGujarati = chapter.titleGujarati,
+            groundedBookText = grounded,
+        )
+    }
+
 }

@@ -88,6 +88,7 @@ class MockAiGateway : AiGateway {
     override suspend fun createPracticeQuestions(
         concept: ConceptEntity,
         count: Int,
+        context: PracticeContext?,
     ): List<LearningQuestion> {
         val base = when (concept.id) {
             BuiltInCurriculum.COUNT_1_20 -> listOf(

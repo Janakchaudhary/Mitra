@@ -16,6 +16,7 @@ interface AiGateway {
     suspend fun createPracticeQuestions(
         concept: ConceptEntity,
         count: Int,
+        context: PracticeContext? = null,
     ): List<LearningQuestion>
 
     fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int): String
