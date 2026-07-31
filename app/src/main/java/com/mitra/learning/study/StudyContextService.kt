@@ -55,8 +55,8 @@ class StudyContextService(
     private fun score(text: String, tokens: Set<String>): Int {
         if (tokens.isEmpty()) return 0
         val haystack = normalize(text)
-        return tokens.sumOf { token ->
-            when {
+        return tokens.fold(0) { total, token ->
+            total + when {
                 haystack.contains(" $token ") -> 5
                 haystack.contains(token) -> 2
                 else -> 0
