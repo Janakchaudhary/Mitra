@@ -93,3 +93,15 @@ Mitra supports two optional remote providers for prepared-textbook analysis and 
 
 Built-in Standard 2 skills remain local/offline. Provider credentials are entered after install and stored separately using the app secret store.
 
+
+
+### 0.10.3 Cloudflare response fix
+Cloudflare uses the OpenAI-compatible endpoint first and falls back to the native Workers AI `/ai/run/@cf/...` endpoint when a successful response contains no final assistant text.
+
+## APK updates without uninstalling
+
+GitHub APK artifacts now use a persistent signing key. Complete the one-time setup
+in [`SIGNING_SETUP.md`](SIGNING_SETUP.md) before downloading installable builds.
+After one migration uninstall/install, future `mitra-update-apk` artifacts can be
+installed directly over the existing Mitra app without losing local books or
+progress.

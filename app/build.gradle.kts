@@ -5,6 +5,25 @@ plugins {
     id("org.jetbrains.kotlin.kapt")
 }
 
+// GitHub-hosted runners are ephemeral. Never rely on their generated
+// ~/.android/debug.keystore for installable APK artifacts, because a different
+// certificate prevents Android from treating a later APK as an update.
+//
+// For main/dispatch CI builds the workflow restores one persistent keystore and
+// exposes it through these environment variables. Local builds without them
+// continue to use Android's normal local debug signing key.
+val mitraKeystorePath = providers.environmentVariable("MITRA_KEYSTORE_PATH").orNull
+val mitraKeystorePassword = providers.environmentVariable("MITRA_KEYSTORE_PASSWORD").orNull
+val mitraKeyAlias = providers.environmentVariable("MITRA_KEY_ALIAS").orNull
+val mitraKeyPassword = providers.environmentVariable("MITRA_KEY_PASSWORD").orNull
+
+val hasMitraSigning = listOf(
+    mitraKeystorePath,
+    mitraKeystorePassword,
+    mitraKeyAlias,
+    mitraKeyPassword,
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.mitra.learning"
     compileSdk = 35
@@ -13,16 +32,38 @@ android {
         applicationId = "com.mitra.learning"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "0.10.2"
+        versionCode = 17
+        versionName = "0.10.4"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
     }
 
+    signingConfigs {
+        if (hasMitraSigning) {
+            create("mitraPersistent") {
+                storeFile = file(mitraKeystorePath!!)
+                storePassword = mitraKeystorePassword
+                keyAlias = mitraKeyAlias
+                keyPassword = mitraKeyPassword
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            // CI installable artifacts use the persistent key. Developers who
+            // build locally without CI secrets keep the normal debug key.
+            if (hasMitraSigning) {
+                signingConfig = signingConfigs.getByName("mitraPersistent")
+            }
+        }
+
         release {
             isMinifyEnabled = false
+            if (hasMitraSigning) {
+                signingConfig = signingConfigs.getByName("mitraPersistent")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

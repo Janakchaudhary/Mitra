@@ -26,6 +26,42 @@ class CloudflareResponseParserTest {
     }
 
     @Test
+    fun extractsNativeWorkersAiEnvelope() {
+        val content = """{"grounded":true,"answerGujarati":"હા"}"""
+        val body = buildJsonObject {
+            put("success", true)
+            put("result", buildJsonObject {
+                put("response", content)
+            })
+            put("errors", buildJsonArray { })
+        }.toString()
+
+        val parsed = CloudflareResponseParser.parseStructuredText(body)
+        assertEquals("true", parsed["grounded"].toString())
+        assertEquals("\"હા\"", parsed["answerGujarati"].toString())
+    }
+
+    @Test
+    fun extractsArrayContentText() {
+        val body = buildJsonObject {
+            put("choices", buildJsonArray {
+                add(buildJsonObject {
+                    put("message", buildJsonObject {
+                        put("content", buildJsonArray {
+                            add(buildJsonObject {
+                                put("type", "text")
+                                put("text", "OK")
+                            })
+                        })
+                    })
+                })
+            })
+        }.toString()
+
+        assertEquals("OK", CloudflareResponseParser.messageText(body))
+    }
+
+    @Test
     fun stripsMarkdownFenceDefensively() {
         val body = buildJsonObject {
             put("choices", buildJsonArray {

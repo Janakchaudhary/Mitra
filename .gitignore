@@ -10,3 +10,6 @@ captures/
 app/build/
 *.jks
 *.keystore
+
+# Local persistent app-signing material. Never commit private keys.
+.signing/

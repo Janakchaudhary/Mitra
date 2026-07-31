@@ -11,8 +11,15 @@ permissions:
 
 jobs:
   build:
-    # Pin the runner image so the Android SDK baseline is predictable.
     runs-on: ubuntu-24.04
+
+    # These are empty on fork PRs, which is intentional. PRs compile/test with
+    # the runner debug key; installable artifacts from main/dispatch use the
+    # persistent Mitra key restored below.
+    env:
+      MITRA_KEYSTORE_PASSWORD: ${{ secrets.MITRA_KEYSTORE_PASSWORD }}
+      MITRA_KEY_ALIAS: ${{ secrets.MITRA_KEY_ALIAS }}
+      MITRA_KEY_PASSWORD: ${{ secrets.MITRA_KEY_PASSWORD }}
 
     steps:
       - name: Checkout sources
@@ -24,9 +31,6 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      # GitHub's Ubuntu 24.04 runner already includes Android command-line tools,
-      # ANDROID_HOME, Android 35, and Build Tools 35.0.0. Install only if a
-      # future runner image does not contain the versions this project needs.
       - name: Ensure Android SDK 35
         shell: bash
         run: |
@@ -46,7 +50,6 @@ jobs:
             "$SDKMANAGER" "${PACKAGES[@]}"
           fi
 
-          echo "ANDROID_HOME=$ANDROID_HOME"
           test -d "$ANDROID_HOME/platforms/android-35"
           test -d "$ANDROID_HOME/build-tools/35.0.0"
 
@@ -54,6 +57,27 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.11.1'
+
+      - name: Restore persistent signing key
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          MITRA_KEYSTORE_BASE64: ${{ secrets.MITRA_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${MITRA_KEYSTORE_BASE64:-}" ] || \
+             [ -z "${MITRA_KEYSTORE_PASSWORD:-}" ] || \
+             [ -z "${MITRA_KEY_ALIAS:-}" ] || \
+             [ -z "${MITRA_KEY_PASSWORD:-}" ]; then
+            echo "::error::Persistent Mitra signing secrets are missing. Run scripts/setup-github-signing.sh once from a trusted Codespace, then rerun this workflow."
+            exit 1
+          fi
+
+          KEYSTORE_PATH="$RUNNER_TEMP/mitra-signing.jks"
+          printf '%s' "$MITRA_KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          chmod 600 "$KEYSTORE_PATH"
+          echo "MITRA_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
 
       - name: Unit tests
         run: gradle testDebugUnitTest
@@ -64,9 +88,21 @@ jobs:
       - name: Build debug APK
         run: gradle assembleDebug
 
-      - name: Upload APK
+      - name: Verify signing certificate
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          "$APKSIGNER" verify --print-certs "$APK"
+
+      # Only artifacts built with the persistent key should be downloaded for
+      # phone installation. PR APKs intentionally use an ephemeral debug key.
+      - name: Upload update-safe APK
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v7
         with:
-          name: mitra-debug-apk
+          name: mitra-update-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
