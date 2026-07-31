@@ -24,7 +24,7 @@ Mitra now supports the full local-first path from PDF books to richer child lear
 - Gujarati push-to-talk and Gujarati TTS with text fallback; English skill activities can request `en-IN` speech/recognition.
 - Spoken maths/table answers can be normalized locally from Gujarati number words through 100.
 - Parent-reviewed chapter detection and manual chapter editing.
-- Real optional OpenAI textbook page analysis through a replaceable `AiGateway`.
+- Optional remote textbook page analysis through a replaceable `AiGateway` (OpenAI default, Cloudflare Workers AI secondary).
 - Book-grounded activity generation from locally cached page knowledge.
 - Numeric questions, multiple choice, short text, keyword checks, riddles, reading, vocabulary, stories, book-look, drawing, physical missions, Teach-Mitra and recap activities.
 - Hints that reduce mastery gain on assessed answers.
@@ -83,3 +83,13 @@ A parent-entered API key inside a mobile APK is only appropriate for this privat
 Milestone 10 adds a textbook-grounded child Study Talk screen, parent-selectable voice styles, an activity-first Color Lab and English Sentence Builder, and a more playful child UI. Study Talk retrieves only locally prepared uploaded-book page knowledge and asks the configured AI provider to answer from that grounding. Conversation history is memory-only.
 
 Voice presets are style controls (pitch/rate), not exact character voice cloning. The included presets are Warm Mitra, Energetic Hero, Playful Hero, and Storyteller.
+
+## AI providers
+
+Mitra supports two optional remote providers for prepared-textbook analysis and grounded study Q&A:
+
+- OpenAI (default remote provider)
+- Cloudflare Workers AI (free-tier option; parent supplies Cloudflare Account ID and Workers AI API token)
+
+Built-in Standard 2 skills remain local/offline. Provider credentials are entered after install and stored separately using the app secret store.
+

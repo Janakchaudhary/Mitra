@@ -16,15 +16,18 @@ class AiSettingsRepository(private val context: Context) {
     private val enabledKey = booleanPreferencesKey("remote_enabled")
     private val baseUrlKey = stringPreferencesKey("base_url")
     private val modelKey = stringPreferencesKey("model")
+    private val cloudflareAccountIdKey = stringPreferencesKey("cloudflare_account_id")
 
     val config: Flow<AiProviderConfig> = context.aiSettingsDataStore.data.map { prefs ->
+        val provider = runCatching {
+            AiProviderType.valueOf(prefs[providerKey] ?: AiProviderType.OPENAI.name)
+        }.getOrDefault(AiProviderType.OPENAI)
         AiProviderConfig(
-            provider = runCatching {
-                AiProviderType.valueOf(prefs[providerKey] ?: AiProviderType.MOCK.name)
-            }.getOrDefault(AiProviderType.MOCK),
+            provider = provider,
             remoteEnabled = prefs[enabledKey] ?: false,
             baseUrl = prefs[baseUrlKey].orEmpty().ifBlank { AiProviderConfig.DEFAULT_OPENAI_BASE_URL },
-            model = prefs[modelKey].orEmpty().ifBlank { AiProviderConfig.DEFAULT_OPENAI_MODEL },
+            model = prefs[modelKey].orEmpty().ifBlank { AiProviderConfig.defaultModel(provider) },
+            cloudflareAccountId = prefs[cloudflareAccountIdKey].orEmpty(),
         )
     }
 
@@ -32,12 +35,13 @@ class AiSettingsRepository(private val context: Context) {
 
     suspend fun save(config: AiProviderConfig) {
         val cleanBaseUrl = config.baseUrl.trim().trimEnd('/').ifBlank { AiProviderConfig.DEFAULT_OPENAI_BASE_URL }
-        val cleanModel = config.model.trim().ifBlank { AiProviderConfig.DEFAULT_OPENAI_MODEL }
+        val cleanModel = config.model.trim().ifBlank { AiProviderConfig.defaultModel(config.provider) }
         context.aiSettingsDataStore.edit { prefs ->
             prefs[providerKey] = config.provider.name
             prefs[enabledKey] = config.remoteEnabled
             prefs[baseUrlKey] = cleanBaseUrl
             prefs[modelKey] = cleanModel
+            prefs[cloudflareAccountIdKey] = config.cloudflareAccountId.trim()
         }
     }
 

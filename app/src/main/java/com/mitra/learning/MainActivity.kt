@@ -3,6 +3,12 @@ package com.mitra.learning
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -10,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -56,9 +63,18 @@ import com.mitra.learning.ui.theme.MitraTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         setContent {
             val app = LocalContext.current.applicationContext as MitraApplication
-            MitraTheme { MitraNav(app.container) }
+            MitraTheme {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .windowInsetsPadding(WindowInsets.safeDrawing),
+                ) {
+                    MitraNav(app.container)
+                }
+            }
         }
     }
 
@@ -354,12 +370,14 @@ private fun MitraNav(container: AppContainer) {
                 AiSettingsScreen(
                     state = state,
                     onRemoteEnabledChange = vm::setRemoteEnabled,
+                    onProviderChange = vm::setProvider,
                     onBaseUrlChange = vm::setBaseUrl,
                     onModelChange = vm::setModel,
-                    onApiKeyChange = vm::setApiKey,
+                    onCloudflareAccountIdChange = vm::setCloudflareAccountId,
+                    onCredentialChange = vm::setCredential,
                     onSave = vm::save,
                     onTest = vm::testConnection,
-                    onClearKey = vm::clearApiKey,
+                    onClearCredential = vm::clearCredential,
                     onBack = { nav.popBackStack() },
                 )
             }

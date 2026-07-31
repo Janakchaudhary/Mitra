@@ -1,5 +1,6 @@
 package com.mitra.learning.ai
 
+import com.mitra.learning.ai.cloudflare.CloudflareAiGateway
 import com.mitra.learning.ai.openai.OpenAiGateway
 import com.mitra.learning.ai.openai.OpenAiHttp
 import com.mitra.learning.ai.settings.AiProviderType
@@ -20,7 +21,7 @@ class ConfigurableAiGateway(
     private val settingsRepository: AiSettingsRepository,
     private val secretStore: SecretStore,
     private val mock: AiGateway = MockAiGateway(),
-    private val http: OpenAiHttp = OpenAiHttp(),
+    private val openAiHttp: OpenAiHttp = OpenAiHttp(),
 ) : AiGateway {
 
     override suspend fun analyzeTableOfContents(request: TocAnalysisRequest): TocAnalysisResult =
@@ -34,8 +35,7 @@ class ConfigurableAiGateway(
         count: Int,
         context: PracticeContext?,
     ): List<LearningQuestion> {
-        // Built-in Standard 2 skills are deliberately local/deterministic even when a remote
-        // provider is enabled. Remote AI is reserved for prepared textbook-derived concepts.
+        // Built-in Standard 2 skills remain local/deterministic for speed, privacy and offline use.
         if (concept.builtIn) return mock.createPracticeQuestions(concept, count, context)
         return currentGateway().createPracticeQuestions(concept, count, context)
     }
@@ -48,21 +48,51 @@ class ConfigurableAiGateway(
 
     suspend fun testConfiguredProvider(): String {
         val config = settingsRepository.getConfig()
-        if (config.provider == AiProviderType.MOCK || !config.remoteEnabled) {
-            return "Mock AI is active. No internet provider is being used."
+        if (!config.remoteEnabled || config.provider == AiProviderType.MOCK) {
+            return "Offline/mock AI is active. No internet provider is being used."
         }
-        val key = secretStore.readSecret(AndroidKeystoreSecretStore.OPENAI_API_KEY)
-            ?.takeIf { it.isNotBlank() }
-            ?: error("Enter and save an API key first.")
-        return OpenAiGateway(config, key, http).testConnection()
+        return when (config.provider) {
+            AiProviderType.OPENAI -> {
+                val key = requireSecret(
+                    AndroidKeystoreSecretStore.OPENAI_API_KEY,
+                    "Enter and save an OpenAI API key first.",
+                )
+                OpenAiGateway(config, key, openAiHttp).testConnection()
+            }
+            AiProviderType.CLOUDFLARE -> {
+                val token = requireSecret(
+                    AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN,
+                    "Enter and save a Cloudflare Workers AI API token first.",
+                )
+                CloudflareAiGateway(config, token).testConnection()
+            }
+            AiProviderType.MOCK -> "Offline/mock AI is active."
+        }
     }
 
     private suspend fun currentGateway(): AiGateway {
         val config = settingsRepository.getConfig()
-        if (config.provider == AiProviderType.MOCK || !config.remoteEnabled) return mock
-        val key = secretStore.readSecret(AndroidKeystoreSecretStore.OPENAI_API_KEY)
-            ?.takeIf { it.isNotBlank() }
-            ?: error("Remote AI is enabled but no API key is configured in Parent settings.")
-        return OpenAiGateway(config, key, http)
+        if (!config.remoteEnabled || config.provider == AiProviderType.MOCK) return mock
+        return when (config.provider) {
+            AiProviderType.OPENAI -> OpenAiGateway(
+                config = config,
+                apiKey = requireSecret(
+                    AndroidKeystoreSecretStore.OPENAI_API_KEY,
+                    "OpenAI is enabled but no API key is configured in Parent settings.",
+                ),
+                http = openAiHttp,
+            )
+            AiProviderType.CLOUDFLARE -> CloudflareAiGateway(
+                config = config,
+                apiKey = requireSecret(
+                    AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN,
+                    "Cloudflare is enabled but no API token is configured in Parent settings.",
+                ),
+            )
+            AiProviderType.MOCK -> mock
+        }
     }
+
+    private fun requireSecret(key: String, message: String): String =
+        secretStore.readSecret(key)?.takeIf { it.isNotBlank() } ?: error(message)
 }

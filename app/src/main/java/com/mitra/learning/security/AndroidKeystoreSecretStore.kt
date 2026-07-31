@@ -59,6 +59,7 @@ class AndroidKeystoreSecretStore(context: Context) : SecretStore {
 
     companion object {
         const val OPENAI_API_KEY = "openai_api_key"
+        const val CLOUDFLARE_API_TOKEN = "cloudflare_api_token"
         private const val PREFS_NAME = "encrypted_secrets"
         private const val KEY_ALIAS = "mitra_local_secret_key_v1"
         private const val TRANSFORMATION = "AES/GCM/NoPadding"

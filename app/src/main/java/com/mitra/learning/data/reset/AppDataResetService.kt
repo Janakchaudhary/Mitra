@@ -44,6 +44,7 @@ class AppDataResetService(
         database.clearAllTables()
         File(context.filesDir, "books").deleteRecursively()
         secretStore.removeSecret(AndroidKeystoreSecretStore.OPENAI_API_KEY)
+        secretStore.removeSecret(AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN)
         aiSettingsRepository.reset()
         learningSettingsRepository.reset()
         parentPinRepository.clear()
