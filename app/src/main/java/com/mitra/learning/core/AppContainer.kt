@@ -13,6 +13,8 @@ import com.mitra.learning.data.repository.LearningRepository
 import com.mitra.learning.data.repository.LocalBookKnowledgeRepository
 import com.mitra.learning.data.repository.LocalBookRepository
 import com.mitra.learning.data.repository.LocalLearningRepository
+import com.mitra.learning.data.repository.LocalProgressRepository
+import com.mitra.learning.data.repository.ProgressRepository
 import com.mitra.learning.learning.engine.DefaultLearningEngine
 import com.mitra.learning.learning.engine.LearningEngine
 import com.mitra.learning.security.AndroidKeystoreSecretStore
@@ -43,6 +45,13 @@ class AppContainer(context: Context) {
     )
 
     val learningRepository: LearningRepository = LocalLearningRepository(
+        conceptDao = database.conceptDao(),
+        masteryDao = database.masteryDao(),
+        sessionDao = database.sessionDao(),
+        attemptDao = database.attemptDao(),
+    )
+
+    val progressRepository: ProgressRepository = LocalProgressRepository(
         conceptDao = database.conceptDao(),
         masteryDao = database.masteryDao(),
         sessionDao = database.sessionDao(),

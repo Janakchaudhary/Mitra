@@ -11,6 +11,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -58,6 +59,7 @@ fun ParentPinScreen(
 @Composable
 fun ParentHomeScreen(
     onBooks: () -> Unit,
+    onProgress: () -> Unit,
     onAiSettings: () -> Unit,
     onChildMode: () -> Unit,
 ) {
@@ -66,10 +68,14 @@ fun ParentHomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Parent dashboard", style = MaterialTheme.typography.headlineLarge)
-        Text("Milestone 5 — real textbook AI + grounded practice")
+        Text("Milestone 7 — local progress dashboard + adaptive review")
         Button(onClick = onBooks, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.MenuBook, contentDescription = null)
             Text("  My books")
+        }
+        Button(onClick = onProgress, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.ShowChart, contentDescription = null)
+            Text("  Learning progress")
         }
         OutlinedButton(onClick = onAiSettings, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Settings, contentDescription = null)

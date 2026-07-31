@@ -12,4 +12,7 @@ interface AttemptDao {
 
     @Query("SELECT * FROM attempts WHERE sessionId = :sessionId ORDER BY createdAt")
     suspend fun forSession(sessionId: String): List<AttemptEntity>
+
+    @Query("SELECT * FROM attempts ORDER BY createdAt DESC")
+    suspend fun getAll(): List<AttemptEntity>
 }

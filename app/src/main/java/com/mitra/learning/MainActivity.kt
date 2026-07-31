@@ -39,6 +39,8 @@ import com.mitra.learning.ui.parent.AiSettingsViewModel
 import com.mitra.learning.ui.parent.ParentHomeScreen
 import com.mitra.learning.ui.parent.ParentPinScreen
 import com.mitra.learning.ui.parent.ParentPinViewModel
+import com.mitra.learning.ui.progress.ProgressScreen
+import com.mitra.learning.ui.progress.ProgressViewModel
 import com.mitra.learning.ui.setup.SetupPinScreen
 import com.mitra.learning.ui.setup.SetupPinViewModel
 import com.mitra.learning.ui.theme.MitraTheme
@@ -61,6 +63,7 @@ private object Routes {
     const val ParentPin = "parent-pin"
     const val Parent = "parent"
     const val AiSettings = "parent/ai-settings"
+    const val Progress = "parent/progress"
     const val Books = "books"
     const val AddBook = "books/add"
     const val Book = "books/{bookId}"
@@ -154,8 +157,20 @@ private fun MitraNav(container: AppContainer) {
         composable(Routes.Parent) {
             ParentHomeScreen(
                 onBooks = { nav.navigate(Routes.Books) },
+                onProgress = { nav.navigate(Routes.Progress) },
                 onAiSettings = { nav.navigate(Routes.AiSettings) },
                 onChildMode = { nav.navigate(Routes.Child) { popUpTo(Routes.Child) { inclusive = true } } },
+            )
+        }
+        composable(Routes.Progress) {
+            val vm: ProgressViewModel = viewModel(
+                factory = simpleViewModelFactory { ProgressViewModel(container.progressRepository) }
+            )
+            val state by vm.state.collectAsStateWithLifecycle()
+            ProgressScreen(
+                state = state,
+                onRefresh = vm::refresh,
+                onBack = { nav.popBackStack() },
             )
         }
         composable(Routes.AiSettings) {

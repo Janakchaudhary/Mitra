@@ -2,7 +2,7 @@
 
 A local-first Android learning companion for one Standard 2 Gujarati-medium child.
 
-## Current version — Milestone 6 (0.6.0)
+## Current version — Milestone 7 (0.7.0)
 
 Mitra now supports the full local-first path from PDF books to richer child learning sessions:
 
@@ -18,11 +18,12 @@ Mitra now supports the full local-first path from PDF books to richer child lear
 - Participation-only activities recorded without changing mastery.
 - Local safety replacement for physical/drawing instructions.
 - Automatic off-screen activity injection for longer sessions.
+- Parent-only local progress dashboard with subject/concept mastery, weak areas, recent sessions and next-practice recommendation.
 - No Firebase, Supabase, PostgreSQL, account system, browser, feed, ads or social features.
 
-## Important Milestone 6 note
+## Important textbook preparation note
 
-Milestone 5 marked reading/vocabulary/open-ended concepts `practiceReady=false` because only integer evaluation existed then. After upgrading to 0.6.0, use **Prepare again** on a textbook chapter to let the new analysis rules enable appropriate language/story concepts.
+Milestone 5 marked reading/vocabulary/open-ended concepts `practiceReady=false` because only integer evaluation existed then. After upgrading from Milestone 5 or earlier, use **Prepare again** on a textbook chapter to let the new analysis rules enable appropriate language/story concepts.
 
 ## Build online with GitHub
 
@@ -42,7 +43,7 @@ gradle assembleDebug
 
 ## Recommended physical-device test
 
-1. Upgrade over 0.5.1; do not uninstall first.
+1. Upgrade over 0.6.0; do not uninstall first.
 2. Confirm existing books/PIN/progress remain.
 3. In Parent Mode, configure/test the AI provider if not already configured.
 4. Open one real textbook chapter and press **Prepare again**.
@@ -51,7 +52,8 @@ gradle assembleDebug
 7. Use **સંકેત** on an assessed question.
 8. Try a multiple-choice activity.
 9. Complete a physical/drawing/Teach-Mitra activity and confirm it advances without claiming a correct answer.
-10. Say **બસ** and confirm immediate exit still works.
+10. Open **Parent → Learning progress** and verify the completed session appears with time, accuracy and mastery.
+11. Say **બસ** in another session and confirm immediate exit still works.
 
 ## Privacy/runtime boundary
 

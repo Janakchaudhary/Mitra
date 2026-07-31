@@ -91,8 +91,11 @@ Parent-controlled contents-page selection, editable/manual chapters, chapter pre
 ### Milestone 5 — complete
 Parent-configured remote textbook image analysis and book-grounded activity generation with structured output and local privacy boundaries.
 
-### Milestone 6 — complete in this source
+### Milestone 6 — complete
 Mixed activity types, local non-numeric evaluation, hints, participation-only mastery protection, Teach-Mitra, drawing, book exploration, and local physical-mission safety policy.
+
+### Milestone 7 — complete in this source
+Parent-only local progress analytics: time spent, accuracy, subject/concept mastery, weak/strong concepts, recent sessions and prerequisite-aware next-practice recommendation. No remote AI call is required to calculate progress.
 
 ## Safety constraints
 

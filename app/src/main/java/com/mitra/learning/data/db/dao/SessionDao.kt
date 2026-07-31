@@ -16,4 +16,7 @@ interface SessionDao {
 
     @Query("SELECT * FROM learning_sessions WHERE id = :id LIMIT 1")
     suspend fun findById(id: String): SessionEntity?
+
+    @Query("SELECT * FROM learning_sessions ORDER BY startedAt DESC")
+    suspend fun getAll(): List<SessionEntity>
 }
