@@ -84,7 +84,10 @@ class OpenAiGateway(
             For every attached page, provide a short Gujarati summary, useful visible Gujarati text, important objects,
             exercises, and concepts. Keep Gujarati simple and faithful to the page.
 
-            Extract lesson concepts suitable for a Standard 2 child.
+            Extract lesson concepts suitable for a Standard 2 child. Keep skills separate when the pages support them so mastery stays meaningful.
+            Examples: two-digit addition without carry vs with carry; subtraction without borrowing vs with borrowing;
+            multiplication meaning vs an individual table; Gujarati spelling vs word meaning vs reading; English spelling vs reading.
+            Do not merge several independently teachable skills into one broad concept when the page clearly teaches them separately.
             `practiceReady` means this concept is suitable for one of Mitra's supported child-safe activities:
             numeric answer, multiple choice, short spoken/text answer, reading/vocabulary check, story/book exploration,
             drawing, Teach-Mitra, or a locally constrained physical mission. Mark normal Standard 2 lesson concepts true.
@@ -163,14 +166,20 @@ class OpenAiGateway(
             $grounded
 
             Supported activityType values:
-            QUESTION, MULTIPLE_CHOICE, RIDDLE, STORY, BOOK_LOOK, READING, VOCABULARY,
-            PHYSICAL_MISSION, DRAW, TEACH_MITRA, RECAP.
+            QUESTION, MULTIPLE_CHOICE, RIDDLE, STORY, BOOK_LOOK, READING, VOCABULARY, SPELLING,
+            MISSING_LETTER, TABLES, WORD_PROBLEM, PHYSICAL_MISSION, DRAW, TEACH_MITRA, RECAP.
 
             Supported evaluationMode values:
             NUMERIC, MULTIPLE_CHOICE, SHORT_TEXT, KEYWORD, PARTICIPATION.
 
             Rules:
             - Write prompts primarily in very simple Gujarati, one instruction/question at a time.
+            - spokenPromptGujarati is normally the same as promptGujarati. For spelling, keep the answer hidden in promptGujarati
+              (for example “સાંભળો અને શબ્દ લખો”) and put the word to dictate in spokenPromptGujarati.
+            - speechLanguageTag controls TTS and recognitionLanguageTag controls speech recognition. Use "gu-IN" for Gujarati and "en-IN" for English.
+              English read-aloud can use Gujarati TTS instructions with speechLanguageTag="gu-IN" and recognitionLanguageTag="en-IN".
+            - Use SPELLING for dictated Gujarati/English spelling, MISSING_LETTER for missing-letter work, TABLES for multiplication facts,
+              and WORD_PROBLEM for arithmetic stories when those match the textbook concept.
             - Ground factual/book questions only in the supplied concept and prepared page text.
             - Prefer variety. For $targetCount >= 5 include at least one PARTICIPATION activity and at least one locally assessable activity.
             - NUMERIC: expectedAnswer must contain the integer answer. Other answer fields may be empty.
@@ -220,6 +229,9 @@ class OpenAiGateway(
             LearningQuestion(
                 id = item.string("id").orEmpty().ifBlank { "ai-${text.hashCode()}" },
                 promptGujarati = text,
+                spokenPromptGujarati = item.string("spokenPromptGujarati")?.trim()?.takeIf { it.isNotBlank() },
+                speechLanguageTag = item.string("speechLanguageTag")?.trim()?.takeIf(::isAllowedChildLanguageTag),
+                recognitionLanguageTag = item.string("recognitionLanguageTag")?.trim()?.takeIf(::isAllowedChildLanguageTag),
                 expectedAnswer = expectedAnswer,
                 activityType = activityType.name,
                 evaluationMode = safeMode,
@@ -316,6 +328,8 @@ class OpenAiGateway(
         }
     }
 }
+
+private fun isAllowedChildLanguageTag(value: String): Boolean = value in setOf("gu-IN", "en-IN")
 
 private fun JsonObject.array(name: String): JsonArray = this[name] as? JsonArray ?: JsonArray(emptyList())
 private fun JsonObject.string(name: String): String? = (this[name] as? JsonPrimitive)?.contentOrNull

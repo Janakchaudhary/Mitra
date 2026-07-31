@@ -9,9 +9,7 @@ import com.mitra.learning.books.analysis.TocAnalysisResult
 import com.mitra.learning.books.analysis.TocChapterSuggestion
 import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.data.db.entity.ConceptEntity
-import com.mitra.learning.learning.curriculum.BuiltInCurriculum
-import com.mitra.learning.learning.model.ActivityType
-import com.mitra.learning.learning.model.EvaluationMode
+import com.mitra.learning.learning.curriculum.Standard2SkillActivityFactory
 import com.mitra.learning.learning.model.LearningQuestion
 
 /**
@@ -91,91 +89,7 @@ class MockAiGateway : AiGateway {
         concept: ConceptEntity,
         count: Int,
         context: PracticeContext?,
-    ): List<LearningQuestion> {
-        val numeric = when (concept.id) {
-            BuiltInCurriculum.COUNT_1_20 -> listOf(
-                q("c1", "૪ પછી કયો અંક આવે?", 5, hint = "૪ પછી એક આગળ ગણો."),
-                q("c2", "૯ પછી કયો અંક આવે?", 10),
-                q("c3", "૧૪ પછી કયો અંક આવે?", 15),
-                q("c4", "૮ પહેલાં કયો અંક આવે?", 7),
-                q("c5", "૧૯ પછી કયો અંક આવે?", 20),
-            )
-            BuiltInCurriculum.COUNT_21_50 -> listOf(
-                q("c21", "૨૯ પછી કયો અંક આવે?", 30),
-                q("c22", "૩૪ પહેલાં કયો અંક આવે?", 33),
-                q("c23", "૪૧ પછી કયો અંક આવે?", 42),
-                q("c24", "૨૫ પછી બે અંક ગણો. કયો અંક આવશે?", 27),
-                q("c25", "૪૯ પછી કયો અંક આવે?", 50),
-            )
-            BuiltInCurriculum.ADD_UNDER_10 -> listOf(
-                q("a1", "તમારી પાસે ૩ કેરી છે. ૨ વધુ મળે તો કુલ કેટલી?", 5),
-                q("a2", "૪ + ૩ કેટલા?", 7),
-                q("a3", "૨ પેન્સિલ અને ૬ પેન્સિલ મળીને કેટલી?", 8),
-                q("a4", "૫ + ૪ કેટલા?", 9),
-                q("a5", "૧ + ૬ કેટલા?", 7),
-            )
-            BuiltInCurriculum.ADD_UNDER_20 -> listOf(
-                q("a21", "૮ + ૫ કેટલા?", 13),
-                q("a22", "૯ + ૭ કેટલા?", 16),
-                q("a23", "૧૧ + ૪ કેટલા?", 15),
-                q("a24", "૬ + ૧૨ કેટલા?", 18),
-                q("a25", "૧૦ + ૯ કેટલા?", 19),
-            )
-            BuiltInCurriculum.SUBTRACT_UNDER_10 -> listOf(
-                q("s1", "તમારી પાસે ૭ લાડુ છે. ૨ આપી દો તો કેટલા રહે?", 5),
-                q("s2", "૯ - ૩ કેટલા?", 6),
-                q("s3", "૮ માંથી ૫ કાઢો. કેટલા રહે?", 3),
-                q("s4", "૬ - ૧ કેટલા?", 5),
-                q("s5", "૧૦ માંથી ૪ કાઢો. કેટલા રહે?", 6),
-            )
-            else -> listOf(q("fallback", "૨ + ૨ કેટલા?", 4))
-        }
-
-        val enriched = buildList {
-            addAll(numeric.take(3))
-            if (count >= 4) {
-                add(
-                    LearningQuestion(
-                        id = "choice-${concept.id}",
-                        promptGujarati = "ઝડપી પસંદગી: ૨ + ૩ નો જવાબ કયો?",
-                        expectedText = "૫",
-                        acceptedAnswers = listOf("૫", "5", "પાંચ"),
-                        optionsGujarati = listOf("૪", "૫", "૬"),
-                        evaluationMode = EvaluationMode.MULTIPLE_CHOICE,
-                        activityType = ActivityType.MULTIPLE_CHOICE.name,
-                        hintGujarati = "૨ પછી ત્રણ આગળ ગણો.",
-                    )
-                )
-            }
-            if (count >= 5) {
-                add(
-                    LearningQuestion(
-                        id = "physical-${concept.id}",
-                        promptGujarati = "સુરક્ષિત વસ્તુઓ સાથે નાની ગણતરીની રમત કરો.",
-                        evaluationMode = EvaluationMode.PARTICIPATION,
-                        activityType = ActivityType.PHYSICAL_MISSION.name,
-                        completionButtonGujarati = "મિશન પૂરું",
-                    )
-                )
-            }
-            if (count >= 6) {
-                add(
-                    LearningQuestion(
-                        id = "teach-${concept.id}",
-                        promptGujarati = "મિત્રને સમજાવો: આ પ્રકારનો જવાબ તમે કેવી રીતે શોધો છો?",
-                        evaluationMode = EvaluationMode.PARTICIPATION,
-                        activityType = ActivityType.TEACH_MITRA.name,
-                        completionButtonGujarati = "સમજાવી દીધું",
-                    )
-                )
-            }
-            if (size < count) addAll(numeric.drop(3))
-        }
-
-        val base = enriched.ifEmpty { numeric }
-        if (count <= base.size) return base.take(count)
-        return List(count) { index -> base[index % base.size].copy(id = "${base[index % base.size].id}-$index") }
-    }
+    ): List<LearningQuestion> = Standard2SkillActivityFactory.create(concept, count)
 
     override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String = when (result) {
         AttemptResult.CORRECT -> "હા! સાચું. તમે કેવી રીતે શોધ્યું તે યાદ રાખજો."
@@ -185,17 +99,4 @@ class MockAiGateway : AiGateway {
         AttemptResult.UNKNOWN -> "ચાલો આ પ્રશ્ન ફરીથી અજમાવીએ."
     }
 
-    private fun q(
-        id: String,
-        text: String,
-        answer: Int,
-        hint: String? = null,
-    ) = LearningQuestion(
-        id = id,
-        promptGujarati = text,
-        expectedAnswer = answer,
-        evaluationMode = EvaluationMode.NUMERIC,
-        activityType = ActivityType.QUESTION.name,
-        hintGujarati = hint ?: "ધીમે ધીમે એક-એક કરીને ગણો.",
-    )
 }

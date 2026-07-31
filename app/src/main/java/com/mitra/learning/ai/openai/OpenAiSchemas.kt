@@ -65,6 +65,9 @@ object OpenAiSchemas {
                     properties = mapOf(
                         "id" to type("string"),
                         "promptGujarati" to type("string"),
+                        "spokenPromptGujarati" to type("string"),
+                        "speechLanguageTag" to type("string"),
+                        "recognitionLanguageTag" to type("string"),
                         "activityType" to type("string"),
                         "evaluationMode" to type("string"),
                         "expectedAnswer" to type("integer"),

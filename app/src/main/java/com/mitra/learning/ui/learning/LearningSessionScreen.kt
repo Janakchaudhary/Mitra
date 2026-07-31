@@ -158,8 +158,10 @@ private fun SessionContent(
                 Text(if (state.ttsSpeaking) "  બોલું છું…" else "  ફરી સાંભળો")
             }
 
-            val showVoice = current.evaluationMode != EvaluationMode.PARTICIPATION ||
-                current.type in setOf(ActivityType.TEACH_MITRA, ActivityType.STORY, ActivityType.RECAP)
+            val showVoice = current.type != ActivityType.SPELLING && (
+                current.evaluationMode != EvaluationMode.PARTICIPATION ||
+                    current.type in setOf(ActivityType.TEACH_MITRA, ActivityType.STORY, ActivityType.RECAP)
+                )
             if (showVoice) {
                 VoiceAnswerControl(
                     state = state,
@@ -190,12 +192,12 @@ private fun SessionContent(
                     OutlinedTextField(
                         value = state.answer,
                         onValueChange = onAnswerChange,
-                        label = { Text(if (current.evaluationMode == EvaluationMode.NUMERIC) "અથવા જવાબ લખો" else "અથવા ટૂંકો જવાબ લખો") },
+                        label = { Text(if (current.type == ActivityType.SPELLING) "શબ્દ લખો" else if (current.evaluationMode == EvaluationMode.NUMERIC) "અથવા જવાબ લખો" else "અથવા ટૂંકો જવાબ લખો") },
                         keyboardOptions = KeyboardOptions(
                             keyboardType = if (current.evaluationMode == EvaluationMode.NUMERIC) KeyboardType.Number else KeyboardType.Text
                         ),
                         enabled = !state.awaitingNext && !state.loading && !state.listening,
-                        singleLine = current.evaluationMode == EvaluationMode.NUMERIC,
+                        singleLine = current.evaluationMode == EvaluationMode.NUMERIC || current.type in setOf(ActivityType.SPELLING, ActivityType.MISSING_LETTER, ActivityType.VOCABULARY),
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -370,6 +372,10 @@ private fun activityLabel(type: ActivityType): String = when (type) {
     ActivityType.BOOK_LOOK -> "પુસ્તક શોધ"
     ActivityType.READING -> "વાંચન"
     ActivityType.VOCABULARY -> "શબ્દ રમત"
+    ActivityType.SPELLING -> "જોડણી"
+    ActivityType.MISSING_LETTER -> "ખૂટતો અક્ષર"
+    ActivityType.TABLES -> "પહાડો"
+    ActivityType.WORD_PROBLEM -> "વાર્તાનો હિસાબ"
     ActivityType.PHYSICAL_MISSION -> "મિશન"
     ActivityType.DRAW -> "ચિત્ર"
     ActivityType.TEACH_MITRA -> "મિત્રને શીખવો"

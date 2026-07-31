@@ -73,6 +73,7 @@ private object Routes {
     const val Child = "child"
     const val ChildBooks = "child/books"
     const val Learning = "child/learning"
+    const val LearningSkills = "child/learning-skills"
     const val ParentPin = "parent-pin"
     const val Parent = "parent"
     const val AiSettings = "parent/ai-settings"
@@ -127,6 +128,7 @@ private fun MitraNav(container: AppContainer) {
             ChildHomeScreen(
                 state = state,
                 onPlay = { if (state.canPlay) nav.navigate(Routes.Learning) },
+                onSkills = { if (state.canPlay) nav.navigate(Routes.LearningSkills) },
                 onBooks = { nav.navigate(Routes.ChildBooks) },
                 onParent = { nav.navigate(Routes.ParentPin) },
             )
@@ -140,6 +142,38 @@ private fun MitraNav(container: AppContainer) {
                         speechInput = container.speechInput,
                         speechOutput = container.speechOutput,
                         limitService = container.learningLimitService,
+                    )
+                }
+            )
+            val state by vm.state.collectAsStateWithLifecycle()
+            LearningSessionScreen(
+                state = state,
+                onAnswerChange = vm::updateAnswer,
+                onSubmit = vm::submit,
+                onSelectOption = vm::selectOption,
+                onHint = vm::showHint,
+                onCompleteParticipation = vm::completeParticipation,
+                onSkip = vm::skip,
+                onNext = vm::next,
+                onStartVoice = vm::startVoiceInput,
+                onStopVoice = vm::stopVoiceInput,
+                onMicPermissionDenied = vm::onMicrophonePermissionDenied,
+                onReplayPrompt = vm::replayPrompt,
+                onStop = { vm.stop { nav.popBackStack() } },
+                onDone = { nav.popBackStack() },
+            )
+        }
+
+        composable(Routes.LearningSkills) {
+            val vm: LearningSessionViewModel = viewModel(
+                key = "standard2-skill-session",
+                factory = simpleViewModelFactory {
+                    LearningSessionViewModel(
+                        engine = container.learningEngine,
+                        speechInput = container.speechInput,
+                        speechOutput = container.speechOutput,
+                        limitService = container.learningLimitService,
+                        skillOnly = true,
                     )
                 }
             )

@@ -79,6 +79,25 @@ class DefaultLearningEngineTest {
         assertEquals(1, repo.attempts.size)
     }
     @Test
+    fun skillSessionIgnoresPreparedBookConceptAndUsesOfflineCurriculum() = runTest {
+        val repo = FakeLearningRepository()
+        repo.concepts += BuiltInCurriculum.concepts.first().copy(
+            id = "book-priority",
+            titleGujarati = "પુસ્તકનો પાઠ",
+            builtIn = false,
+            bookId = "book-1",
+            sortOrder = -100,
+            practiceReady = true,
+        )
+        val engine = DefaultLearningEngine(repo, MockAiGateway(), now = { 1_000L })
+
+        val plan = requireNotNull(engine.startSkillSession(questionCount = 3))
+
+        assertTrue(plan.concept.builtIn)
+        assertEquals(3, plan.questions.size)
+    }
+
+    @Test
     fun remoteBookFailureFallsBackToBuiltInCurriculum() = runTest {
         val repo = FakeLearningRepository()
         repo.concepts += BuiltInCurriculum.concepts.first().copy(

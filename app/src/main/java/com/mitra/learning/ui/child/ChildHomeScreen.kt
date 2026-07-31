@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 fun ChildHomeScreen(
     state: ChildHomeUiState,
     onPlay: () -> Unit,
+    onSkills: () -> Unit,
     onBooks: () -> Unit,
     onParent: () -> Unit,
 ) {
@@ -56,6 +58,15 @@ fun ChildHomeScreen(
         ) {
             Icon(Icons.Default.PlayArrow, contentDescription = null)
             Text("  રમીએ")
+        }
+        Spacer(Modifier.height(12.dp))
+        OutlinedButton(
+            onClick = onSkills,
+            enabled = state.canPlay && !state.loading,
+            modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp),
+        ) {
+            Icon(Icons.Default.School, contentDescription = null)
+            Text("  કૌશલ્ય રમત • પહાડા • જોડણી")
         }
         Spacer(Modifier.height(12.dp))
         Button(onClick = onBooks, modifier = Modifier.fillMaxWidth().heightIn(min = 56.dp)) {

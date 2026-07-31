@@ -14,6 +14,7 @@ interface SpeechOutput {
     val state: StateFlow<SpeechOutputState>
 
     suspend fun speakGujarati(text: String)
+    suspend fun speak(text: String, languageTag: String) = speakGujarati(text)
     fun stop()
     fun close()
 }

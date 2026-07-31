@@ -11,6 +11,10 @@ enum class ActivityType {
     BOOK_LOOK,
     READING,
     VOCABULARY,
+    SPELLING,
+    MISSING_LETTER,
+    TABLES,
+    WORD_PROBLEM,
     PHYSICAL_MISSION,
     DRAW,
     TEACH_MITRA,
@@ -28,6 +32,9 @@ enum class EvaluationMode {
 data class LearningQuestion(
     val id: String,
     val promptGujarati: String,
+    val spokenPromptGujarati: String? = null,
+    val speechLanguageTag: String? = null,
+    val recognitionLanguageTag: String? = null,
     val expectedAnswer: Int? = null,
     val activityType: String = ActivityType.QUESTION.name,
     val evaluationMode: EvaluationMode = if (expectedAnswer != null) EvaluationMode.NUMERIC else EvaluationMode.PARTICIPATION,
@@ -43,6 +50,9 @@ data class LearningQuestion(
 
     val requiresAnswer: Boolean
         get() = evaluationMode != EvaluationMode.PARTICIPATION
+
+    val speechTextGujarati: String
+        get() = spokenPromptGujarati?.takeIf { it.isNotBlank() } ?: promptGujarati
 }
 
 data class SessionPlan(

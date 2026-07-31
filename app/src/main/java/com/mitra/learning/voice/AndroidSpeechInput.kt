@@ -27,7 +27,9 @@ class AndroidSpeechInput(
 
     private var recognizer: SpeechRecognizer? = null
 
-    override suspend fun startListening() = withContext(Dispatchers.Main.immediate) {
+    override suspend fun startListening() = startListening(GUJARATI_LOCALE_TAG)
+
+    override suspend fun startListening(languageTag: String) = withContext(Dispatchers.Main.immediate) {
         if (ContextCompat.checkSelfPermission(appContext, Manifest.permission.RECORD_AUDIO) !=
             PackageManager.PERMISSION_GRANTED
         ) {
@@ -53,7 +55,7 @@ class AndroidSpeechInput(
 
         speechRecognizer.cancel()
         _state.value = SpeechInputState.Listening
-        speechRecognizer.startListening(recognizerIntent())
+        speechRecognizer.startListening(recognizerIntent(languageTag))
     }
 
     override suspend fun stopListening(): Unit = withContext(Dispatchers.Main.immediate) {
@@ -72,10 +74,10 @@ class AndroidSpeechInput(
         _state.value = SpeechInputState.Idle
     }
 
-    private fun recognizerIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+    private fun recognizerIntent(languageTag: String): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, GUJARATI_LOCALE_TAG)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, GUJARATI_LOCALE_TAG)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, languageTag)
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
         putExtra(RecognizerIntent.EXTRA_PROMPT, "જવાબ બોલો")

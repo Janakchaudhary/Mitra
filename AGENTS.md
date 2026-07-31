@@ -12,12 +12,13 @@ Read `ARCHITECTURE.md` before architectural changes.
 - Do not embed cloud API secrets in source or BuildConfig.
 - `LearningEngine` controls curriculum, answer evaluation and mastery.
 - `AiGateway` controls presentation/content only; it must never assign mastery.
-- `MockAiGateway` must keep learning sessions usable without internet.
+- Built-in Standard 2 skill drills must remain local/deterministic and must not require a remote provider.
 - Voice input/output must remain replaceable behind `SpeechInput` and `SpeechOutput`.
 - Text answer entry must continue working when voice is unavailable or permission is denied.
+- Gujarati voice defaults to `gu-IN`; English spelling/read-aloud may use `en-IN` where the activity requests it.
 
 ## Development process
-Implement one milestone at a time. For every milestone:
+For every milestone or fix:
 1. Keep domain/business logic outside Compose functions.
 2. Add/update tests.
 3. Run `gradle testDebugUnitTest`.
@@ -26,21 +27,22 @@ Implement one milestone at a time. For every milestone:
 6. Do not disable tests or lint just to make builds pass.
 7. Preserve Room data with explicit migrations; never use destructive migration in release behavior.
 
-## Current scope
-Milestone 7 is implemented. The app includes real book analysis, rich child-safe learning activities, local mastery/session tracking, and a parent-only progress dashboard.
+## Current scope — Milestone 9
+Milestone 9 is implemented in this source. It adds the offline Standard 2 skill engine:
+- two-digit addition/subtraction with separate carry/borrow mastery,
+- missing numbers, comparison and word problems,
+- multiplication meaning and tables 2–10 as separate concepts,
+- Gujarati word recognition, spelling, missing letters, read aloud, sentence completion, meaning and singular/plural,
+- English word recognition, spelling, missing letters, read aloud and sentence completion,
+- dedicated child `કૌશલ્ય રમત` mode,
+- per-activity speech/recognition language tags,
+- parent progress listing every built-in Standard 2 skill.
 
-Before starting another milestone, verify Milestone 7 is green in GitHub Actions and on a physical Android device.
-
-## Next scope — Milestone 8 only
-Polish the personal-use APK without changing the local-first architecture. Priorities: session/daily limits, parent settings, parent relock behavior, offline/error UX, accessibility, Gujarati UI copy, data-reset controls, and final physical-device hardening.
-
-Do not introduce a backend, account system, ads, browser, feeds, or cloud progress storage.
-
-## Milestone 8 guardrails
-
-- Do not bypass `LearningLimitService` when starting child learning sessions.
-- Do not make parent routes reachable without `ParentAccessManager` being unlocked.
-- Keep reset actions parent-only and confirmation-gated.
-- `resetLearningProgress()` must preserve books.
-- `resetBookAnalysis()` must preserve imported PDF files and chapter ranges.
-- `resetEverything()` may clear PIN/settings/books only after explicit parent confirmation.
+## Milestone 9 guardrails
+- Do not collapse all multiplication tables into one mastery record.
+- Do not collapse carrying and non-carrying addition into one mastery record.
+- Do not collapse borrowing and non-borrowing subtraction into one mastery record.
+- Spelling dictation must not display the target word before the answer is submitted.
+- Participation-only activities must never improve mastery.
+- Book-derived concepts may use remote AI; built-in skill practice must remain usable offline.
+- Keep session and daily learning limits enforced for both normal and skill-only sessions.

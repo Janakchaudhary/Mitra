@@ -145,6 +145,7 @@ object ProgressAnalyzer {
             subjects = subjects,
             needsPractice = needsPractice,
             strongConcepts = strong,
+            standard2Skills = conceptProgress.filter { !it.fromBook }.sortedWith(compareBy<ConceptProgress> { it.subject }.thenBy { conceptById[it.conceptId]?.sortOrder ?: Int.MAX_VALUE }),
             recentSessions = recent,
             recommendation = recommendation,
         )

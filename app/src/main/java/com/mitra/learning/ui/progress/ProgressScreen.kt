@@ -131,6 +131,13 @@ fun ProgressScreen(
                     items(dashboard.subjects, key = { it.subject }) { SubjectRow(it) }
                 }
 
+                if (dashboard.standard2Skills.isNotEmpty()) {
+                    dashboard.standard2Skills.groupBy { it.subject }.forEach { (subject, skills) ->
+                        item { SectionTitle("$subject • Standard 2 skills") }
+                        items(skills, key = { "skill-${it.conceptId}" }) { ConceptRow(it, showNotStarted = true) }
+                    }
+                }
+
                 if (dashboard.needsPractice.isNotEmpty()) {
                     item { SectionTitle("Needs practice") }
                     items(dashboard.needsPractice, key = { "weak-${it.conceptId}" }) { ConceptRow(it) }
@@ -199,7 +206,7 @@ private fun SubjectRow(item: SubjectProgress) {
 }
 
 @Composable
-private fun ConceptRow(item: ConceptProgress) {
+private fun ConceptRow(item: ConceptProgress, showNotStarted: Boolean = false) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -210,7 +217,11 @@ private fun ConceptRow(item: ConceptProgress) {
                 progress = { item.mastery.coerceIn(0f, 1f) },
                 modifier = Modifier.fillMaxWidth(),
             )
-            Text("${item.subject} • ${item.correctAttempts}/${item.attempts} correct • ${item.hints} hints", style = MaterialTheme.typography.bodySmall)
+            Text(
+                if (showNotStarted && item.attempts == 0) "${item.subject} • not started"
+                else "${item.subject} • ${item.correctAttempts}/${item.attempts} correct • ${item.hints} hints",
+                style = MaterialTheme.typography.bodySmall,
+            )
         }
     }
 }

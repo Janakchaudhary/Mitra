@@ -28,10 +28,17 @@ class DefaultLearningEngine(
     private val now: () -> Long = { System.currentTimeMillis() },
 ) : LearningEngine {
 
-    override suspend fun startSession(questionCount: Int): SessionPlan? {
+    override suspend fun startSession(questionCount: Int): SessionPlan? =
+        startSessionInternal(questionCount = questionCount, builtInOnly = false)
+
+    override suspend fun startSkillSession(questionCount: Int): SessionPlan? =
+        startSessionInternal(questionCount = questionCount, builtInOnly = true)
+
+    private suspend fun startSessionInternal(questionCount: Int, builtInOnly: Boolean): SessionPlan? {
         repository.seedBuiltInCurriculumIfNeeded()
 
-        val concepts = repository.getConcepts()
+        val allConcepts = repository.getConcepts()
+        val concepts = if (builtInOnly) allConcepts.filter { it.builtIn } else allConcepts
         val mastery = repository.getMastery()
         val prerequisites = repository.getPrerequisites()
         val selected = ConceptSelector.select(concepts, mastery, prerequisites) ?: return null
@@ -47,9 +54,9 @@ class DefaultLearningEngine(
 
         var concept = selected
         var activities = runCatching { activitiesFor(concept) }.getOrElse { failure ->
-            if (concept.builtIn) throw failure
+            if (builtInOnly || concept.builtIn) throw failure
             val fallback = ConceptSelector.select(
-                concepts = concepts.filter { it.builtIn },
+                concepts = allConcepts.filter { it.builtIn },
                 mastery = mastery,
                 prerequisites = prerequisites,
             ) ?: throw failure
@@ -57,9 +64,9 @@ class DefaultLearningEngine(
             activitiesFor(fallback)
         }
 
-        if (activities.isEmpty() && !concept.builtIn) {
+        if (activities.isEmpty() && !builtInOnly && !concept.builtIn) {
             val fallback = ConceptSelector.select(
-                concepts = concepts.filter { it.builtIn },
+                concepts = allConcepts.filter { it.builtIn },
                 mastery = mastery,
                 prerequisites = prerequisites,
             )

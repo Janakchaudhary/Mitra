@@ -38,6 +38,18 @@ class ActivityEvaluatorTest {
     }
 
     @Test
+    fun spellingComparisonIsCaseAndPunctuationTolerantButNotLetterTolerant() {
+        val activity = LearningQuestion(
+            id = "spell",
+            promptGujarati = "Spell it",
+            evaluationMode = EvaluationMode.SHORT_TEXT,
+            expectedText = "Book",
+        )
+        assertEquals(AttemptResult.CORRECT, ActivityEvaluator.evaluate(activity, "book!"))
+        assertEquals(AttemptResult.INCORRECT, ActivityEvaluator.evaluate(activity, "bok"))
+    }
+
+    @Test
     fun participationIsNeverScored() {
         val activity = LearningQuestion(
             id = "p",

@@ -58,6 +58,7 @@ class LearningSessionViewModel(
     private val speechInput: SpeechInput,
     private val speechOutput: SpeechOutput,
     private val limitService: LearningLimitService? = null,
+    private val skillOnly: Boolean = false,
 ) : ViewModel() {
     private var countdownJob: Job? = null
     private val _state = MutableStateFlow(
@@ -187,13 +188,17 @@ class LearningSessionViewModel(
                     hintsUsed = 0,
                 )
             }
-            current.questions.getOrNull(nextIndex)?.let { speak(it.promptGujarati) }
+            current.questions.getOrNull(nextIndex)?.let(::speakActivity)
         }
     }
 
     fun startVoiceInput() {
         val current = _state.value
         if (current.loading || current.awaitingNext || current.completed) return
+        if (current.currentQuestion?.type == com.mitra.learning.learning.model.ActivityType.SPELLING) {
+            _state.update { it.copy(voiceMessage = "જોડણી માટે સાંભળેલા શબ્દને લખીને જવાબ આપો.") }
+            return
+        }
         if (!speechInput.isAvailable) {
             _state.update {
                 it.copy(voiceMessage = "આ ફોનમાં અવાજ ઓળખવાની સુવિધા ઉપલબ્ધ નથી. લખીને જવાબ આપો.")
@@ -203,7 +208,8 @@ class LearningSessionViewModel(
 
         speechOutput.stop()
         viewModelScope.launch {
-            runCatching { speechInput.startListening() }
+            val languageTag = current.currentQuestion?.recognitionLanguageTag?.takeIf { it.isNotBlank() } ?: "gu-IN"
+            runCatching { speechInput.startListening(languageTag) }
                 .onFailure {
                     _state.update { state ->
                         state.copy(voiceMessage = "માઇક્રોફોન શરૂ થઈ શક્યો નહીં. લખીને જવાબ આપો.")
@@ -226,7 +232,7 @@ class LearningSessionViewModel(
     }
 
     fun replayPrompt() {
-        _state.value.currentQuestion?.let { speak(it.promptGujarati) }
+        _state.value.currentQuestion?.let(::speakActivity)
     }
 
     fun stop(onStopped: () -> Unit) {
@@ -299,7 +305,7 @@ class LearningSessionViewModel(
                 return@launch
             }
 
-            runCatching { engine.startSession() }
+            runCatching { if (skillOnly) engine.startSkillSession() else engine.startSession() }
                 .onSuccess { plan -> applyPlan(plan, limits?.sessionLimitSeconds) }
                 .onFailure { failure ->
                     _state.update { it.copy(loading = false, error = failure.message ?: "સત્ર શરૂ થઈ શક્યું નહીં.") }
@@ -323,7 +329,7 @@ class LearningSessionViewModel(
             remainingSessionSeconds = sessionLimitSeconds,
         )
         sessionLimitSeconds?.takeIf { it > 0 }?.let(::startCountdown)
-        plan.questions.firstOrNull()?.let { speak(it.promptGujarati) }
+        plan.questions.firstOrNull()?.let(::speakActivity)
     }
 
     private fun startCountdown(totalSeconds: Int) {
@@ -425,6 +431,11 @@ class LearningSessionViewModel(
         if (activity?.evaluationMode != EvaluationMode.PARTICIPATION) {
             submitAnswer(text)
         }
+    }
+
+    private fun speakActivity(question: LearningQuestion) {
+        val languageTag = question.speechLanguageTag?.takeIf { it.isNotBlank() } ?: "gu-IN"
+        viewModelScope.launch { runCatching { speechOutput.speak(question.speechTextGujarati, languageTag) } }
     }
 
     private fun speak(text: String) {

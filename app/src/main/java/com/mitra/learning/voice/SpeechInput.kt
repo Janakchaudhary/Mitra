@@ -15,6 +15,7 @@ interface SpeechInput {
     val isAvailable: Boolean
 
     suspend fun startListening()
+    suspend fun startListening(languageTag: String) = startListening()
     suspend fun stopListening()
     fun cancel()
     fun close()

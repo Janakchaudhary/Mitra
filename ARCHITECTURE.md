@@ -41,7 +41,7 @@ The goal is not to maximize screen time. Learning sessions should increasingly d
 
 ## Learning lifecycle
 
-1. Child presses **રમીએ**.
+1. Child presses **રમીએ** for book-priority learning or **કૌશલ્ય રમત** for the local Standard 2 skill engine.
 2. Local built-in curriculum is seeded if needed.
 3. Only `practiceReady` concepts are eligible.
 4. `ConceptSelector` considers prerequisites and mastery.
@@ -94,7 +94,7 @@ Parent-configured remote textbook image analysis and book-grounded activity gene
 ### Milestone 6 — complete
 Mixed activity types, local non-numeric evaluation, hints, participation-only mastery protection, Teach-Mitra, drawing, book exploration, and local physical-mission safety policy.
 
-### Milestone 7 — complete in this source
+### Milestone 7 — complete
 Parent-only local progress analytics: time spent, accuracy, subject/concept mastery, weak/strong concepts, recent sessions and prerequisite-aware next-practice recommendation. No remote AI call is required to calculate progress.
 
 ## Safety constraints
@@ -108,3 +108,7 @@ Parent-only local progress analytics: time spent, accuracy, subject/concept mast
 ## Milestone 8 implementation note
 
 Runtime learning limits are stored in local DataStore. `LearningLimitPolicy` independently enforces daily allowance and per-session maximums. Parent access uses an in-memory `ParentAccessManager`: successful PIN verification unlocks parent routes temporarily, and the access state is cleared after a short background grace period, while brief system surfaces such as the PDF picker can return without losing parent context. Parent settings also expose local reset operations. None of these dashboard/limit/reset features require an AI request.
+
+
+### Milestone 9 — complete in this source
+The offline Standard 2 skill engine expands built-in curriculum into separate mastery concepts for two-digit addition/subtraction (including carrying/borrowing), missing numbers, comparison, word problems, multiplication meaning, tables 2–10, Gujarati spelling/reading/language skills, and English spelling/reading skills. Built-in skill sessions never require the remote AI provider. Dictation activities separate visible prompt text from TTS text so spelling answers are not exposed on screen. Parent progress lists each built-in skill independently.

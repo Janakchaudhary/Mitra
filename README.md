@@ -1,19 +1,28 @@
 # Mitra Android
 
-**Current milestone: 8 (v0.8.0)** — local learning limits, parent relock, offline-friendly fallback, privacy/data reset controls, and accessibility hardening.
+**Current milestone: 9 (v0.9.0)** — Standard 2 skill engine for two-digit arithmetic, carrying/borrowing, multiplication tables 2–10, Gujarati spelling/reading, and English spelling/reading.
 
 મિત્ર
 
 A local-first Android learning companion for one Standard 2 Gujarati-medium child.
 
-## Current version — Milestone 8 (0.8.0)
+## Current version — Milestone 9 (0.9.0)
 
 Mitra now supports the full local-first path from PDF books to richer child learning sessions:
 
 - Parent PIN and separate child/parent areas.
+- Dedicated **કૌશલ્ય રમત** child mode that always uses the offline Standard 2 skill curriculum.
+- Separate mastery concepts for two-digit addition/subtraction, carrying, borrowing, missing numbers, comparison and word problems.
+- Multiplication meaning plus separate mastery for tables 2 through 10.
+- Gujarati word recognition, dictated spelling, missing letters, read-aloud, sentence completion, meaning and singular/plural.
+- English word recognition, dictated spelling, missing letters, read-aloud and sentence completion.
+- Spelling prompts keep the answer hidden on-screen while TTS dictates the target word.
+- Parent progress now lists every built-in Standard 2 skill, including not-started skills.
+- Built-in skill drills remain local even when a remote AI provider is configured.
 - Private PDF import, SHA-256 duplicate detection and local PDF viewer.
 - Room curriculum, concepts, prerequisites, mastery, sessions and attempts.
-- Gujarati push-to-talk and Gujarati TTS with text fallback.
+- Gujarati push-to-talk and Gujarati TTS with text fallback; English skill activities can request `en-IN` speech/recognition.
+- Spoken maths/table answers can be normalized locally from Gujarati number words through 100.
 - Parent-reviewed chapter detection and manual chapter editing.
 - Real optional OpenAI textbook page analysis through a replaceable `AiGateway`.
 - Book-grounded activity generation from locally cached page knowledge.
@@ -51,11 +60,11 @@ gradle assembleDebug
 
 ## Recommended physical-device test
 
-1. Upgrade over 0.6.0; do not uninstall first.
+1. Upgrade over 0.8.0; do not uninstall first.
 2. Confirm existing books/PIN/progress remain.
 3. In Parent Mode, configure/test the AI provider if not already configured.
 4. Open one real textbook chapter and press **Prepare again**.
-5. Start **રમીએ**.
+5. Start **કૌશલ્ય રમત** and verify local tables/spelling, then start **રમીએ** for book-grounded practice.
 6. Verify mixed activities appear, including a locally assessed question and an exploration/off-screen activity.
 7. Use **સંકેત** on an assessed question.
 8. Try a multiple-choice activity.

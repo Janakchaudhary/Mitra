@@ -28,6 +28,9 @@ class OpenAiSchemasTest {
 
         listOf(
             "activityType",
+            "spokenPromptGujarati",
+            "speechLanguageTag",
+            "recognitionLanguageTag",
             "evaluationMode",
             "acceptedAnswers",
             "optionsGujarati",

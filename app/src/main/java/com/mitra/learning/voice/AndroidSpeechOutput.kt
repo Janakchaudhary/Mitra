@@ -47,7 +47,9 @@ class AndroidSpeechOutput(
         })
     }
 
-    override suspend fun speakGujarati(text: String) {
+    override suspend fun speakGujarati(text: String) = speak(text, GUJARATI_LOCALE_TAG)
+
+    override suspend fun speak(text: String, languageTag: String) {
         if (text.isBlank()) return
 
         val ready = if (initialized.isCompleted) {
@@ -64,6 +66,12 @@ class AndroidSpeechOutput(
         }
 
         withContext(Dispatchers.Main.immediate) {
+            val locale = Locale.forLanguageTag(languageTag.ifBlank { GUJARATI_LOCALE_TAG })
+            val result = tts?.setLanguage(locale) ?: TextToSpeech.LANG_NOT_SUPPORTED
+            if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                _state.value = SpeechOutputState.Error("આ ભાષાનો અવાજ ફોનમાં ઉપલબ્ધ નથી; લખાણ ચાલુ રહેશે.")
+                return@withContext
+            }
             tts?.speak(
                 text,
                 TextToSpeech.QUEUE_FLUSH,
@@ -106,6 +114,9 @@ class AndroidSpeechOutput(
 
     private fun CompletableDeferred<Boolean>.completeIfNeeded(value: Boolean) {
         if (!isCompleted) complete(value)
+    }
+    private companion object {
+        const val GUJARATI_LOCALE_TAG = "gu-IN"
     }
 }
 

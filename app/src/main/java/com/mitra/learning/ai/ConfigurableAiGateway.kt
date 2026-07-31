@@ -32,10 +32,10 @@ class ConfigurableAiGateway(
         count: Int,
         context: PracticeContext?,
     ): List<LearningQuestion> {
-        return runCatching { currentGateway().createPracticeQuestions(concept, count, context) }
-            .getOrElse { failure ->
-                if (concept.builtIn) mock.createPracticeQuestions(concept, count, context) else throw failure
-            }
+        // Built-in Standard 2 skills are deliberately local/deterministic even when a remote
+        // provider is enabled. Remote AI is reserved for prepared textbook-derived concepts.
+        if (concept.builtIn) return mock.createPracticeQuestions(concept, count, context)
+        return currentGateway().createPracticeQuestions(concept, count, context)
     }
 
     override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String =

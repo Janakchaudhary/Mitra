@@ -12,6 +12,7 @@ data class ProgressDashboard(
     val subjects: List<SubjectProgress>,
     val needsPractice: List<ConceptProgress>,
     val strongConcepts: List<ConceptProgress>,
+    val standard2Skills: List<ConceptProgress>,
     val recentSessions: List<RecentSessionProgress>,
     val recommendation: ConceptProgress?,
 )

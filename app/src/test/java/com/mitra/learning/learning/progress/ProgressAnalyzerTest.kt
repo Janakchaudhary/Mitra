@@ -79,6 +79,22 @@ class ProgressAnalyzerTest {
     }
 
     @Test
+    fun `built in concepts appear in standard2 skills`() {
+        val builtIn = concept("built", "કૌશલ્ય", builtIn = true)
+        val book = concept("book", "પાઠ", builtIn = false)
+        val result = ProgressAnalyzer.analyze(
+            concepts = listOf(builtIn, book),
+            mastery = emptyList(),
+            sessions = emptyList(),
+            attempts = emptyList(),
+            nowMillis = now,
+            zoneId = ZoneId.of("UTC"),
+        )
+
+        assertEquals(listOf("built"), result.standard2Skills.map { it.conceptId })
+    }
+
+    @Test
     fun `completed session time is rounded to minutes`() {
         val concept = concept("math", "ગણિત")
         val result = ProgressAnalyzer.analyze(
