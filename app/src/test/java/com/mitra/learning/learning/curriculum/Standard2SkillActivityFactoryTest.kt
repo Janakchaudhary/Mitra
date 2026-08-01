@@ -39,9 +39,12 @@ class Standard2SkillActivityFactoryTest {
             val concept = requireNotNull(BuiltInCurriculum.concepts.find { it.id == id })
             val activities = Standard2SkillActivityFactory.create(concept, 5)
             assertEquals(5, activities.size)
-            assertTrue(activities.all { it.type == ActivityType.TABLES })
+            assertTrue(activities.all { it.type in setOf(ActivityType.TABLES, ActivityType.WORD_PROBLEM) })
+            assertTrue(activities.any { it.type == ActivityType.TABLES })
+            assertTrue(activities.any { it.type == ActivityType.WORD_PROBLEM })
             assertTrue(activities.all { it.evaluationMode == EvaluationMode.NUMERIC })
             assertTrue(activities.all { it.expectedAnswer != null })
+            assertTrue(activities.all { it.conceptId == id })
         }
     }
 
