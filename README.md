@@ -76,8 +76,8 @@ Download the signed `mitra-update-apk` artifact. Once the stable-signed baseline
 
 ## Upgrade
 
-- `versionCode = 27`
-- `versionName = 0.16.0`
+- `versionCode = 28`
+- `versionName = 0.16.1`
 - Room schema version `5`
 - No new database migration is required. Existing books, prepared data, progress, review schedules, credentials, and sessions are preserved.
 

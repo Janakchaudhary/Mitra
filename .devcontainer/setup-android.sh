@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-GRADLE_VERSION="8.11.1"
+GRADLE_VERSION="8.13"
 ANDROID_HOME="${ANDROID_HOME:-$HOME/android-sdk}"
 CMDLINE_TOOLS_VERSION="11076708"
 

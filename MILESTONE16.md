@@ -41,6 +41,6 @@ Offline Local does not analyze arbitrary new scanned PDF page images. Use OpenAI
 
 ## Upgrade
 
-- `versionCode = 27`
-- `versionName = 0.16.0`
+- `versionCode = 28`
+- `versionName = 0.16.1`
 - Room schema is unchanged; no database migration is required.
