@@ -25,4 +25,5 @@ interface LearningRepository {
 
     suspend fun insertAttempt(attempt: AttemptEntity)
     suspend fun attemptsForSession(sessionId: String): List<AttemptEntity>
+    suspend fun recentQuestionFingerprints(limit: Int = 40): List<String>
 }

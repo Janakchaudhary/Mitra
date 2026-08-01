@@ -54,3 +54,10 @@ Milestone 9 is implemented in this source. It adds the offline Standard 2 skill 
 - Voice presets are style presets only; do not label or ship exact copyrighted-character voice clones.
 - Keep Color Lab and Sentence Builder deterministic/offline.
 - Preserve Room schema version 3 unless a real database schema change is introduced.
+
+## Milestone 11 invariants
+
+- Do not remove `questionFingerprint` or Room migration 3 → 4.
+- Do not persist rough-work strokes; they are temporary child scratch data.
+- Mixed skill sessions must include at least one two-digit addition and one carry question.
+- Questions in one session must have distinct fingerprints.

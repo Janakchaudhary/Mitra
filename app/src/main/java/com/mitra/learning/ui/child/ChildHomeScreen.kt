@@ -107,7 +107,7 @@ fun ChildHomeScreen(
         ChildActionCard(
             emoji = "🧠",
             title = "કૌશલ્ય રમત",
-            subtitle = "પહાડા • બે અંકના હિસાબ • જોડણી",
+            subtitle = "બે અંક • કેરિ ચેલેન્જ • રફ કામ • પહાડા",
             icon = Icons.Default.School,
             enabled = state.canPlay && !state.loading,
             onClick = onSkills,

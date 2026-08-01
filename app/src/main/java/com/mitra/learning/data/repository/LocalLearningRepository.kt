@@ -48,4 +48,7 @@ class LocalLearningRepository(
     override suspend fun insertAttempt(attempt: AttemptEntity) = attemptDao.insert(attempt)
 
     override suspend fun attemptsForSession(sessionId: String): List<AttemptEntity> = attemptDao.forSession(sessionId)
+
+    override suspend fun recentQuestionFingerprints(limit: Int): List<String> =
+        attemptDao.recentQuestionFingerprints(limit)
 }

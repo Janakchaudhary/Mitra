@@ -105,3 +105,7 @@ in [`SIGNING_SETUP.md`](SIGNING_SETUP.md) before downloading installable builds.
 After one migration uninstall/install, future `mitra-update-apk` artifacts can be
 installed directly over the existing Mitra app without losing local books or
 progress.
+
+## Milestone 11
+
+Milestone 11 adds recent-question suppression, dynamically generated two-digit/carry arithmetic, mixed skill sessions, and a finger-writing rough-work notebook inside maths activities. See `MILESTONE11.md`.

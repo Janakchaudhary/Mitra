@@ -29,6 +29,14 @@ enum class EvaluationMode {
     PARTICIPATION,
 }
 
+/** Metadata used by the finger-writing rough-work board. */
+data class ArithmeticWork(
+    val top: Int,
+    val bottom: Int,
+    val operator: String,
+    val regrouping: Boolean = false,
+)
+
 data class LearningQuestion(
     val id: String,
     val promptGujarati: String,
@@ -44,6 +52,9 @@ data class LearningQuestion(
     val hintGujarati: String? = null,
     val completionButtonGujarati: String = "થઈ ગયું",
     val sourcePage: Int? = null,
+    /** A mixed skill session records mastery against the question's own concept. */
+    val conceptId: String? = null,
+    val arithmeticWork: ArithmeticWork? = null,
 ) {
     val type: ActivityType
         get() = runCatching { ActivityType.valueOf(activityType) }.getOrDefault(ActivityType.QUESTION)
@@ -53,6 +64,16 @@ data class LearningQuestion(
 
     val speechTextGujarati: String
         get() = spokenPromptGujarati?.takeIf { it.isNotBlank() } ?: promptGujarati
+
+    /** Stable enough for recent-question suppression; no child data is included. */
+    val fingerprint: String
+        get() = listOf(
+            conceptId.orEmpty(),
+            activityType,
+            promptGujarati.trim().lowercase().replace(Regex("\\s+"), " "),
+            expectedAnswer?.toString().orEmpty(),
+            expectedText.orEmpty().trim().lowercase(),
+        ).joinToString("|")
 }
 
 data class SessionPlan(

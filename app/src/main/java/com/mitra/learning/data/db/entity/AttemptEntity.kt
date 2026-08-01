@@ -14,7 +14,11 @@ enum class AttemptResult {
 
 @Entity(
     tableName = "attempts",
-    indices = [Index(value = ["sessionId"]), Index(value = ["conceptId"])],
+    indices = [
+        Index(value = ["sessionId"]),
+        Index(value = ["conceptId"]),
+        Index(value = ["questionFingerprint"]),
+    ],
 )
 data class AttemptEntity(
     @PrimaryKey val id: String,
@@ -24,4 +28,5 @@ data class AttemptEntity(
     val result: AttemptResult,
     val hintCount: Int,
     val createdAt: Long,
+    val questionFingerprint: String = "",
 )

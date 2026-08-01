@@ -59,3 +59,46 @@ remains stable.
 Pull-request builds still compile/test using the runner's normal debug key, but
 no phone-installable artifact is uploaded from PR jobs. Only `main`/manual builds
 produce the `mitra-update-apk` artifact using the persistent key.
+
+## Windows Command Prompt / PowerShell
+
+You do **not** need Bash, WSL, or `chmod` on Windows.
+
+From the latest Mitra project root in **Command Prompt**, run:
+
+```bat
+scripts\setup-github-signing.cmd
+```
+
+Or from PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\setup-github-signing.ps1
+```
+
+The Windows script:
+
+1. Finds `keytool.exe` from `PATH`, `JAVA_HOME`, or the common Android Studio JBR location.
+2. Verifies GitHub CLI (`gh`) login and repository access.
+3. Creates `.signing\mitra-signing.jks` if it does not already exist.
+4. Reuses (never silently replaces) an existing Mitra signing key.
+5. Creates the four GitHub Actions secrets required by the Android workflow.
+6. Prints the certificate SHA-256 fingerprint and backup instructions.
+
+The default repository is `Janakchaudhary/Mitra`. To target another repository:
+
+```bat
+scripts\setup-github-signing.cmd -Repository owner/repository
+```
+
+If `gh` is missing, install GitHub CLI first:
+
+```bat
+winget install --id GitHub.cli
+```
+
+Then reopen Command Prompt and authenticate:
+
+```bat
+gh auth login
+```

@@ -91,7 +91,11 @@ class MockAiGateway : AiGateway {
         concept: ConceptEntity,
         count: Int,
         context: PracticeContext?,
-    ): List<LearningQuestion> = Standard2SkillActivityFactory.create(concept, count)
+    ): List<LearningQuestion> = Standard2SkillActivityFactory.create(
+        concept = concept,
+        count = count,
+        excludedFingerprints = context?.recentQuestionFingerprints.orEmpty(),
+    )
 
     override suspend fun answerStudyQuestion(request: StudyQuestionRequest): StudyAnswer = StudyAnswer(
         answerGujarati = "પુસ્તક વિશે વાત કરવા Parent settings માં Remote AI ચાલુ કરો. તૈયાર પુસ્તકોમાંથી જ જવાબ આપવામાં આવશે.",

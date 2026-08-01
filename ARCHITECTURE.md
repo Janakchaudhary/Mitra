@@ -118,3 +118,7 @@ The offline Standard 2 skill engine expands built-in curriculum into separate ma
 `StudyContextService` is the retrieval boundary for child free-form study questions. It reads prepared local `PageKnowledgeEntity` rows, ranks relevant pages locally, and supplies a bounded set of excerpts to `AiGateway.answerStudyQuestion`. The remote model is instructed to answer only from those excerpts. Raw audio and complete conversation transcripts are not persisted. `StudyChatViewModel` keeps a small in-memory recent-turn window only.
 
 Creative activities (`ColorLabScreen`, `SentenceBuilderScreen`) are deterministic child UI modules and require no remote AI call.
+
+## Milestone 11: question variety and rough work
+
+`AttemptEntity.questionFingerprint` records a non-personal stable fingerprint of each activity. `QuestionVarietyPolicy` removes duplicates within a session and prioritizes prompts not seen recently. Built-in Standard 2 arithmetic is generated locally from constraints, including two-digit addition with and without carrying. `LearningQuestion.arithmeticWork` enables a transient finger-writing board; strokes are intentionally not persisted.

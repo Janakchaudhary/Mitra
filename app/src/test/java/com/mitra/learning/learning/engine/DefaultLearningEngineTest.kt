@@ -97,6 +97,20 @@ class DefaultLearningEngineTest {
         assertEquals(3, plan.questions.size)
     }
 
+
+    @Test
+    fun skillSessionMixesConceptsAndIncludesCarryWork() = runTest {
+        val repo = FakeLearningRepository()
+        val engine = DefaultLearningEngine(repo, MockAiGateway(), now = { 86_400_000L })
+
+        val plan = requireNotNull(engine.startSkillSession(questionCount = 6))
+
+        assertEquals(6, plan.questions.size)
+        assertTrue(plan.questions.mapNotNull { it.conceptId }.distinct().size >= 4)
+        assertTrue(plan.questions.any { it.arithmeticWork?.regrouping == true })
+        assertEquals(plan.questions.size, plan.questions.map { it.fingerprint }.distinct().size)
+    }
+
     @Test
     fun remoteBookFailureFallsBackToBuiltInCurriculum() = runTest {
         val repo = FakeLearningRepository()
@@ -178,4 +192,7 @@ private class FakeLearningRepository : LearningRepository {
 
     override suspend fun attemptsForSession(sessionId: String): List<AttemptEntity> =
         attempts.filter { it.sessionId == sessionId }
+
+    override suspend fun recentQuestionFingerprints(limit: Int): List<String> =
+        attempts.asReversed().map { it.questionFingerprint }.filter { it.isNotBlank() }.take(limit)
 }

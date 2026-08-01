@@ -34,7 +34,7 @@ import com.mitra.learning.data.db.entity.SessionEntity
         ChapterEntity::class,
         PageKnowledgeEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -167,13 +167,22 @@ abstract class MitraDatabase : RoomDatabase() {
             }
         }
 
+
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE attempts ADD COLUMN questionFingerprint TEXT NOT NULL DEFAULT ''")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_attempts_questionFingerprint ON attempts(questionFingerprint)")
+            }
+        }
+
         fun create(context: Context): MitraDatabase =
             Room.databaseBuilder(
                 context,
                 MitraDatabase::class.java,
                 "mitra.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                 .build()
     }
 }

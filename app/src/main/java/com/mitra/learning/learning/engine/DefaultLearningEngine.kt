@@ -4,6 +4,7 @@ import com.mitra.learning.ai.AiGateway
 import com.mitra.learning.ai.PracticeContext
 import com.mitra.learning.data.db.entity.AttemptEntity
 import com.mitra.learning.data.db.entity.AttemptResult
+import com.mitra.learning.data.db.entity.ConceptEntity
 import com.mitra.learning.data.db.entity.MasteryEntity
 import com.mitra.learning.data.db.entity.SessionEntity
 import com.mitra.learning.data.db.entity.SessionStatus
@@ -11,6 +12,9 @@ import com.mitra.learning.data.repository.BookKnowledgeRepository
 import com.mitra.learning.data.repository.BookRepository
 import com.mitra.learning.data.repository.LearningRepository
 import com.mitra.learning.learning.activity.ActivityPlanPolicy
+import com.mitra.learning.learning.activity.QuestionVarietyPolicy
+import com.mitra.learning.learning.curriculum.BuiltInCurriculum
+import com.mitra.learning.learning.curriculum.Standard2SkillActivityFactory
 import com.mitra.learning.learning.evaluation.ActivityEvaluator
 import com.mitra.learning.learning.evaluation.MasteryPolicy
 import com.mitra.learning.learning.model.AnswerFeedback
@@ -29,32 +33,82 @@ class DefaultLearningEngine(
 ) : LearningEngine {
 
     override suspend fun startSession(questionCount: Int): SessionPlan? =
-        startSessionInternal(questionCount = questionCount, builtInOnly = false)
+        startSingleConceptSession(questionCount.coerceIn(1, 8))
 
-    override suspend fun startSkillSession(questionCount: Int): SessionPlan? =
-        startSessionInternal(questionCount = questionCount, builtInOnly = true)
-
-    private suspend fun startSessionInternal(questionCount: Int, builtInOnly: Boolean): SessionPlan? {
+    /**
+     * Skill mode is deliberately mixed. It always includes two-digit work and a carry challenge,
+     * rather than asking six copies of the same skill every time.
+     */
+    override suspend fun startSkillSession(questionCount: Int): SessionPlan? {
         repository.seedBuiltInCurriculumIfNeeded()
+        val conceptsById = repository.getConcepts().filter { it.builtIn }.associateBy { it.id }
+        val recent = repository.recentQuestionFingerprints(60).toMutableSet()
+        val tableId = listOf(
+            BuiltInCurriculum.TABLE_2, BuiltInCurriculum.TABLE_3, BuiltInCurriculum.TABLE_4,
+            BuiltInCurriculum.TABLE_5, BuiltInCurriculum.TABLE_6, BuiltInCurriculum.TABLE_7,
+            BuiltInCurriculum.TABLE_8, BuiltInCurriculum.TABLE_9, BuiltInCurriculum.TABLE_10,
+        )[((now() / 86_400_000L) % 9L).toInt()]
+        val requestedIds = listOf(
+            BuiltInCurriculum.ADD_2D_2D_NO_CARRY,
+            BuiltInCurriculum.ADD_WITH_CARRY,
+            BuiltInCurriculum.ADD_WITH_CARRY,
+            BuiltInCurriculum.SUB_WITH_BORROW,
+            BuiltInCurriculum.WORD_PROBLEMS,
+            tableId,
+            BuiltInCurriculum.GUJ_SPELLING,
+            BuiltInCurriculum.ENG_SENTENCE_COMPLETION,
+        )
+        val target = questionCount.coerceIn(1, 8)
+        val questions = mutableListOf<LearningQuestion>()
+        requestedIds.forEachIndexed { index, id ->
+            if (questions.size >= target) return@forEachIndexed
+            val concept = conceptsById[id] ?: return@forEachIndexed
+            val generated = Standard2SkillActivityFactory.create(
+                concept = concept,
+                count = 1,
+                seed = now() + index * 9_973L,
+                excludedFingerprints = recent,
+            ).ifEmpty {
+                Standard2SkillActivityFactory.create(concept, 1, now() + index * 19_997L)
+            }
+            generated.firstOrNull()?.let { question ->
+                val tagged = question.copy(conceptId = concept.id)
+                if (tagged.fingerprint !in questions.map { it.fingerprint }.toSet()) {
+                    questions += tagged
+                    recent += tagged.fingerprint
+                }
+            }
+        }
+        if (questions.isEmpty()) return null
 
+        val primary = conceptsById[BuiltInCurriculum.ADD_2D_2D_NO_CARRY] ?: conceptsById.values.first()
+        val displayConcept = primary.copy(titleGujarati = "મિશ્ર ગણિત ચેલેન્જ")
+        val safePlan = ActivityPlanPolicy.apply(questions).take(target)
+        val session = createSession(primary.id)
+        return SessionPlan(session.id, displayConcept, safePlan)
+    }
+
+    private suspend fun startSingleConceptSession(questionCount: Int): SessionPlan? {
+        repository.seedBuiltInCurriculumIfNeeded()
         val allConcepts = repository.getConcepts()
-        val concepts = if (builtInOnly) allConcepts.filter { it.builtIn } else allConcepts
         val mastery = repository.getMastery()
         val prerequisites = repository.getPrerequisites()
-        val selected = ConceptSelector.select(concepts, mastery, prerequisites) ?: return null
+        var concept = ConceptSelector.select(allConcepts, mastery, prerequisites) ?: return null
+        val recent = repository.recentQuestionFingerprints(60).toSet()
 
-        suspend fun activitiesFor(concept: com.mitra.learning.data.db.entity.ConceptEntity): List<LearningQuestion> =
-            ActivityPlanPolicy.apply(
-                aiGateway.createPracticeQuestions(
-                    concept = concept,
-                    count = questionCount.coerceIn(1, 8),
-                    context = buildPracticeContext(concept),
-                )
-            )
+        suspend fun activitiesFor(selected: ConceptEntity): List<LearningQuestion> {
+            val generationCount = (questionCount * 2).coerceIn(questionCount, 8)
+            val generated = aiGateway.createPracticeQuestions(
+                concept = selected,
+                count = generationCount,
+                context = buildPracticeContext(selected, recent),
+            ).map { it.copy(conceptId = it.conceptId ?: selected.id) }
+            val varied = QuestionVarietyPolicy.select(generated, questionCount, recent)
+            return ActivityPlanPolicy.apply(varied).take(questionCount)
+        }
 
-        var concept = selected
         var activities = runCatching { activitiesFor(concept) }.getOrElse { failure ->
-            if (builtInOnly || concept.builtIn) throw failure
+            if (concept.builtIn) throw failure
             val fallback = ConceptSelector.select(
                 concepts = allConcepts.filter { it.builtIn },
                 mastery = mastery,
@@ -64,30 +118,30 @@ class DefaultLearningEngine(
             activitiesFor(fallback)
         }
 
-        if (activities.isEmpty() && !builtInOnly && !concept.builtIn) {
-            val fallback = ConceptSelector.select(
-                concepts = allConcepts.filter { it.builtIn },
-                mastery = mastery,
-                prerequisites = prerequisites,
-            )
-            if (fallback != null) {
+        if (activities.isEmpty() && !concept.builtIn) {
+            ConceptSelector.select(allConcepts.filter { it.builtIn }, mastery, prerequisites)?.let { fallback ->
                 concept = fallback
                 activities = activitiesFor(fallback)
             }
         }
         if (activities.isEmpty()) return null
 
+        val session = createSession(concept.id)
+        return SessionPlan(session.id, concept, activities)
+    }
+
+    private suspend fun createSession(primaryConceptId: String): SessionEntity {
         val session = SessionEntity(
             id = UUID.randomUUID().toString(),
             startedAt = now(),
             endedAt = null,
-            primaryConceptId = concept.id,
+            primaryConceptId = primaryConceptId,
             activityCount = 0,
             durationSeconds = 0,
             status = SessionStatus.ACTIVE,
         )
         repository.insertSession(session)
-        return SessionPlan(session.id, concept, activities)
+        return session
     }
 
     override suspend fun submitAnswer(
@@ -100,33 +154,20 @@ class DefaultLearningEngine(
         require(question.evaluationMode != EvaluationMode.PARTICIPATION) {
             "Participation activities must be completed with completeParticipation()."
         }
-        val result = ActivityEvaluator.evaluate(question, answerText)
-        return recordResult(sessionId, conceptId, question, result, hintsUsed)
+        return recordResult(sessionId, question.conceptId ?: conceptId, question, ActivityEvaluator.evaluate(question, answerText), hintsUsed)
     }
 
     override suspend fun completeParticipation(
         sessionId: String,
         conceptId: String,
         question: LearningQuestion,
-    ): AnswerFeedback = recordResult(
-        sessionId = sessionId,
-        conceptId = conceptId,
-        question = question,
-        result = AttemptResult.UNKNOWN,
-        hintsUsed = 0,
-    )
+    ): AnswerFeedback = recordResult(sessionId, question.conceptId ?: conceptId, question, AttemptResult.UNKNOWN, 0)
 
     override suspend fun skipQuestion(
         sessionId: String,
         conceptId: String,
         question: LearningQuestion,
-    ): AnswerFeedback = recordResult(
-        sessionId = sessionId,
-        conceptId = conceptId,
-        question = question,
-        result = AttemptResult.SKIPPED,
-        hintsUsed = 0,
-    )
+    ): AnswerFeedback = recordResult(sessionId, question.conceptId ?: conceptId, question, AttemptResult.SKIPPED, 0)
 
     override suspend fun completeSession(sessionId: String, conceptTitleGujarati: String): SessionSummary {
         val session = requireNotNull(repository.findSession(sessionId)) { "Session not found" }
@@ -134,7 +175,6 @@ class DefaultLearningEngine(
         val attempts = repository.attemptsForSession(sessionId)
         val mastery = session.primaryConceptId?.let { repository.getMastery(it)?.mastery } ?: 0f
         val assessed = attempts.filter { it.result != AttemptResult.UNKNOWN }
-
         repository.updateSession(
             session.copy(
                 endedAt = end,
@@ -143,7 +183,6 @@ class DefaultLearningEngine(
                 status = SessionStatus.COMPLETED,
             )
         )
-
         return SessionSummary(
             conceptTitleGujarati = conceptTitleGujarati,
             attempts = attempts.size,
@@ -176,16 +215,15 @@ class DefaultLearningEngine(
         hintsUsed: Int,
     ): AnswerFeedback {
         val timestamp = now()
-        val current = repository.getMastery(conceptId)
-            ?: MasteryEntity(
-                conceptId = conceptId,
-                mastery = 0f,
-                totalAttempts = 0,
-                correctAttempts = 0,
-                hintCount = 0,
-                lastPracticedAt = null,
-                lastSuccessAt = null,
-            )
+        val current = repository.getMastery(conceptId) ?: MasteryEntity(
+            conceptId = conceptId,
+            mastery = 0f,
+            totalAttempts = 0,
+            correctAttempts = 0,
+            hintCount = 0,
+            lastPracticedAt = null,
+            lastSuccessAt = null,
+        )
 
         repository.insertAttempt(
             AttemptEntity(
@@ -196,76 +234,62 @@ class DefaultLearningEngine(
                 result = result,
                 hintCount = hintsUsed,
                 createdAt = timestamp,
+                questionFingerprint = question.fingerprint,
             )
         )
 
         val assessed = result != AttemptResult.UNKNOWN
-        val nextMastery = if (assessed) {
-            MasteryPolicy.update(current.mastery, result, hintsUsed)
-        } else {
-            current.mastery
-        }
-        val updated = current.copy(
-            mastery = nextMastery,
-            totalAttempts = current.totalAttempts + if (assessed) 1 else 0,
-            correctAttempts = current.correctAttempts + if (result == AttemptResult.CORRECT) 1 else 0,
-            hintCount = current.hintCount + if (assessed) hintsUsed else 0,
-            lastPracticedAt = timestamp,
-            lastSuccessAt = if (result == AttemptResult.CORRECT) timestamp else current.lastSuccessAt,
+        val nextMastery = if (assessed) MasteryPolicy.update(current.mastery, result, hintsUsed) else current.mastery
+        repository.upsertMastery(
+            current.copy(
+                mastery = nextMastery,
+                totalAttempts = current.totalAttempts + if (assessed) 1 else 0,
+                correctAttempts = current.correctAttempts + if (result == AttemptResult.CORRECT) 1 else 0,
+                hintCount = current.hintCount + if (assessed) hintsUsed else 0,
+                lastPracticedAt = timestamp,
+                lastSuccessAt = if (result == AttemptResult.CORRECT) timestamp else current.lastSuccessAt,
+            )
         )
-        repository.upsertMastery(updated)
 
-        return AnswerFeedback(
-            result = result,
-            messageGujarati = feedbackFor(result, question),
-            expectedAnswer = question.expectedAnswer,
-            mastery = nextMastery,
-        )
+        return AnswerFeedback(result, feedbackFor(result, question), question.expectedAnswer, nextMastery)
     }
 
     private fun feedbackFor(result: AttemptResult, question: LearningQuestion): String = when (result) {
         AttemptResult.UNKNOWN -> "સરસ. હવે આગળ શું શોધીએ તે જોઈએ."
-        AttemptResult.CORRECT -> "હા! સાચું. તમે કેવી રીતે શોધ્યું તે યાદ રાખજો."
+        AttemptResult.CORRECT -> "હા! સાચું. રફ કામમાં લીધેલા પગલાં યાદ રાખજો."
         AttemptResult.PARTIAL -> "લગભગ સાચું. એક નાની મદદ લઈને ફરી અજમાવીએ."
         AttemptResult.SKIPPED -> "ઠીક છે. આ પ્રવૃત્તિ પછી ફરી અજમાવીશું."
         AttemptResult.INCORRECT -> when (question.evaluationMode) {
-            EvaluationMode.NUMERIC -> question.expectedAnswer?.let {
-                "ફરી વિચારીએ. સંકેત યાદ કરો. આ વખતે જવાબ $it છે."
-            } ?: "ફરી વિચારીએ. સંકેત લઈને ફરી અજમાવો."
-            else -> question.hintGujarati?.takeIf { it.isNotBlank() }?.let {
-                "ફરી વિચારીએ. સંકેત: $it"
-            } ?: "ફરી વિચારીએ. એક વાર ધીમે વાંચીને ફરી અજમાવો."
+            EvaluationMode.NUMERIC -> question.expectedAnswer?.let { "ફરી વિચારીએ. રફ કામ તપાસો. આ વખતે જવાબ $it છે." }
+                ?: "ફરી વિચારીએ. સંકેત લઈને ફરી અજમાવો."
+            else -> question.hintGujarati?.takeIf { it.isNotBlank() }?.let { "ફરી વિચારીએ. સંકેત: $it" }
+                ?: "ફરી વિચારીએ. એક વાર ધીમે વાંચીને ફરી અજમાવો."
         }
     }
 
-    private suspend fun buildPracticeContext(concept: com.mitra.learning.data.db.entity.ConceptEntity): PracticeContext? {
-        val chapterId = concept.chapterId ?: return null
-        val knowledgeRepository = bookKnowledgeRepository ?: return null
-        val chapter = knowledgeRepository.getChapter(chapterId) ?: return null
+    private suspend fun buildPracticeContext(concept: ConceptEntity, recent: Set<String>): PracticeContext {
+        val chapterId = concept.chapterId
+        if (chapterId == null || bookKnowledgeRepository == null) {
+            return PracticeContext(recentQuestionFingerprints = recent)
+        }
+        val chapter = bookKnowledgeRepository.getChapter(chapterId)
+            ?: return PracticeContext(recentQuestionFingerprints = recent)
         val pageStart = concept.sourcePageStart ?: chapter.startPage
         val pageEnd = concept.sourcePageEnd ?: chapter.endPage
-        val grounded = knowledgeRepository.pageKnowledge(chapterId)
+        val grounded = bookKnowledgeRepository.pageKnowledge(chapterId)
             .filter { it.pageNumber in pageStart..pageEnd }
             .joinToString("\n\n") { page ->
                 buildString {
-                    append("Page ${page.pageNumber}: ")
-                    append(page.summaryGujarati)
-                    page.visibleTextGujarati?.takeIf { it.isNotBlank() }?.let {
-                        append("\nVisible text: ")
-                        append(it)
-                    }
-                    page.exercisesJson?.takeIf { it.isNotBlank() }?.let {
-                        append("\nExercises: ")
-                        append(it)
-                    }
+                    append("Page ${page.pageNumber}: ${page.summaryGujarati}")
+                    page.visibleTextGujarati?.takeIf { it.isNotBlank() }?.let { append("\nVisible text: $it") }
+                    page.exercisesJson?.takeIf { it.isNotBlank() }?.let { append("\nExercises: $it") }
                 }
-            }
-            .take(12_000)
-        val bookTitle = concept.bookId?.let { bookRepository?.getBook(it)?.title }
+            }.take(12_000)
         return PracticeContext(
-            bookTitle = bookTitle,
+            bookTitle = concept.bookId?.let { bookRepository?.getBook(it)?.title },
             chapterTitleGujarati = chapter.titleGujarati,
             groundedBookText = grounded,
+            recentQuestionFingerprints = recent,
         )
     }
 }

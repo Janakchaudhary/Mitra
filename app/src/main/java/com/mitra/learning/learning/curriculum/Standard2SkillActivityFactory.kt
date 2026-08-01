@@ -1,70 +1,40 @@
 package com.mitra.learning.learning.curriculum
 
 import com.mitra.learning.data.db.entity.ConceptEntity
+import com.mitra.learning.learning.activity.QuestionVarietyPolicy
 import com.mitra.learning.learning.model.ActivityType
+import com.mitra.learning.learning.model.ArithmeticWork
 import com.mitra.learning.learning.model.EvaluationMode
 import com.mitra.learning.learning.model.LearningQuestion
+import kotlin.random.Random
 
-/** Local, deterministic Standard 2 drills. No network or LLM is required. */
+/** Local, varied Standard 2 drills. No network or LLM is required. */
 object Standard2SkillActivityFactory {
-    fun create(concept: ConceptEntity, count: Int): List<LearningQuestion> {
+    fun create(
+        concept: ConceptEntity,
+        count: Int,
+        seed: Long = System.nanoTime(),
+        excludedFingerprints: Set<String> = emptySet(),
+    ): List<LearningQuestion> {
         val requested = count.coerceIn(1, 8)
-        val source = BuiltInCurriculum.tableNumberFor(concept.id)?.let(::tableQuestions)
+        val random = Random(seed xor concept.id.hashCode().toLong())
+        val source = BuiltInCurriculum.tableNumberFor(concept.id)?.let { tableQuestions(it, random) }
             ?: when (concept.id) {
-                BuiltInCurriculum.COUNT_1_20 -> numeric("count", listOf(
-                    "૪ પછી કયો અંક આવે?" to 5, "૯ પછી કયો અંક આવે?" to 10,
-                    "૧૪ પછી કયો અંક આવે?" to 15, "૮ પહેલાં કયો અંક આવે?" to 7,
-                    "૧૯ પછી કયો અંક આવે?" to 20,
-                ))
-                BuiltInCurriculum.COUNT_21_50 -> numeric("count50", listOf(
-                    "૨૯ પછી કયો અંક આવે?" to 30, "૩૪ પહેલાં કયો અંક આવે?" to 33,
-                    "૪૧ પછી કયો અંક આવે?" to 42, "૨૫ પછી બે અંક ગણો. કયો અંક આવશે?" to 27,
-                    "૪૯ પછી કયો અંક આવે?" to 50,
-                ))
-                BuiltInCurriculum.ADD_UNDER_10 -> numeric("add10", listOf(
-                    "૩ + ૨ કેટલા?" to 5, "૪ + ૩ કેટલા?" to 7, "૨ + ૬ કેટલા?" to 8,
-                    "૫ + ૪ કેટલા?" to 9, "૧ + ૬ કેટલા?" to 7,
-                ))
-                BuiltInCurriculum.ADD_UNDER_20 -> numeric("add20", listOf(
-                    "૮ + ૫ કેટલા?" to 13, "૯ + ૭ કેટલા?" to 16, "૧૧ + ૪ કેટલા?" to 15,
-                    "૬ + ૧૨ કેટલા?" to 18, "૧૦ + ૯ કેટલા?" to 19,
-                ))
-                BuiltInCurriculum.SUBTRACT_UNDER_10 -> numeric("sub10", listOf(
-                    "૭ - ૨ કેટલા?" to 5, "૯ - ૩ કેટલા?" to 6, "૮ - ૫ કેટલા?" to 3,
-                    "૬ - ૧ કેટલા?" to 5, "૧૦ - ૪ કેટલા?" to 6,
-                ))
-                BuiltInCurriculum.ADD_2D_1D_NO_CARRY -> numeric("add2d1d", listOf(
-                    "૨૩ + ૪ કેટલા?" to 27, "૪૧ + ૭ કેટલા?" to 48, "૩૨ + ૫ કેટલા?" to 37,
-                    "૬૧ + ૮ કેટલા?" to 69, "૫૪ + ૩ કેટલા?" to 57,
-                ), "એકમના અંકથી શરૂ કરો; અહીં કેરિ કરવાની જરૂર નથી.")
-                BuiltInCurriculum.ADD_2D_2D_NO_CARRY -> numeric("add2d2d", listOf(
-                    "૨૧ + ૧૬ કેટલા?" to 37, "૩૨ + ૨૫ કેટલા?" to 57, "૪૩ + ૧૪ કેટલા?" to 57,
-                    "૫૧ + ૨૮ કેટલા?" to 79, "૬૨ + ૧૭ કેટલા?" to 79,
-                ), "પહેલા એકમ ઉમેરો, પછી દશક ઉમેરો.")
-                BuiltInCurriculum.ADD_WITH_CARRY -> numeric("carry", listOf(
-                    "૨૮ + ૭ કેટલા?" to 35, "૨૭ + ૧૮ કેટલા?" to 45, "૩૬ + ૨૭ કેટલા?" to 63,
-                    "૪૮ + ૧૫ કેટલા?" to 63, "૫૭ + ૨૬ કેટલા?" to 83,
-                ), "એકમનો સરવાળો ૧૦ કે વધુ થાય તો ૧ દશક આગળ લઈ જાઓ.")
-                BuiltInCurriculum.SUB_2D_1D_NO_BORROW -> numeric("sub2d1d", listOf(
-                    "૩૪ - ૨ કેટલા?" to 32, "૪૮ - ૫ કેટલા?" to 43, "૬૭ - ૬ કેટલા?" to 61,
-                    "૫૯ - ૭ કેટલા?" to 52, "૨૬ - ૪ કેટલા?" to 22,
-                ), "એકમમાંથી જ ઘટાડો; ઉધાર લેવાની જરૂર નથી.")
-                BuiltInCurriculum.SUB_2D_2D_NO_BORROW -> numeric("sub2d2d", listOf(
-                    "૪૬ - ૨૩ કેટલા?" to 23, "૭૮ - ૩૫ કેટલા?" to 43, "૬૯ - ૨૭ કેટલા?" to 42,
-                    "૫૭ - ૧૪ કેટલા?" to 43, "૮૮ - ૪૬ કેટલા?" to 42,
-                ), "પહેલા એકમ, પછી દશક ઘટાડો.")
-                BuiltInCurriculum.SUB_WITH_BORROW -> numeric("borrow", listOf(
-                    "૩૨ - ૭ કેટલા?" to 25, "૫૨ - ૨૮ કેટલા?" to 24, "૬૧ - ૩૬ કેટલા?" to 25,
-                    "૭૩ - ૪૮ કેટલા?" to 25, "૮૨ - ૫૭ કેટલા?" to 25,
-                ), "એકમ પૂરતા ન હોય તો એક દશકને ૧૦ એકમમાં બદલો.")
-                BuiltInCurriculum.MISSING_NUMBER -> numeric("missing", listOf(
-                    "૧૨ + ? = ૧૯. ખૂટતો અંક કયો?" to 7, "? + ૬ = ૧૫. ખૂટતો અંક કયો?" to 9,
-                    "૧૮ - ? = ૧૧. ખૂટતો અંક કયો?" to 7, "? - ૫ = ૧૩. ખૂટતો અંક કયો?" to 18,
-                    "૨૪ + ? = ૩૦. ખૂટતો અંક કયો?" to 6,
-                ), "જાણીતો જવાબ મેળવવા પાછળથી ગણો.")
-                BuiltInCurriculum.GREATER_SMALLER -> greaterSmallerQuestions()
-                BuiltInCurriculum.WORD_PROBLEMS -> wordProblems()
-                BuiltInCurriculum.MULTIPLICATION_MEANING -> multiplicationMeaning()
+                BuiltInCurriculum.COUNT_1_20 -> countingQuestions(1, 20, random)
+                BuiltInCurriculum.COUNT_21_50 -> countingQuestions(21, 50, random)
+                BuiltInCurriculum.ADD_UNDER_10 -> additionQuestions(0..6, 1..4, carry = false, random = random)
+                BuiltInCurriculum.ADD_UNDER_20 -> additionQuestions(3..13, 2..9, carry = null, random = random, maxAnswer = 20)
+                BuiltInCurriculum.SUBTRACT_UNDER_10 -> subtractionQuestions(4..10, 1..6, borrow = false, random = random)
+                BuiltInCurriculum.ADD_2D_1D_NO_CARRY -> addition2d1d(random)
+                BuiltInCurriculum.ADD_2D_2D_NO_CARRY -> addition2d2d(random, carry = false)
+                BuiltInCurriculum.ADD_WITH_CARRY -> addition2d2d(random, carry = true)
+                BuiltInCurriculum.SUB_2D_1D_NO_BORROW -> subtraction2d1d(random)
+                BuiltInCurriculum.SUB_2D_2D_NO_BORROW -> subtraction2d2d(random, borrow = false)
+                BuiltInCurriculum.SUB_WITH_BORROW -> subtraction2d2d(random, borrow = true)
+                BuiltInCurriculum.MISSING_NUMBER -> missingNumberQuestions(random)
+                BuiltInCurriculum.GREATER_SMALLER -> greaterSmallerQuestions(random)
+                BuiltInCurriculum.WORD_PROBLEMS -> wordProblems(random)
+                BuiltInCurriculum.MULTIPLICATION_MEANING -> multiplicationMeaning(random)
                 BuiltInCurriculum.GUJ_WORD_RECOGNITION -> gujaratiWordRecognition()
                 BuiltInCurriculum.GUJ_SPELLING -> gujaratiSpelling()
                 BuiltInCurriculum.GUJ_MISSING_LETTER -> gujaratiMissingLetters()
@@ -80,59 +50,218 @@ object Standard2SkillActivityFactory {
                 else -> emptyList()
             }
 
-        if (source.isEmpty()) return emptyList()
-        return List(requested) { index ->
-            val base = source[index % source.size]
-            base.copy(id = "${base.id}-$index")
+        val tagged = source.map { it.copy(conceptId = concept.id) }.shuffled(random)
+        return QuestionVarietyPolicy.select(tagged, requested, excludedFingerprints)
+            .mapIndexed { index, question -> question.copy(id = "${question.id}-${seed.toString(16)}-$index") }
+    }
+
+    private fun countingQuestions(min: Int, max: Int, random: Random): List<LearningQuestion> = buildList {
+        repeat(24) { index ->
+            val number = random.nextInt(min.coerceAtLeast(2), max)
+            val before = index % 3 == 0
+            val step = if (index % 4 == 0) 2 else 1
+            val answer = if (before) number - step else number + step
+            add(numericOne(
+                id = "count-$number-$before-$step",
+                prompt = if (before) "${gu(number)} પહેલાં $step અંક ગણો. કયો અંક આવશે?" else "${gu(number)} પછી $step અંક ગણો. કયો અંક આવશે?",
+                answer = answer,
+                hint = if (before) "પાછળ તરફ ધીમે ગણો." else "આગળ તરફ ધીમે ગણો.",
+            ))
         }
     }
 
-    private fun numeric(prefix: String, items: List<Pair<String, Int>>, hint: String = "ધીમે ધીમે એક-એક પગલું કરો.") =
-        items.mapIndexed { index, (prompt, answer) ->
-            LearningQuestion(
-                id = "$prefix-$index",
-                promptGujarati = prompt,
-                expectedAnswer = answer,
-                evaluationMode = EvaluationMode.NUMERIC,
-                activityType = ActivityType.QUESTION.name,
-                hintGujarati = hint,
-            )
+    private fun additionQuestions(
+        first: IntRange,
+        second: IntRange,
+        carry: Boolean?,
+        random: Random,
+        maxAnswer: Int = 99,
+    ): List<LearningQuestion> = buildList {
+        repeat(36) { index ->
+            var a: Int
+            var b: Int
+            do {
+                a = random.nextInt(first.first, first.last + 1)
+                b = random.nextInt(second.first, second.last + 1)
+            } while (a + b > maxAnswer || (carry != null && ((a % 10 + b % 10 >= 10) != carry)))
+            add(arithmeticQuestion("add-$a-$b-$index", a, b, "+", a + b, index))
         }
+    }
 
-    private fun tableQuestions(table: Int): List<LearningQuestion> = (1..10).map { multiplier ->
-        LearningQuestion(
-            id = "table-$table-$multiplier",
-            promptGujarati = "$table × $multiplier કેટલા?",
-            expectedAnswer = table * multiplier,
+    private fun subtractionQuestions(
+        first: IntRange,
+        second: IntRange,
+        borrow: Boolean?,
+        random: Random,
+    ): List<LearningQuestion> = buildList {
+        repeat(30) { index ->
+            var a: Int
+            var b: Int
+            do {
+                a = random.nextInt(first.first, first.last + 1)
+                b = random.nextInt(second.first, second.last + 1).coerceAtMost(a)
+            } while (b >= a || (borrow != null && ((a % 10 < b % 10) != borrow)))
+            add(arithmeticQuestion("sub-$a-$b-$index", a, b, "−", a - b, index))
+        }
+    }
+
+    private fun addition2d1d(random: Random): List<LearningQuestion> = buildList {
+        repeat(40) { index ->
+            val b = random.nextInt(2, 10)
+            val tens = random.nextInt(1, 9)
+            val ones = random.nextInt(0, 10 - b)
+            val a = tens * 10 + ones
+            add(arithmeticQuestion("add2d1d-$a-$b-$index", a, b, "+", a + b, index))
+        }
+    }
+
+    private fun addition2d2d(random: Random, carry: Boolean): List<LearningQuestion> = buildList {
+        repeat(56) { index ->
+            var a: Int
+            var b: Int
+            do {
+                a = random.nextInt(12, 78)
+                b = random.nextInt(11, 78)
+            } while (a + b > 99 || ((a % 10 + b % 10 >= 10) != carry))
+            add(arithmeticQuestion(
+                id = "add2d2d-$carry-$a-$b-$index",
+                top = a,
+                bottom = b,
+                operator = "+",
+                answer = a + b,
+                style = index,
+                hint = if (carry) "એકમનો સરવાળો ૧૦ કે વધુ થાય તો ૧ દશક આગળ લઈ જાઓ." else "પહેલા એકમ, પછી દશક ઉમેરો.",
+                regrouping = carry,
+            ))
+        }
+    }
+
+    private fun subtraction2d1d(random: Random): List<LearningQuestion> = buildList {
+        repeat(40) { index ->
+            val b = random.nextInt(2, 10)
+            val tens = random.nextInt(2, 10)
+            val ones = random.nextInt(b, 10)
+            val a = tens * 10 + ones
+            add(arithmeticQuestion("sub2d1d-$a-$b-$index", a, b, "−", a - b, index))
+        }
+    }
+
+    private fun subtraction2d2d(random: Random, borrow: Boolean): List<LearningQuestion> = buildList {
+        repeat(56) { index ->
+            var a: Int
+            var b: Int
+            do {
+                a = random.nextInt(31, 100)
+                b = random.nextInt(11, a)
+            } while (((a % 10 < b % 10) != borrow))
+            add(arithmeticQuestion(
+                id = "sub2d2d-$borrow-$a-$b-$index",
+                top = a,
+                bottom = b,
+                operator = "−",
+                answer = a - b,
+                style = index,
+                hint = if (borrow) "એકમ પૂરતા ન હોય તો એક દશકને ૧૦ એકમમાં બદલો." else "પહેલા એકમ, પછી દશક ઘટાડો.",
+                regrouping = borrow,
+            ))
+        }
+    }
+
+    private fun arithmeticQuestion(
+        id: String,
+        top: Int,
+        bottom: Int,
+        operator: String,
+        answer: Int,
+        style: Int,
+        hint: String = if (operator == "+") "એકમથી શરૂ કરો; પછી દશક ગણો." else "એકમથી શરૂ કરો; પછી દશક ઘટાડો.",
+        regrouping: Boolean = false,
+    ): LearningQuestion {
+        val isAddition = operator == "+"
+        val prompt = when (style % 4) {
+            0 -> "${gu(top)} $operator ${gu(bottom)} કેટલા?"
+            1 -> if (isAddition) "રફ કામમાં ${gu(top)} અને ${gu(bottom)} ગોઠવી સરવાળો કરો." else "રફ કામમાં ${gu(top)} માંથી ${gu(bottom)} ઘટાડો."
+            2 -> if (isAddition) "એક ડબ્બામાં ${gu(top)} રંગીન પેન્સિલ છે અને બીજા ડબ્બામાં ${gu(bottom)} છે. કુલ કેટલી?" else "${gu(top)} સ્ટિકરમાંથી ${gu(bottom)} આપી દીધા. કેટલા રહ્યા?"
+            else -> if (isAddition) "દશક અને એકમ ગોઠવો: ${gu(top)} + ${gu(bottom)} = ?" else "દશક અને એકમ ગોઠવો: ${gu(top)} − ${gu(bottom)} = ?"
+        }
+        return LearningQuestion(
+            id = id,
+            promptGujarati = prompt,
+            expectedAnswer = answer,
             evaluationMode = EvaluationMode.NUMERIC,
-            activityType = ActivityType.TABLES.name,
-            hintGujarati = "$table ને $multiplier વાર સમાન જૂથ તરીકે વિચારો.",
+            activityType = if (style % 4 == 2) ActivityType.WORD_PROBLEM.name else ActivityType.QUESTION.name,
+            hintGujarati = hint,
+            arithmeticWork = ArithmeticWork(top, bottom, operator, regrouping),
         )
     }
 
-    private fun greaterSmallerQuestions() = listOf(
-        choice("greater-1", "મોટી સંખ્યા પસંદ કરો.", "૪૮", listOf("૪૮", "૩૮"), "દશકનો અંક પહેલાં જુઓ."),
-        choice("greater-2", "નાની સંખ્યા પસંદ કરો.", "૨૬", listOf("૬૨", "૨૬"), "દશકની સરખામણી કરો."),
-        choice("greater-3", "કઈ સંખ્યા મોટી છે?", "૭૧", listOf("૬૯", "૭૧", "૬૧"), "૭ દશક, ૬ દશક કરતાં મોટું છે."),
-        choice("greater-4", "કઈ સંખ્યા નાની છે?", "૩૯", listOf("૪૦", "૩૯", "૪૯"), "૩ દશકવાળી સંખ્યા શોધો."),
-        choice("greater-5", "૫૫ અને ૫૨ માં મોટી કઈ?", "૫૫", listOf("૫૨", "૫૫"), "દશક સમાન છે, હવે એકમ જુઓ."),
-    )
+    private fun tableQuestions(table: Int, random: Random): List<LearningQuestion> = (1..10).shuffled(random).flatMap { multiplier ->
+        listOf(
+            LearningQuestion(
+                id = "table-$table-$multiplier-direct",
+                promptGujarati = "${gu(table)} × ${gu(multiplier)} કેટલા?",
+                expectedAnswer = table * multiplier,
+                evaluationMode = EvaluationMode.NUMERIC,
+                activityType = ActivityType.TABLES.name,
+                hintGujarati = "${gu(table)} ને ${gu(multiplier)} વાર સમાન જૂથ તરીકે વિચારો.",
+            ),
+            LearningQuestion(
+                id = "table-$table-$multiplier-story",
+                promptGujarati = "${gu(multiplier)} થાળીમાં દરેકમાં ${gu(table)} લાડુ છે. કુલ કેટલા લાડુ?",
+                expectedAnswer = table * multiplier,
+                evaluationMode = EvaluationMode.NUMERIC,
+                activityType = ActivityType.WORD_PROBLEM.name,
+                hintGujarati = "${gu(table)} ને ${gu(multiplier)} વાર ઉમેરો.",
+            ),
+        )
+    }
 
-    private fun wordProblems() = numeric("word", listOf(
-        "રિયા પાસે ૨૩ પેન્સિલ છે. તેને ૪ વધુ મળે. કુલ કેટલી?" to 27,
-        "એક ડબ્બામાં ૩૨ બોલ હતા. ૫ કાઢ્યા. કેટલા રહ્યા?" to 27,
-        "બગીચામાં ૨૧ લાલ અને ૧૬ પીળા ફૂલ છે. કુલ કેટલા?" to 37,
-        "દુકાનમાં ૪૬ પતંગ હતા. ૨૩ વેચાયા. કેટલા રહ્યા?" to 23,
-        "મીરા પાસે ૨૮ સ્ટિકર હતા. તેને ૭ વધુ મળ્યા. હવે કેટલા?" to 35,
-    ), "વાર્તામાં વસ્તુઓ વધે છે કે ઘટે છે તે પહેલાં નક્કી કરો.").map { it.copy(activityType = ActivityType.WORD_PROBLEM.name) }
+    private fun missingNumberQuestions(random: Random): List<LearningQuestion> = buildList {
+        repeat(30) { index ->
+            val a = random.nextInt(8, 60)
+            val missing = random.nextInt(2, 10)
+            val total = a + missing
+            add(numericOne("missing-$a-$missing-$index", "${gu(a)} + ? = ${gu(total)}. ખૂટતો અંક કયો?", missing, "${gu(total)} માંથી ${gu(a)} ઘટાડો."))
+        }
+    }
 
-    private fun multiplicationMeaning() = listOf(
-        numericOne("mult-1", "૩ જૂથ છે. દરેક જૂથમાં ૪ કેરી છે. કુલ કેટલી?", 12, "૪ + ૪ + ૪ કરો."),
-        numericOne("mult-2", "૨ + ૨ + ૨ + ૨ કેટલા?", 8, "આ ૪ જૂથ × ૨ જેવું છે."),
-        choice("mult-3", "૩ × ૪ નો વારંવાર સરવાળો કયો?", "૪ + ૪ + ૪", listOf("૩ + ૩ + ૩ + ૩", "૪ + ૪ + ૪", "૩ + ૪"), "૩ સમાન જૂથ, દરેકમાં ૪."),
-        numericOne("mult-4", "૫ થાળીમાં દરેકમાં ૨ લાડુ છે. કુલ કેટલા?", 10, "૨ ને ૫ વાર ઉમેરો."),
-        choice("mult-5", "૪ + ૪ + ૪ ને ગુણાકારમાં કેવી રીતે લખી શકાય?", "૩ × ૪", listOf("૩ × ૪", "૪ × ૪", "૩ × ૩"), "કેટલા સમાન જૂથ છે તે પહેલાં જુઓ."),
-    ).map { it.copy(activityType = ActivityType.TABLES.name) }
+    private fun greaterSmallerQuestions(random: Random): List<LearningQuestion> = buildList {
+        repeat(24) { index ->
+            val a = random.nextInt(20, 99)
+            var b = random.nextInt(20, 99)
+            if (a == b) b = (b + 1).coerceAtMost(99)
+            val askLarger = index % 2 == 0
+            val answer = if (askLarger) maxOf(a, b) else minOf(a, b)
+            add(choice("compare-$a-$b-$index", if (askLarger) "મોટી સંખ્યા પસંદ કરો." else "નાની સંખ્યા પસંદ કરો.", gu(answer), listOf(gu(a), gu(b)).shuffled(random), "દશકનો અંક પહેલાં જુઓ."))
+        }
+    }
+
+    private fun wordProblems(random: Random): List<LearningQuestion> = buildList {
+        repeat(36) { index ->
+            val addition = index % 2 == 0
+            if (addition) {
+                var a: Int
+                var b: Int
+                do {
+                    a = random.nextInt(15, 70)
+                    b = random.nextInt(11, 35)
+                } while (a + b > 99)
+                add(arithmeticQuestion("word-add-$a-$b-$index", a, b, "+", a + b, 2, regrouping = a % 10 + b % 10 >= 10))
+            } else {
+                val a = random.nextInt(35, 100)
+                val b = random.nextInt(11, a)
+                add(arithmeticQuestion("word-sub-$a-$b-$index", a, b, "−", a - b, 2, regrouping = a % 10 < b % 10))
+            }
+        }
+    }
+
+    private fun multiplicationMeaning(random: Random): List<LearningQuestion> = buildList {
+        repeat(24) { index ->
+            val groups = random.nextInt(2, 6)
+            val inEach = random.nextInt(2, 7)
+            add(numericOne("mult-$groups-$inEach-$index", "${gu(groups)} જૂથ છે. દરેક જૂથમાં ${gu(inEach)} વસ્તુ છે. કુલ કેટલી?", groups * inEach, "${gu(inEach)} ને ${gu(groups)} વાર ઉમેરો.").copy(activityType = ActivityType.TABLES.name))
+        }
+    }
 
     private fun gujaratiWordRecognition() = listOf(
         choice("guj-rec-1", "‘પુસ્તક’ શબ્દ પસંદ કરો.", "પુસ્તક", listOf("પુસ્તક", "પુસતક", "પુતસ્ક"), "શબ્દ ધીમે વાંચો."),
@@ -160,10 +289,8 @@ object Standard2SkillActivityFactory {
     ).map { it.copy(activityType = ActivityType.MISSING_LETTER.name) }
 
     private fun gujaratiReadAloud() = listOf(
-        readAloud("guj-read-1", "આ મારું પુસ્તક છે."),
-        readAloud("guj-read-2", "મને ફૂલ ગમે છે."),
-        readAloud("guj-read-3", "રવિ શાળાએ જાય છે."),
-        readAloud("guj-read-4", "આકાશ વાદળી છે."),
+        readAloud("guj-read-1", "આ મારું પુસ્તક છે."), readAloud("guj-read-2", "મને ફૂલ ગમે છે."),
+        readAloud("guj-read-3", "રવિ શાળાએ જાય છે."), readAloud("guj-read-4", "આકાશ વાદળી છે."),
         readAloud("guj-read-5", "પાણી પીવું સારું છે."),
     )
 
@@ -179,7 +306,7 @@ object Standard2SkillActivityFactory {
         choice("guj-meaning-1", "‘મોટું’નો વિરુદ્ધ અર્થ કયો?", "નાનું", listOf("નાનું", "ઊંચું", "ઝડપી"), "મોટું નહીં, તો શું?"),
         choice("guj-meaning-2", "‘ખુશ’નો નજીકનો અર્થ કયો?", "આનંદિત", listOf("આનંદિત", "દુઃખી", "ભૂખ્યો"), "ખુશ હોય ત્યારે મન કેવું હોય?"),
         choice("guj-meaning-3", "‘ઝડપી’નો વિરુદ્ધ અર્થ કયો?", "ધીમું", listOf("ધીમું", "મોટું", "ગરમ"), "ઝડપ ઓછી હોય તો?"),
-        choice("guj-meaning-4", "‘ઠંડું’નો વિરુદ્ધ અર્થ કયો?", "ગરમ", listOf("ગરમ", "નાનું", "ભીનું"), "હવામાનના વિરુદ્ધ શબ્દ વિશે વિચારો."),
+        choice("guj-meaning-4", "‘ઠંડું’નો વિરુદ્ધ અર્થ કયો?", "ગરમ", listOf("ગરમ", "નાનું", "ભીનું"), "હવામાનનો વિરુદ્ધ શબ્દ વિચારો."),
         choice("guj-meaning-5", "‘ઉપર’નો વિરુદ્ધ અર્થ કયો?", "નીચે", listOf("નીચે", "આગળ", "પાસે"), "દિશાનો વિરુદ્ધ શબ્દ શોધો."),
     ).map { it.copy(activityType = ActivityType.VOCABULARY.name) }
 
@@ -200,12 +327,12 @@ object Standard2SkillActivityFactory {
     ).map { it.copy(activityType = ActivityType.VOCABULARY.name) }
 
     private fun englishSpelling() = listOf(
-        spelling("eng-spell-1", "book", "B થી શરૂ થાય છે; double o છે.", spokenPrefix = "Spell the word book", languageTag = "en-IN"),
-        spelling("eng-spell-2", "school", "S-C-H થી શરૂ થાય છે.", spokenPrefix = "Spell the word school", languageTag = "en-IN"),
-        spelling("eng-spell-3", "water", "W-A થી શરૂ થાય છે.", spokenPrefix = "Spell the word water", languageTag = "en-IN"),
-        spelling("eng-spell-4", "mango", "M થી શરૂ થાય છે અને O પર પૂરો થાય છે.", spokenPrefix = "Spell the word mango", languageTag = "en-IN"),
-        spelling("eng-spell-5", "tree", "T-R પછી double e આવે છે.", spokenPrefix = "Spell the word tree", languageTag = "en-IN"),
-        spelling("eng-spell-6", "ball", "B થી શરૂ થાય છે; double l છે.", spokenPrefix = "Spell the word ball", languageTag = "en-IN"),
+        spelling("eng-spell-1", "book", "B થી શરૂ થાય છે; double o છે.", "Spell the word book", "en-IN"),
+        spelling("eng-spell-2", "school", "S-C-H થી શરૂ થાય છે.", "Spell the word school", "en-IN"),
+        spelling("eng-spell-3", "water", "W-A થી શરૂ થાય છે.", "Spell the word water", "en-IN"),
+        spelling("eng-spell-4", "mango", "M થી શરૂ થાય છે અને O પર પૂરો થાય છે.", "Spell the word mango", "en-IN"),
+        spelling("eng-spell-5", "tree", "T-R પછી double e આવે છે.", "Spell the word tree", "en-IN"),
+        spelling("eng-spell-6", "ball", "B થી શરૂ થાય છે; double l છે.", "Spell the word ball", "en-IN"),
     )
 
     private fun englishMissingLetters() = listOf(
@@ -217,11 +344,9 @@ object Standard2SkillActivityFactory {
     ).map { it.copy(activityType = ActivityType.MISSING_LETTER.name) }
 
     private fun englishReadAloud() = listOf(
-        readAloud("eng-read-1", "This is a book.", recognitionLanguageTag = "en-IN"),
-        readAloud("eng-read-2", "I like mango.", recognitionLanguageTag = "en-IN"),
-        readAloud("eng-read-3", "The ball is red.", recognitionLanguageTag = "en-IN"),
-        readAloud("eng-read-4", "This is my school.", recognitionLanguageTag = "en-IN"),
-        readAloud("eng-read-5", "The tree is green.", recognitionLanguageTag = "en-IN"),
+        readAloud("eng-read-1", "This is a book.", "en-IN"), readAloud("eng-read-2", "I like mango.", "en-IN"),
+        readAloud("eng-read-3", "The ball is red.", "en-IN"), readAloud("eng-read-4", "This is my school.", "en-IN"),
+        readAloud("eng-read-5", "The tree is green.", "en-IN"),
     )
 
     private fun englishSentenceCompletion() = listOf(
@@ -233,14 +358,9 @@ object Standard2SkillActivityFactory {
     ).map { it.copy(activityType = ActivityType.VOCABULARY.name) }
 
     private fun choice(id: String, prompt: String, answer: String, options: List<String>, hint: String) = LearningQuestion(
-        id = id,
-        promptGujarati = prompt,
-        expectedText = answer,
-        acceptedAnswers = listOf(answer),
-        optionsGujarati = options,
-        evaluationMode = EvaluationMode.MULTIPLE_CHOICE,
-        activityType = ActivityType.MULTIPLE_CHOICE.name,
-        hintGujarati = hint,
+        id = id, promptGujarati = prompt, expectedText = answer, acceptedAnswers = listOf(answer),
+        optionsGujarati = options, evaluationMode = EvaluationMode.MULTIPLE_CHOICE,
+        activityType = ActivityType.MULTIPLE_CHOICE.name, hintGujarati = hint,
     )
 
     private fun spelling(id: String, word: String, hint: String, spokenPrefix: String? = null, languageTag: String = "gu-IN") = LearningQuestion(
@@ -270,11 +390,15 @@ object Standard2SkillActivityFactory {
     )
 
     private fun numericOne(id: String, prompt: String, answer: Int, hint: String) = LearningQuestion(
-        id = id,
-        promptGujarati = prompt,
-        expectedAnswer = answer,
-        evaluationMode = EvaluationMode.NUMERIC,
-        activityType = ActivityType.QUESTION.name,
-        hintGujarati = hint,
+        id = id, promptGujarati = prompt, expectedAnswer = answer,
+        evaluationMode = EvaluationMode.NUMERIC, activityType = ActivityType.QUESTION.name, hintGujarati = hint,
     )
+
+    private fun gu(number: Int): String = number.toString().map { digit ->
+        when (digit) {
+            '0' -> '૦'; '1' -> '૧'; '2' -> '૨'; '3' -> '૩'; '4' -> '૪'
+            '5' -> '૫'; '6' -> '૬'; '7' -> '૭'; '8' -> '૮'; '9' -> '૯'
+            else -> digit
+        }
+    }.joinToString("")
 }

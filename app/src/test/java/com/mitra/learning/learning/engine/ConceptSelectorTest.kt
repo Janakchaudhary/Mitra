@@ -53,6 +53,22 @@ class ConceptSelectorTest {
     }
 
 
+
+    @Test
+    fun similarlyWeakConceptsRotateToLeastRecentlyPractised() {
+        val add = BuiltInCurriculum.concepts.first { it.id == BuiltInCurriculum.ADD_UNDER_10 }
+        val sub = BuiltInCurriculum.concepts.first { it.id == BuiltInCurriculum.SUBTRACT_UNDER_10 }
+        val selected = ConceptSelector.select(
+            concepts = listOf(add, sub),
+            mastery = listOf(
+                mastery(add.id, 0.20f).copy(lastPracticedAt = 10_000L),
+                mastery(sub.id, 0.25f).copy(lastPracticedAt = 1_000L),
+            ),
+            prerequisites = emptyList(),
+        )
+        assertEquals(sub.id, selected?.id)
+    }
+
     @Test
     fun bookConceptNotReadyForPracticeIsIgnored() {
         val hidden = BuiltInCurriculum.concepts.first().copy(

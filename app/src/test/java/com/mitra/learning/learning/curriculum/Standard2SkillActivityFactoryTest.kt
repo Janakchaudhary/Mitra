@@ -65,6 +65,21 @@ class Standard2SkillActivityFactoryTest {
         assertEquals(com.mitra.learning.data.db.entity.AttemptResult.CORRECT, ActivityEvaluator.evaluate(activity, answer))
     }
 
+
+    @Test
+    fun carryQuestionsAreVariedAndExposeRoughWorkMetadata() {
+        val concept = requireNotNull(BuiltInCurriculum.concepts.find { it.id == BuiltInCurriculum.ADD_WITH_CARRY })
+        val activities = Standard2SkillActivityFactory.create(concept, 6, seed = 1234L)
+        assertEquals(6, activities.size)
+        assertEquals(6, activities.map { it.fingerprint }.distinct().size)
+        assertTrue(activities.all { it.arithmeticWork != null })
+        assertTrue(activities.all { it.arithmeticWork?.regrouping == true })
+        assertTrue(activities.all { activity ->
+            val work = requireNotNull(activity.arithmeticWork)
+            (work.top % 10 + work.bottom % 10) >= 10
+        })
+    }
+
     @Test
     fun twoDigitSkillProducesTwoDigitArithmetic() {
         val concept = requireNotNull(BuiltInCurriculum.concepts.find { it.id == BuiltInCurriculum.ADD_2D_2D_NO_CARRY })

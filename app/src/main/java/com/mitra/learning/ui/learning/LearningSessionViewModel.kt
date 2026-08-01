@@ -115,8 +115,8 @@ class LearningSessionViewModel(
     fun completeParticipation() {
         val current = _state.value
         val sessionId = current.sessionId ?: return
-        val conceptId = current.conceptId ?: return
         val activity = current.currentQuestion ?: return
+        val conceptId = activity.conceptId ?: current.conceptId ?: return
         if (current.awaitingNext || current.loading) return
 
         viewModelScope.launch {
@@ -142,8 +142,8 @@ class LearningSessionViewModel(
     fun skip() {
         val current = _state.value
         val sessionId = current.sessionId ?: return
-        val conceptId = current.conceptId ?: return
         val question = current.currentQuestion ?: return
+        val conceptId = question.conceptId ?: current.conceptId ?: return
         if (current.awaitingNext || current.loading) return
 
         viewModelScope.launch {
@@ -253,8 +253,8 @@ class LearningSessionViewModel(
     private fun submitAnswer(answerText: String) {
         val current = _state.value
         val sessionId = current.sessionId ?: return
-        val conceptId = current.conceptId ?: return
         val question = current.currentQuestion ?: return
+        val conceptId = question.conceptId ?: current.conceptId ?: return
         if (current.awaitingNext || current.loading) return
 
         viewModelScope.launch {
