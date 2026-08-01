@@ -14,7 +14,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -92,7 +91,7 @@ fun AnimatedMitraMascot(
         contentAlignment = Alignment.Center,
     ) {
         if (mood == MascotMood.LISTENING) {
-            ListeningRings(Modifier.matchParentSize())
+            ListeningRings(Modifier.fillMaxSize())
         }
         Surface(
             modifier = Modifier
@@ -166,7 +165,7 @@ fun AnimatedLearningBackground(
     )
 
     Box(modifier = modifier) {
-        Canvas(Modifier.matchParentSize()) {
+        Canvas(Modifier.fillMaxSize()) {
             drawCircle(primary, radius = size.minDimension * 0.13f, center = Offset(size.width * 0.12f, size.height * 0.18f + drift))
             drawCircle(secondary, radius = size.minDimension * 0.09f, center = Offset(size.width * 0.88f, size.height * 0.28f - drift))
             drawCircle(tertiary, radius = size.minDimension * 0.11f, center = Offset(size.width * 0.83f, size.height * 0.78f + drift * 0.6f))

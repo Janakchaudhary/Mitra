@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="mitra_icon_background">#5B4BDB</color>
+    <color name="mitra_splash_background">#FFF8EC</color>
+    <color name="mitra_splash_icon_background">#E7E2FF</color>
+</resources>

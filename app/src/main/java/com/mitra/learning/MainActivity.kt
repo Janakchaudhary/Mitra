@@ -26,6 +26,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.mitra.learning.core.AppContainer
 import com.mitra.learning.ui.books.AddBookScreen
 import com.mitra.learning.ui.books.AddBookViewModel
@@ -65,6 +66,20 @@ import com.mitra.learning.ui.theme.MitraTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        var appReady = false
+        val splashScreen = installSplashScreen()
+        splashScreen.setKeepOnScreenCondition { !appReady }
+        splashScreen.setOnExitAnimationListener { provider ->
+            provider.view
+                .animate()
+                .alpha(0f)
+                .scaleX(1.06f)
+                .scaleY(1.06f)
+                .setDuration(220L)
+                .withEndAction { provider.remove() }
+                .start()
+        }
+
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
@@ -75,7 +90,10 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .windowInsetsPadding(WindowInsets.safeDrawing),
                 ) {
-                    MitraNav(app.container)
+                    MitraNav(
+                        container = app.container,
+                        onReady = { appReady = true },
+                    )
                 }
             }
         }
@@ -122,9 +140,15 @@ private object Routes {
 }
 
 @Composable
-private fun MitraNav(container: AppContainer) {
+private fun MitraNav(
+    container: AppContainer,
+    onReady: () -> Unit,
+) {
     var hasPin by remember { mutableStateOf<Boolean?>(null) }
     LaunchedEffect(Unit) { hasPin = container.parentPinRepository.hasPin() }
+    LaunchedEffect(hasPin) {
+        if (hasPin != null) onReady()
+    }
     if (hasPin == null) {
         CircularProgressIndicator()
         return

@@ -1,3 +1,9 @@
+## Milestone 14 — Logo and splash screen
+
+- Branded Mitra launcher icon with reading mascot.
+- Native Android splash screen while local app setup loads.
+- Smooth splash-to-home transition without artificial delay.
+
 # Mitra Android
 
 **Current milestone: 13 (v0.13.0)** — purposeful child-friendly animation, animated tutor moods, responsive learning transitions, guided maths, spaced review, offline question banks, and bounded hands-free Study Talk.

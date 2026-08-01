@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Friendly lion mascot -->
+    <path
+        android:fillColor="#F7A83B"
+        android:pathData="M31,17a10,10 0,1 0,0 20a10,10 0,1 0,0 -20M77,17a10,10 0,1 0,0 20a10,10 0,1 0,0 -20" />
+    <path
+        android:fillColor="#F39A2E"
+        android:pathData="M54,13a34,34 0,1 0,0 68a34,34 0,1 0,0 -68" />
+    <path
+        android:fillColor="#FFF4D7"
+        android:pathData="M54,20a27,27 0,1 0,0 54a27,27 0,1 0,0 -54" />
+
+    <!-- Eyes -->
+    <path
+        android:fillColor="#322557"
+        android:pathData="M44.5,39a3.5,3.5 0,1 0,0 7a3.5,3.5 0,1 0,0 -7M63.5,39a3.5,3.5 0,1 0,0 7a3.5,3.5 0,1 0,0 -7" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M45.5,40a1.1,1.1 0,1 0,0 2.2a1.1,1.1 0,1 0,0 -2.2M64.5,40a1.1,1.1 0,1 0,0 2.2a1.1,1.1 0,1 0,0 -2.2" />
+
+    <!-- Nose and smile -->
+    <path
+        android:fillColor="#7B3F39"
+        android:pathData="M50,49L54,53L58,49Q54,46 50,49Z" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,53C54,58 47,59 44,56M54,53C54,58 61,59 64,56"
+        android:strokeColor="#7B3F39"
+        android:strokeLineCap="round"
+        android:strokeWidth="2.2" />
+
+    <!-- Star of curiosity -->
+    <path
+        android:fillColor="#FFE56A"
+        android:pathData="M54,24L56.1,28.2L60.8,28.9L57.4,32.1L58.2,36.7L54,34.5L49.8,36.7L50.6,32.1L47.2,28.9L51.9,28.2Z" />
+
+    <!-- Open book -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M21,66Q35,61 53,68L53,91Q37,84 21,88Z" />
+    <path
+        android:fillColor="#F6F0FF"
+        android:pathData="M55,68Q73,61 87,66L87,88Q71,84 55,91Z" />
+    <path
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,68L54,91M25,71Q38,67 49,72M59,72Q70,67 83,71M25,77Q38,73 49,78M59,78Q70,73 83,77"
+        android:strokeColor="#5B4BDB"
+        android:strokeLineCap="round"
+        android:strokeWidth="1.8" />
+</vector>

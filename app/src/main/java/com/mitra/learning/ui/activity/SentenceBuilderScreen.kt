@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -175,7 +174,7 @@ fun SentenceBuilderScreen(onBack: () -> Unit) {
         }
         SuccessBurst(
             trigger = if (success) "sentence-$index" else null,
-            modifier = Modifier.matchParentSize(),
+            modifier = Modifier.fillMaxSize(),
         )
     }
 }
