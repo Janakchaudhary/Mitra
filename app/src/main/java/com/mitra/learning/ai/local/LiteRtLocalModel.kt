@@ -25,7 +25,9 @@ class LiteRtLocalModel(
         withContext(Dispatchers.Default) {
             val activeEngine = ensureEngine()
             activeEngine.createConversation().use { conversation ->
-                conversation.sendMessage("$systemInstruction\n\n$prompt").text.trim()
+                conversation.sendMessage("$systemInstruction\n\n$prompt")
+                    .toString()
+                    .trim()
                     .takeIf { it.isNotBlank() }
                     ?: error("The local model returned an empty answer.")
             }
