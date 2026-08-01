@@ -1,12 +1,13 @@
-## Milestone 14 — Logo and splash screen
+## Milestone 15 — Dynamic activities and compact learning UI
 
-- Branded Mitra launcher icon with reading mascot.
-- Native Android splash screen while local app setup loads.
-- Smooth splash-to-home transition without artificial delay.
+- Color Lab now rotates through multiple line drawings and changing target colors.
+- Sentence Builder includes 12 varied puzzles with rule-specific hints.
+- Rough-work place-value columns are aligned as `દશક` then `એકમ`.
+- Learning sessions use a compact layout and floating next-question icon.
 
 # Mitra Android
 
-**Current milestone: 13 (v0.13.0)** — purposeful child-friendly animation, animated tutor moods, responsive learning transitions, guided maths, spaced review, offline question banks, and bounded hands-free Study Talk.
+**Current milestone: 15 (v0.15.0)** — purposeful child-friendly animation, animated tutor moods, responsive learning transitions, guided maths, spaced review, offline question banks, and bounded hands-free Study Talk.
 
 મિત્ર is a local-first Android learning companion for one Standard 2 Gujarati-medium child.
 
@@ -18,7 +19,7 @@
 - Built-in Standard 2 maths, Gujarati, English, spelling, and tables remain deterministic and usable without a remote AI provider.
 - Question fingerprints and recent-history suppression reduce repeated questions.
 - Two-digit addition/subtraction with and without carrying/borrowing.
-- Finger-writing rough-work notebook plus guided ones/carry-or-borrow/tens fields.
+- Finger-writing rough-work notebook plus aligned tens/carry-or-borrow/ones fields.
 - Local mistake classification and step-specific Gujarati hints.
 - Spaced review scheduling at increasing intervals.
 - Offline book-derived question banks generated during chapter preparation.
@@ -75,8 +76,8 @@ Download the signed `mitra-update-apk` artifact. Once the stable-signed baseline
 
 ## Upgrade
 
-- `versionCode = 22`
-- `versionName = 0.13.0`
+- `versionCode = 26`
+- `versionName = 0.15.0`
 - Room schema version `5`
 - No new database migration is required. Existing books, prepared data, progress, review schedules, credentials, and sessions are preserved.
 
@@ -97,7 +98,7 @@ Not retained by default:
 
 API credentials and the parent PIN are excluded from exported backups. A parent-entered cloud API token inside a private mobile app remains a personal-development compromise and must never be committed to source control.
 
-See [`MILESTONE13.md`](MILESTONE13.md) for the latest animation and visual-polish details; earlier milestone documents remain in the repository.
+See [`MILESTONE15.md`](MILESTONE15.md) for the latest activity and compact-UI details; earlier milestone documents remain in the repository.
 
 
 ## Milestone 13

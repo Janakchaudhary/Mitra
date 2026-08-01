@@ -31,12 +31,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.VolumeUp
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.StopCircle
@@ -47,7 +52,9 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -177,300 +184,357 @@ private fun SessionContent(
     onStop: () -> Unit,
 ) {
     val current = state.currentQuestion
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
+    Box(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 88.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                AnimatedMitraMascot(
-                    mood = when {
-                        state.listening -> MascotMood.LISTENING
-                        state.loading || state.ttsSpeaking -> MascotMood.THINKING
-                        state.awaitingNext -> MascotMood.CELEBRATING
-                        else -> MascotMood.IDLE
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AnimatedMitraMascot(
+                        mood = when {
+                            state.listening -> MascotMood.LISTENING
+                            state.loading || state.ttsSpeaking -> MascotMood.THINKING
+                            state.awaitingNext -> MascotMood.CELEBRATING
+                            else -> MascotMood.IDLE
+                        },
+                        size = 46.dp,
+                    )
+                    Column(Modifier.padding(start = 8.dp)) {
+                        Text("મિત્ર સાથે શીખીએ", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        if (state.conceptTitleGujarati.isNotBlank()) {
+                            Text(state.conceptTitleGujarati, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+                state.remainingSessionSeconds?.let { remaining ->
+                    AssistChip(
+                        onClick = {},
+                        label = { Text("⏱ %02d:%02d".format(remaining / 60, remaining % 60)) },
+                    )
+                }
+            }
+
+            if (current != null) {
+                val progress = (state.questionIndex + 1).toFloat() / state.questions.size.coerceAtLeast(1).toFloat()
+                val animatedProgress by animateFloatAsState(
+                    targetValue = progress,
+                    animationSpec = spring(dampingRatio = 0.78f, stiffness = 180f),
+                    label = "session-progress",
+                )
+                LinearProgressIndicator(
+                    progress = { animatedProgress },
+                    modifier = Modifier.fillMaxWidth().height(6.dp),
+                )
+
+                AnimatedContent(
+                    targetState = current,
+                    transitionSpec = {
+                        (slideInHorizontally { width -> width / 3 } + fadeIn()) togetherWith
+                            (slideOutHorizontally { width -> -width / 4 } + fadeOut())
                     },
-                    size = 58.dp,
-                )
-                Column(Modifier.padding(start = 10.dp)) {
-                    Text("મિત્ર સાથે શીખીએ", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    if (state.conceptTitleGujarati.isNotBlank()) {
-                        Text(state.conceptTitleGujarati, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-            }
-            state.remainingSessionSeconds?.let { remaining ->
-                AssistChip(
-                    onClick = {},
-                    label = { Text("⏱ %02d:%02d".format(remaining / 60, remaining % 60)) },
-                )
-            }
-        }
-
-        if (current != null) {
-            val progress = (state.questionIndex + 1).toFloat() / state.questions.size.coerceAtLeast(1).toFloat()
-            val animatedProgress by animateFloatAsState(
-                targetValue = progress,
-                animationSpec = spring(dampingRatio = 0.78f, stiffness = 180f),
-                label = "session-progress",
-            )
-            LinearProgressIndicator(
-                progress = { animatedProgress },
-                modifier = Modifier.fillMaxWidth().height(9.dp),
-            )
-
-            AnimatedContent(
-                targetState = current,
-                transitionSpec = {
-                    (slideInHorizontally { width -> width / 3 } + fadeIn()) togetherWith
-                        (slideOutHorizontally { width -> -width / 4 } + fadeOut())
-                },
-                label = "question-transition",
-            ) { activity ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(26.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            "${activityEmoji(activity.type)} ${activityLabel(activity.type)}  •  ${state.questionIndex + 1}/${state.questions.size}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        )
-                        activity.sourcePage?.let { Text("📖 પુસ્તક પાનું $it", style = MaterialTheme.typography.labelLarge) }
-                        Text(activity.promptGujarati, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedButton(onClick = onReplayPrompt, enabled = !state.listening && state.ttsAvailable != false) {
-                    Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = null)
-                    Text(if (state.ttsSpeaking) "  બોલું છું…" else "  ફરી સાંભળો")
-                }
-                current.hintGujarati?.takeIf { it.isNotBlank() }?.let {
-                    OutlinedButton(onClick = onHint, enabled = !state.awaitingNext && !state.loading && !state.listening) {
-                        Icon(Icons.Default.Lightbulb, contentDescription = null)
-                        Text("  સંકેત")
-                    }
-                }
-            }
-
-            current.arithmeticWork?.let { work ->
-                RoughWorkBoard(questionId = current.id, work = work, enabled = !state.awaitingNext && !state.loading)
-            }
-
-            val showVoice = current.type != ActivityType.SPELLING && (
-                current.evaluationMode != EvaluationMode.PARTICIPATION ||
-                    current.type in setOf(ActivityType.TEACH_MITRA, ActivityType.STORY, ActivityType.RECAP)
-                )
-            if (showVoice) {
-                VoiceAnswerControl(state, onStartVoice, onStopVoice, onMicPermissionDenied)
-            }
-
-            when (current.evaluationMode) {
-                EvaluationMode.MULTIPLE_CHOICE -> current.optionsGujarati.forEach { option ->
-                    FilledTonalButton(
-                        onClick = { onSelectOption(option) },
-                        enabled = !state.awaitingNext && !state.loading && !state.listening,
+                    label = "question-transition",
+                ) { activity ->
+                    Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                    ) { Text(option, style = MaterialTheme.typography.titleMedium) }
-                }
-                EvaluationMode.PARTICIPATION -> if (current.type == ActivityType.TEACH_MITRA && state.answer.isNotBlank()) {
-                    Text("તમે સમજાવ્યું: “${state.answer}”", style = MaterialTheme.typography.bodyLarge)
-                }
-                else -> OutlinedTextField(
-                    value = state.answer,
-                    onValueChange = onAnswerChange,
-                    label = {
-                        Text(
-                            if (current.type == ActivityType.SPELLING) "શબ્દ લખો"
-                            else if (current.evaluationMode == EvaluationMode.NUMERIC) "અંતિમ જવાબ લખો"
-                            else "ટૂંકો જવાબ લખો"
-                        )
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = if (current.evaluationMode == EvaluationMode.NUMERIC) KeyboardType.Number else KeyboardType.Text
-                    ),
-                    enabled = !state.awaitingNext && !state.loading && !state.listening,
-                    singleLine = current.evaluationMode == EvaluationMode.NUMERIC || current.type in setOf(
-                        ActivityType.SPELLING, ActivityType.MISSING_LETTER, ActivityType.VOCABULARY
-                    ),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(18.dp),
-                )
-            }
-
-            AnimatedVisibility(
-                visible = state.hintText != null,
-                enter = fadeIn() + scaleIn(initialScale = 0.92f),
-                exit = fadeOut() + scaleOut(targetScale = 0.96f),
-            ) {
-                state.hintText?.let {
-                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
-                        Text("💡 $it", modifier = Modifier.fillMaxWidth().padding(14.dp), style = MaterialTheme.typography.bodyLarge)
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    "${activityEmoji(activity.type)} ${activityLabel(activity.type)}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                )
+                                Text(
+                                    "${state.questionIndex + 1}/${state.questions.size}",
+                                    style = MaterialTheme.typography.labelLarge,
+                                )
+                            }
+                            activity.sourcePage?.let { Text("📖 પાનું $it", style = MaterialTheme.typography.labelMedium) }
+                            Text(activity.promptGujarati, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                        }
                     }
                 }
-            }
-            AnimatedVisibility(
-                visible = state.feedback != null,
-                enter = fadeIn() + scaleIn(initialScale = 0.88f),
-                exit = fadeOut() + scaleOut(targetScale = 0.96f),
-            ) {
-                state.feedback?.let {
-                    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.secondaryContainer, shadowElevation = 3.dp) {
-                        Text(it, modifier = Modifier.fillMaxWidth().padding(16.dp), style = MaterialTheme.typography.titleMedium)
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Surface(shape = CircleShape, tonalElevation = 2.dp) {
+                        IconButton(onClick = onReplayPrompt, enabled = !state.listening && state.ttsAvailable != false) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.VolumeUp,
+                                contentDescription = if (state.ttsSpeaking) "બોલું છું" else "ફરી સાંભળો",
+                            )
+                        }
+                    }
+                    current.hintGujarati?.takeIf { it.isNotBlank() }?.let {
+                        Surface(shape = CircleShape, tonalElevation = 2.dp) {
+                            IconButton(onClick = onHint, enabled = !state.awaitingNext && !state.loading && !state.listening) {
+                                Icon(Icons.Default.Lightbulb, contentDescription = "સંકેત")
+                            }
+                        }
+                    }
+                    if (state.ttsSpeaking) Text("મિત્ર બોલે છે…", style = MaterialTheme.typography.bodySmall)
+                }
+
+                current.arithmeticWork?.let { work ->
+                    RoughWorkBoard(questionId = current.id, work = work, enabled = !state.awaitingNext && !state.loading)
+                }
+
+                val showVoice = current.type != ActivityType.SPELLING && (
+                    current.evaluationMode != EvaluationMode.PARTICIPATION ||
+                        current.type in setOf(ActivityType.TEACH_MITRA, ActivityType.STORY, ActivityType.RECAP)
+                    )
+                if (showVoice) {
+                    VoiceAnswerControl(state, onStartVoice, onStopVoice, onMicPermissionDenied)
+                }
+
+                when (current.evaluationMode) {
+                    EvaluationMode.MULTIPLE_CHOICE -> current.optionsGujarati.forEach { option ->
+                        FilledTonalButton(
+                            onClick = { onSelectOption(option) },
+                            enabled = !state.awaitingNext && !state.loading && !state.listening,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                        ) { Text(option, style = MaterialTheme.typography.titleSmall) }
+                    }
+
+                    EvaluationMode.PARTICIPATION -> if (current.type == ActivityType.TEACH_MITRA && state.answer.isNotBlank()) {
+                        Text("તમે સમજાવ્યું: “${state.answer}”", style = MaterialTheme.typography.bodyMedium)
+                    }
+
+                    else -> OutlinedTextField(
+                        value = state.answer,
+                        onValueChange = onAnswerChange,
+                        label = {
+                            Text(
+                                if (current.type == ActivityType.SPELLING) "શબ્દ લખો"
+                                else if (current.evaluationMode == EvaluationMode.NUMERIC) "અંતિમ જવાબ"
+                                else "ટૂંકો જવાબ"
+                            )
+                        },
+                        keyboardOptions = KeyboardOptions(
+                            keyboardType = if (current.evaluationMode == EvaluationMode.NUMERIC) KeyboardType.Number else KeyboardType.Text
+                        ),
+                        enabled = !state.awaitingNext && !state.loading && !state.listening,
+                        singleLine = current.evaluationMode == EvaluationMode.NUMERIC || current.type in setOf(
+                            ActivityType.SPELLING, ActivityType.MISSING_LETTER, ActivityType.VOCABULARY
+                        ),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(15.dp),
+                    )
+                }
+
+                AnimatedVisibility(
+                    visible = state.hintText != null,
+                    enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.96f),
+                ) {
+                    state.hintText?.let {
+                        Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
+                            Text("💡 $it", modifier = Modifier.fillMaxWidth().padding(10.dp), style = MaterialTheme.typography.bodyMedium)
+                        }
                     }
                 }
-            }
-            state.voiceMessage?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
-            if (state.ttsAvailable == false) {
-                Text("આ ફોનમાં ગુજરાતી અવાજ ઉપલબ્ધ નથી; લખાણ ચાલુ રહેશે.", style = MaterialTheme.typography.bodySmall)
-            }
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                AnimatedVisibility(
+                    visible = state.feedback != null,
+                    enter = fadeIn() + scaleIn(initialScale = 0.88f),
+                    exit = fadeOut() + scaleOut(targetScale = 0.96f),
+                ) {
+                    state.feedback?.let {
+                        Surface(shape = RoundedCornerShape(15.dp), color = MaterialTheme.colorScheme.secondaryContainer, shadowElevation = 2.dp) {
+                            Text(it, modifier = Modifier.fillMaxWidth().padding(11.dp), style = MaterialTheme.typography.titleSmall)
+                        }
+                    }
+                }
+                state.voiceMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                if (state.ttsAvailable == false) {
+                    Text("આ ફોનમાં ગુજરાતી અવાજ ઉપલબ્ધ નથી; લખાણ ચાલુ રહેશે.", style = MaterialTheme.typography.bodySmall)
+                }
+                state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-            if (state.awaitingNext) {
-                Button(onClick = onNext, enabled = !state.loading, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(18.dp)) {
-                    Text(if (state.questionIndex == state.questions.lastIndex) "પૂર્ણ કરીએ" else "આગળનો નવો પ્રશ્ન")
+                if (!state.awaitingNext) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        when (current.evaluationMode) {
+                            EvaluationMode.PARTICIPATION -> Button(
+                                onClick = onCompleteParticipation,
+                                enabled = !state.loading && !state.listening,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                            ) { Text(current.completionButtonGujarati) }
+
+                            EvaluationMode.MULTIPLE_CHOICE -> Spacer(Modifier.weight(1f))
+
+                            else -> Button(
+                                onClick = onSubmit,
+                                enabled = !state.loading && !state.listening,
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(14.dp),
+                            ) {
+                                Icon(Icons.Default.Check, contentDescription = null)
+                                Text(" ચકાસો")
+                            }
+                        }
+                        OutlinedButton(onClick = onSkip, enabled = !state.loading && !state.listening) {
+                            Text("છોડો")
+                        }
+                        Surface(shape = CircleShape, color = MaterialTheme.colorScheme.errorContainer) {
+                            IconButton(onClick = onStop, enabled = !state.loading) {
+                                Icon(Icons.Default.StopCircle, contentDescription = "આજ માટે બસ", tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        if (state.questionIndex == state.questions.lastIndex) "પૂર્ણ કરવા નીચેનું ✓ દબાવો."
+                        else "આગળના પ્રશ્ન માટે નીચેનું તીર દબાવો.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             } else {
-                when (current.evaluationMode) {
-                    EvaluationMode.PARTICIPATION -> Button(
-                        onClick = onCompleteParticipation,
-                        enabled = !state.loading && !state.listening,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
-                    ) { Text(current.completionButtonGujarati) }
-                    EvaluationMode.MULTIPLE_CHOICE -> Unit
-                    else -> Button(
-                        onClick = onSubmit,
-                        enabled = !state.loading && !state.listening,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(18.dp),
-                    ) { Text("જવાબ ચકાસો") }
-                }
-                OutlinedButton(
-                    onClick = onSkip,
-                    enabled = !state.loading && !state.listening,
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("આ પ્રશ્ન છોડો") }
+                state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             }
-        } else {
-            state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
 
-        OutlinedButton(onClick = onStop, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) {
-            Text("■ આજ માટે બસ")
+        if (state.awaitingNext) {
+            FloatingActionButton(
+                onClick = onNext,
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                shape = CircleShape,
+                containerColor = MaterialTheme.colorScheme.primary,
+            ) {
+                Icon(
+                    if (state.questionIndex == state.questions.lastIndex) Icons.Default.Check else Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = if (state.questionIndex == state.questions.lastIndex) "પૂર્ણ કરીએ" else "આગળનો પ્રશ્ન",
+                )
+            }
         }
-        Spacer(Modifier.height(10.dp))
     }
 }
 
 @Composable
 private fun RoughWorkBoard(questionId: String, work: ArithmeticWork, enabled: Boolean) {
     val strokes = remember(questionId) { mutableStateListOf<List<Offset>>() }
+    var expanded by remember(questionId) { mutableStateOf(true) }
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val inkColor = MaterialTheme.colorScheme.primary
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column {
-                    Text("✍️ રફ કામ", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Column(Modifier.weight(1f)) {
+                    Text("✍️ રફ કામ", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                     Text(
-                        if (work.regrouping) "દશક અને એકમ ગોઠવો; કેરિ/ઉધાર લખી શકો."
-                        else "આંગળીથી લખીને પગલાં ગણો.",
+                        "ડાબે દશક, જમણે એકમ. ગણતરી એકમથી શરૂ કરો.",
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    OutlinedButton(onClick = { if (strokes.isNotEmpty()) strokes.removeAt(strokes.lastIndex) }, enabled = enabled && strokes.isNotEmpty()) {
-                        Icon(Icons.Default.Undo, contentDescription = "છેલ્લી લીટી દૂર કરો")
-                    }
-                    OutlinedButton(onClick = { strokes.clear() }, enabled = enabled && strokes.isNotEmpty()) {
-                        Icon(Icons.Default.DeleteSweep, contentDescription = "રફ કામ સાફ કરો")
-                    }
+                IconButton(
+                    onClick = { if (strokes.isNotEmpty()) strokes.removeAt(strokes.lastIndex) },
+                    enabled = enabled && strokes.isNotEmpty(),
+                ) {
+                    Icon(Icons.Default.Undo, contentDescription = "છેલ્લી લીટી દૂર કરો")
+                }
+                IconButton(onClick = { strokes.clear() }, enabled = enabled && strokes.isNotEmpty()) {
+                    Icon(Icons.Default.DeleteSweep, contentDescription = "રફ કામ સાફ કરો")
+                }
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (expanded) "રફ કામ નાનું કરો" else "રફ કામ ખોલો",
+                    )
                 }
             }
 
-            GuidedColumnLayout(work)
-            GuidedStepEntry(questionId = questionId, work = work, enabled = enabled)
+            AnimatedVisibility(visible = expanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    GuidedColumnLayout(work)
+                    GuidedStepEntry(questionId = questionId, work = work, enabled = enabled)
 
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(230.dp)
-                    .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp))
-                    .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(16.dp)),
-            ) {
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(questionId, enabled) {
-                            if (!enabled) return@pointerInput
-                            detectDragGestures(
-                                onDragStart = { offset -> strokes.add(listOf(offset)) },
-                                onDrag = { change, _ ->
-                                    if (strokes.isNotEmpty()) {
-                                        strokes[strokes.lastIndex] = strokes.last() + change.position
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp)),
+                    ) {
+                        Canvas(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(questionId, enabled) {
+                                    if (!enabled) return@pointerInput
+                                    detectDragGestures(
+                                        onDragStart = { offset -> strokes.add(listOf(offset)) },
+                                        onDrag = { change, _ ->
+                                            if (strokes.isNotEmpty()) {
+                                                strokes[strokes.lastIndex] = strokes.last() + change.position
+                                            }
+                                        },
+                                    )
+                                }
+                        ) {
+                            val grid = 28.dp.toPx()
+                            var x = grid
+                            while (x < size.width) {
+                                drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())
+                                x += grid
+                            }
+                            var y = grid
+                            while (y < size.height) {
+                                drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
+                                y += grid
+                            }
+                            strokes.forEach { points ->
+                                if (points.size == 1) {
+                                    drawCircle(inkColor, radius = 2.5.dp.toPx(), center = points.first())
+                                } else if (points.size > 1) {
+                                    val path = Path().apply {
+                                        moveTo(points.first().x, points.first().y)
+                                        points.drop(1).forEach { lineTo(it.x, it.y) }
                                     }
-                                },
+                                    drawPath(path, inkColor, style = Stroke(width = 4.dp.toPx()))
+                                }
+                            }
+                        }
+                        if (strokes.isEmpty()) {
+                            Text(
+                                "અહીં આંગળીથી લખો…",
+                                modifier = Modifier.align(Alignment.Center),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall,
                             )
                         }
-                ) {
-                    val grid = 32.dp.toPx()
-                    var x = grid
-                    while (x < size.width) {
-                        drawLine(gridColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1.dp.toPx())
-                        x += grid
                     }
-                    var y = grid
-                    while (y < size.height) {
-                        drawLine(gridColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1.dp.toPx())
-                        y += grid
-                    }
-                    strokes.forEach { points ->
-                        if (points.size == 1) {
-                            drawCircle(inkColor, radius = 2.5.dp.toPx(), center = points.first())
-                        } else if (points.size > 1) {
-                            val path = Path().apply {
-                                moveTo(points.first().x, points.first().y)
-                                points.drop(1).forEach { lineTo(it.x, it.y) }
-                            }
-                            drawPath(path, inkColor, style = Stroke(width = 4.dp.toPx()))
-                        }
-                    }
-                }
-                if (strokes.isEmpty()) {
-                    Text(
-                        "અહીં આંગળીથી લખો…",
-                        modifier = Modifier.align(Alignment.Center),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
         }
     }
 }
-
 
 @Composable
 private fun GuidedStepEntry(
@@ -485,18 +549,18 @@ private fun GuidedStepEntry(
     var message by remember(questionId) { mutableStateOf<String?>(null) }
     var success by remember(questionId) { mutableStateOf(false) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("પગલાંના ખાના", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("પગલાંના ખાના", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             GuidedDigitField(
-                value = ones,
-                label = "એકમ",
+                value = tens,
+                label = "દશક",
                 enabled = enabled,
-                onValueChange = { ones = it; message = null; success = false },
+                onValueChange = { tens = it; message = null; success = false },
                 modifier = Modifier.weight(1f),
             )
             if (work.regrouping || expected.regroup > 0) {
@@ -509,19 +573,24 @@ private fun GuidedStepEntry(
                 )
             }
             GuidedDigitField(
-                value = tens,
-                label = "દશક",
+                value = ones,
+                label = "એકમ",
                 enabled = enabled,
-                onValueChange = { tens = it; message = null; success = false },
+                onValueChange = { ones = it; message = null; success = false },
                 modifier = Modifier.weight(1f),
             )
         }
+        Text("ભરવાનો ક્રમ: એકમ → કેરિ/ઉધાર → દશક", style = MaterialTheme.typography.bodySmall)
         FilledTonalButton(
             onClick = {
                 val result = GuidedMathCoach.check(
                     work = work,
                     ones = GujaratiNumberNormalizer.parseInt(ones),
-                    regroup = if (work.regrouping || expected.regroup > 0) GujaratiNumberNormalizer.parseInt(regroup) else expected.regroup,
+                    regroup = if (work.regrouping || expected.regroup > 0) {
+                        GujaratiNumberNormalizer.parseInt(regroup)
+                    } else {
+                        expected.regroup
+                    },
                     tens = GujaratiNumberNormalizer.parseInt(tens),
                 )
                 message = result.messageGujarati
@@ -529,14 +598,15 @@ private fun GuidedStepEntry(
             },
             enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
         ) { Text("પગલાં ચકાસો") }
         message?.let {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
+                shape = RoundedCornerShape(11.dp),
                 color = if (success) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
             ) {
-                Text(it, modifier = Modifier.padding(10.dp), style = MaterialTheme.typography.bodyMedium)
+                Text(it, modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -556,11 +626,12 @@ private fun GuidedDigitField(
             val clean = candidate.filter { it.isDigit() || it in '૦'..'૯' }.take(2)
             onValueChange(clean)
         },
-        label = { Text(label) },
+        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
         singleLine = true,
         enabled = enabled,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         modifier = modifier,
+        shape = RoundedCornerShape(12.dp),
     )
 }
 
@@ -573,48 +644,67 @@ private fun GuidedColumnLayout(work: ArithmeticWork) {
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("દશક", modifier = Modifier.size(58.dp).padding(top = 18.dp), style = MaterialTheme.typography.labelMedium)
-            Text("એકમ", modifier = Modifier.size(58.dp).padding(top = 18.dp), style = MaterialTheme.typography.labelMedium)
-        }
+        MathAlignedRow(operator = "", tens = "દશક", ones = "એકમ", labelRow = true)
         if (work.regrouping) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                MathCell("કેરિ/ઉધાર", small = true)
-                MathCell("", small = true)
+            MathAlignedRow(operator = "", tens = "કેરિ/ઉધાર", ones = "", small = true)
+        }
+        MathAlignedRow(operator = "", tens = topTens.toString(), ones = topOnes.toString())
+        MathAlignedRow(operator = work.operator, tens = bottomTens.toString(), ones = bottomOnes.toString())
+        Text("────────", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.titleMedium)
+        MathAlignedRow(operator = "", tens = "?", ones = "?")
+    }
+}
+
+@Composable
+private fun MathAlignedRow(
+    operator: String,
+    tens: String,
+    ones: String,
+    small: Boolean = false,
+    labelRow: Boolean = false,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(modifier = Modifier.size(30.dp, 48.dp), contentAlignment = Alignment.Center) {
+            if (operator.isNotBlank()) {
+                Text(operator, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MathCell(topTens.toString())
-            MathCell(topOnes.toString())
+        if (labelRow) {
+            PlaceValueLabel(tens)
+            PlaceValueLabel(ones)
+        } else {
+            MathCell(tens, small = small)
+            MathCell(ones, small = small)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text(work.operator, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-            MathCell(bottomTens.toString())
-            MathCell(bottomOnes.toString())
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MathCell("?")
-            MathCell("?")
-        }
-        Text("પહેલા એકમ → પછી દશક", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun PlaceValueLabel(text: String) {
+    Box(modifier = Modifier.size(52.dp, 30.dp), contentAlignment = Alignment.Center) {
+        Text(text, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
 private fun MathCell(text: String, small: Boolean = false) {
     Surface(
-        modifier = Modifier.size(if (small) 58.dp else 58.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.size(52.dp, if (small) 38.dp else 48.dp),
+        shape = RoundedCornerShape(10.dp),
         color = MaterialTheme.colorScheme.surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text,
-                style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.headlineMedium,
+                style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.titleLarge,
                 fontFamily = FontFamily.Monospace,
+                fontWeight = if (small) FontWeight.Normal else FontWeight.Bold,
             )
         }
     }
@@ -662,29 +752,33 @@ private fun VoiceAnswerControl(
             })
         }
 
-    Surface(modifier = gestureModifier, shape = RoundedCornerShape(20.dp), tonalElevation = if (state.listening) 6.dp else 1.dp) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+    Surface(modifier = gestureModifier, shape = RoundedCornerShape(16.dp), tonalElevation = if (state.listening) 5.dp else 1.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             AnimatedScale(active = state.listening) {
                 Icon(
                     if (state.listening) Icons.Default.StopCircle else Icons.Default.Mic,
                     contentDescription = null,
-                    modifier = Modifier.size(38.dp),
+                    modifier = Modifier.size(30.dp),
                     tint = if (state.listening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
                 )
             }
-            Text(
-                when {
-                    !state.speechInputAvailable -> "આ ફોનમાં voice input ઉપલબ્ધ નથી"
-                    state.listening -> "બોલો… છોડશો ત્યારે જવાબ ચકાસીશ"
-                    else -> "દબાવી રાખીને જવાબ બોલો"
-                },
-                style = MaterialTheme.typography.titleMedium,
-            )
-            if (state.partialTranscript.isNotBlank()) Text("“${state.partialTranscript}”", style = MaterialTheme.typography.bodyLarge)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    when {
+                        !state.speechInputAvailable -> "આ ફોનમાં voice input ઉપલબ્ધ નથી"
+                        state.listening -> "બોલો… છોડશો ત્યારે ચકાસીશ"
+                        else -> "દબાવી રાખીને જવાબ બોલો"
+                    },
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                if (state.partialTranscript.isNotBlank()) {
+                    Text("“${state.partialTranscript}”", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
         }
     }
 }
