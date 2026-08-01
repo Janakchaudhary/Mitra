@@ -65,7 +65,6 @@ fun SentenceBuilderScreen(onBack: () -> Unit) {
     val puzzle = sentencePuzzles[index % sentencePuzzles.size]
     var selected by remember(index) { mutableStateOf(listOf<String>()) }
     var message by remember(index) { mutableStateOf<String?>(null) }
-    val remaining = puzzle.words.toMutableList().also { list -> selected.forEach { list.remove(it) } }
     val success = selected == puzzle.words && message?.startsWith("સાચું") == true
 
     AnimatedLearningBackground(
@@ -94,7 +93,14 @@ fun SentenceBuilderScreen(onBack: () -> Unit) {
                         (slideOutHorizontally { -it / 3 } + fadeOut())
                 },
                 label = "sentence-puzzle",
-            ) {
+            ) { targetIndex ->
+                val animatedPuzzle = sentencePuzzles[targetIndex % sentencePuzzles.size]
+                val animatedRemaining = animatedPuzzle.words.toMutableList().also { list ->
+                    selected.forEach { list.remove(it) }
+                }
+                val animatedSuccess =
+                    selected == animatedPuzzle.words && message?.startsWith("સાચું") == true
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(28.dp),
@@ -106,13 +112,13 @@ fun SentenceBuilderScreen(onBack: () -> Unit) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(14.dp),
                     ) {
-                        Text(puzzle.emoji, style = MaterialTheme.typography.displayMedium)
-                        Text(puzzle.hintGujarati, style = MaterialTheme.typography.titleMedium)
+                        Text(animatedPuzzle.emoji, style = MaterialTheme.typography.displayMedium)
+                        Text(animatedPuzzle.hintGujarati, style = MaterialTheme.typography.titleMedium)
 
                         Surface(
                             modifier = Modifier.fillMaxWidth().animateContentSize(),
                             shape = RoundedCornerShape(18.dp),
-                            color = if (success) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
+                            color = if (animatedSuccess) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primaryContainer,
                         ) {
                             Text(
                                 if (selected.isEmpty()) "અહીં sentence બનાવો…" else selected.joinToString(" "),
@@ -121,7 +127,7 @@ fun SentenceBuilderScreen(onBack: () -> Unit) {
                             )
                         }
 
-                        WordChips(remaining.shuffled(seed = index + 17)) { word ->
+                        WordChips(animatedRemaining.shuffled(seed = targetIndex + 17)) { word ->
                             selected = selected + word
                             message = null
                         }
@@ -138,7 +144,7 @@ fun SentenceBuilderScreen(onBack: () -> Unit) {
                             }
                             Button(
                                 onClick = {
-                                    if (selected == puzzle.words) message = "સાચું sentence! ⭐"
+                                    if (selected == animatedPuzzle.words) message = "સાચું sentence! ⭐"
                                     else message = "ફરી ગોઠવો. Capital letter થી શરૂ કરો અને sentence નો અર્થ જુઓ."
                                 },
                                 enabled = selected.isNotEmpty(),
@@ -155,13 +161,13 @@ fun SentenceBuilderScreen(onBack: () -> Unit) {
                             message?.let {
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
-                                    color = if (success) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
+                                    color = if (animatedSuccess) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
                                 ) {
                                     Text(it, modifier = Modifier.fillMaxWidth().padding(12.dp), style = MaterialTheme.typography.titleMedium)
                                 }
                             }
                         }
-                        if (success) {
+                        if (animatedSuccess) {
                             Button(
                                 onClick = { index += 1 },
                                 modifier = Modifier.fillMaxWidth(),
