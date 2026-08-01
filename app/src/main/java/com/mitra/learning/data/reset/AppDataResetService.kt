@@ -46,6 +46,8 @@ class AppDataResetService(
     suspend fun resetEverything() = withContext(Dispatchers.IO) {
         database.clearAllTables()
         File(context.filesDir, "books").deleteRecursively()
+        File(context.filesDir, "local_ai").deleteRecursively()
+        File(context.cacheDir, "litertlm").deleteRecursively()
         questionBank?.clear()
         secretStore.removeSecret(AndroidKeystoreSecretStore.OPENAI_API_KEY)
         secretStore.removeSecret(AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN)

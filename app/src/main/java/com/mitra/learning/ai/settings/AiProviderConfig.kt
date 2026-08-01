@@ -4,6 +4,7 @@ enum class AiProviderType {
     MOCK,
     OPENAI,
     CLOUDFLARE,
+    OFFLINE_LOCAL,
 }
 
 data class AiProviderConfig(
@@ -20,6 +21,7 @@ data class AiProviderConfig(
 
         fun defaultModel(provider: AiProviderType): String = when (provider) {
             AiProviderType.CLOUDFLARE -> DEFAULT_CLOUDFLARE_MODEL
+            AiProviderType.OFFLINE_LOCAL -> "local-litertlm"
             AiProviderType.OPENAI, AiProviderType.MOCK -> DEFAULT_OPENAI_MODEL
         }
     }

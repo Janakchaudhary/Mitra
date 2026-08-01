@@ -448,6 +448,7 @@ private fun MitraNav(
                             repository = container.aiSettingsRepository,
                             secretStore = container.secretStore,
                             gateway = container.configurableAiGateway,
+                            localModelStore = container.localModelStore,
                         )
                     }
                 )
@@ -460,6 +461,8 @@ private fun MitraNav(
                     onModelChange = vm::setModel,
                     onCloudflareAccountIdChange = vm::setCloudflareAccountId,
                     onCredentialChange = vm::setCredential,
+                    onImportLocalModel = vm::importLocalModel,
+                    onRemoveLocalModel = vm::removeLocalModel,
                     onSave = vm::save,
                     onTest = vm::testConnection,
                     onClearCredential = vm::clearCredential,

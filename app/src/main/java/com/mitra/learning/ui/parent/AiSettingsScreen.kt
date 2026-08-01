@@ -1,5 +1,7 @@
 package com.mitra.learning.ui.parent
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,11 +39,17 @@ fun AiSettingsScreen(
     onModelChange: (String) -> Unit,
     onCloudflareAccountIdChange: (String) -> Unit,
     onCredentialChange: (String) -> Unit,
+    onImportLocalModel: (android.net.Uri) -> Unit,
+    onRemoveLocalModel: () -> Unit,
     onSave: () -> Unit,
     onTest: () -> Unit,
     onClearCredential: () -> Unit,
     onBack: () -> Unit,
 ) {
+    val localModelPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(onImportLocalModel)
+    }
+
     if (state.loading) {
         Column(
             Modifier.fillMaxSize(),
@@ -60,111 +68,140 @@ fun AiSettingsScreen(
     ) {
         Text("AI provider", style = MaterialTheme.typography.headlineLarge)
         Text(
-            "OpenAI remains the default. Cloudflare Workers AI is available as a second provider with a free daily allocation. Built-in skill practice remains local/offline.",
+            "OpenAI is the default. Cloudflare is the free cloud option. Offline Local uses prepared textbook text entirely on this phone and can optionally use a parent-imported LiteRT-LM model.",
             style = MaterialTheme.typography.bodyMedium,
         )
-        Text(
-            "When remote AI is enabled, textbook pages/context and Study Talk questions can be sent to the selected provider. Raw microphone audio is not sent by Mitra.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("Use remote AI for textbook features")
-                Text(
-                    if (state.remoteEnabled) "Remote provider enabled" else "Offline/mock AI enabled",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            Switch(checked = state.remoteEnabled, onCheckedChange = onRemoteEnabledChange)
-        }
 
         Text("Provider", style = MaterialTheme.typography.titleMedium)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             FilterChip(
                 selected = state.provider == AiProviderType.OPENAI,
                 onClick = { onProviderChange(AiProviderType.OPENAI) },
                 label = { Text("OpenAI") },
-                enabled = state.remoteEnabled,
             )
             FilterChip(
                 selected = state.provider == AiProviderType.CLOUDFLARE,
                 onClick = { onProviderChange(AiProviderType.CLOUDFLARE) },
-                label = { Text("Cloudflare Free") },
-                enabled = state.remoteEnabled,
+                label = { Text("Cloudflare") },
+            )
+            FilterChip(
+                selected = state.provider == AiProviderType.OFFLINE_LOCAL,
+                onClick = { onProviderChange(AiProviderType.OFFLINE_LOCAL) },
+                label = { Text("Offline") },
             )
         }
 
-        if (state.provider == AiProviderType.OPENAI) {
-            OutlinedTextField(
-                value = state.baseUrl,
-                onValueChange = onBaseUrlChange,
-                label = { Text("OpenAI API base URL") },
-                enabled = state.remoteEnabled,
-                singleLine = true,
+        if (!state.isOfflineLocal) {
+            Row(
                 modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.model,
-                onValueChange = onModelChange,
-                label = { Text("OpenAI model") },
-                enabled = state.remoteEnabled,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.credentialDraft,
-                onValueChange = onCredentialChange,
-                label = { Text(if (state.hasStoredCredential) "Replace saved OpenAI key" else "OpenAI API key") },
-                placeholder = { Text(if (state.hasStoredCredential) "A key is already saved" else "sk-…") },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                enabled = state.remoteEnabled,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        } else {
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Use cloud AI for textbook features")
+                    Text(
+                        if (state.remoteEnabled) "Cloud provider enabled" else "Cloud provider disabled",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Switch(checked = state.remoteEnabled, onCheckedChange = onRemoteEnabledChange)
+            }
             Text(
-                "Cloudflare setup: create a free Cloudflare account, open Workers AI → Use REST API, then copy the Account ID and Workers AI API token.",
+                "Prepared page context and Study Talk questions may be sent to the selected cloud provider. Raw microphone audio is not sent by Mitra.",
                 style = MaterialTheme.typography.bodySmall,
             )
-            OutlinedTextField(
-                value = state.cloudflareAccountId,
-                onValueChange = onCloudflareAccountIdChange,
-                label = { Text("Cloudflare Account ID") },
-                placeholder = { Text("32-character account ID") },
-                enabled = state.remoteEnabled,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.model,
-                onValueChange = onModelChange,
-                label = { Text("Workers AI model") },
-                supportingText = { Text("Default: ${AiProviderConfig.DEFAULT_CLOUDFLARE_MODEL}") },
-                enabled = state.remoteEnabled,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            OutlinedTextField(
-                value = state.credentialDraft,
-                onValueChange = onCredentialChange,
-                label = { Text(if (state.hasStoredCredential) "Replace saved Cloudflare token" else "Workers AI API token") },
-                placeholder = { Text(if (state.hasStoredCredential) "A token is already saved" else "Paste API token") },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                enabled = state.remoteEnabled,
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Text(
-                "Only Cloudflare-hosted @cf/... models are accepted in this mode. Free-tier quotas are controlled by Cloudflare and can change.",
-                style = MaterialTheme.typography.bodySmall,
-            )
+        }
+
+        when (state.provider) {
+            AiProviderType.OPENAI -> {
+                OutlinedTextField(
+                    value = state.baseUrl,
+                    onValueChange = onBaseUrlChange,
+                    label = { Text("OpenAI API base URL") },
+                    enabled = state.remoteEnabled,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = state.model,
+                    onValueChange = onModelChange,
+                    label = { Text("OpenAI model") },
+                    enabled = state.remoteEnabled,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                CredentialField(
+                    state = state,
+                    label = if (state.hasStoredCredential) "Replace saved OpenAI key" else "OpenAI API key",
+                    placeholder = if (state.hasStoredCredential) "A key is already saved" else "sk-…",
+                    onCredentialChange = onCredentialChange,
+                )
+            }
+
+            AiProviderType.CLOUDFLARE -> {
+                Text(
+                    "Create a Cloudflare account, open Workers AI → Use REST API, then copy the Account ID and Workers AI token.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = state.cloudflareAccountId,
+                    onValueChange = onCloudflareAccountIdChange,
+                    label = { Text("Cloudflare Account ID") },
+                    placeholder = { Text("32-character account ID") },
+                    enabled = state.remoteEnabled,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                OutlinedTextField(
+                    value = state.model,
+                    onValueChange = onModelChange,
+                    label = { Text("Workers AI model") },
+                    supportingText = { Text("Default: ${AiProviderConfig.DEFAULT_CLOUDFLARE_MODEL}") },
+                    enabled = state.remoteEnabled,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                CredentialField(
+                    state = state,
+                    label = if (state.hasStoredCredential) "Replace saved Cloudflare token" else "Workers AI API token",
+                    placeholder = if (state.hasStoredCredential) "A token is already saved" else "Paste API token",
+                    onCredentialChange = onCredentialChange,
+                )
+                Text(
+                    "Only Cloudflare-hosted @cf/... models are accepted. If Cloudflare changes a response format, Mitra now falls back to local prepared-book extraction instead of showing the child a parser error.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            AiProviderType.OFFLINE_LOCAL -> {
+                Text(
+                    "Offline Local answers maths locally and searches chapters that were already prepared. It never sends the child's question or textbook content to the internet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Text(
+                    "Without a model, Mitra uses grounded sentence extraction. For more natural conversation, import a compatible .litertlm model. Useful models are usually 0.5–3 GB and work best on a modern phone with at least 6–8 GB RAM.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Button(
+                    onClick = { localModelPicker.launch(arrayOf("application/octet-stream", "*/*")) },
+                    enabled = !state.importingModel,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(if (state.importingModel) "Importing local model…" else if (state.hasLocalModel) "Replace local .litertlm model" else "Import local .litertlm model")
+                }
+                if (state.hasLocalModel) {
+                    Text("Installed local model: ${state.localModelSize ?: "ready"}", color = MaterialTheme.colorScheme.primary)
+                    OutlinedButton(onClick = onRemoveLocalModel, modifier = Modifier.fillMaxWidth()) {
+                        Text("Remove local model")
+                    }
+                }
+                Text(
+                    "New scanned PDF pages still need OpenAI/Cloudflare once for preparation, or chapter ranges can be entered manually. After preparation, textbook chat and saved question banks work offline.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+
+            AiProviderType.MOCK -> Unit
         }
 
         if (state.hasStoredCredential) {
@@ -173,27 +210,42 @@ fun AiSettingsScreen(
             }
         }
 
-        Text(
-            "Personal/development mode: credentials are entered after installation and encrypted with an Android Keystore-protected key. Credentials in a mobile app can still be extracted from a compromised device; do not publish a configured APK.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-
         state.message?.let { Text(it, color = MaterialTheme.colorScheme.primary) }
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
         Button(
             onClick = onSave,
-            enabled = !state.saving && !state.testing,
+            enabled = !state.saving && !state.testing && !state.importingModel,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(if (state.saving) "Saving…" else "Save") }
 
         OutlinedButton(
             onClick = onTest,
-            enabled = state.remoteEnabled && !state.saving && !state.testing,
+            enabled = (state.isOfflineLocal || state.remoteEnabled) && !state.saving && !state.testing && !state.importingModel,
             modifier = Modifier.fillMaxWidth(),
-        ) { Text(if (state.testing) "Testing…" else "Test connection") }
+        ) { Text(if (state.testing) "Testing…" else if (state.isOfflineLocal) "Test local provider" else "Test connection") }
 
         Spacer(Modifier.height(8.dp))
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
     }
+}
+
+@Composable
+private fun CredentialField(
+    state: AiSettingsUiState,
+    label: String,
+    placeholder: String,
+    onCredentialChange: (String) -> Unit,
+) {
+    OutlinedTextField(
+        value = state.credentialDraft,
+        onValueChange = onCredentialChange,
+        label = { Text(label) },
+        placeholder = { Text(placeholder) },
+        visualTransformation = PasswordVisualTransformation(),
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+        enabled = state.remoteEnabled,
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }

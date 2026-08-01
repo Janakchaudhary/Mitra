@@ -17,6 +17,7 @@ import com.mitra.learning.data.db.entity.ConceptEntity
 import com.mitra.learning.learning.model.ActivityType
 import com.mitra.learning.learning.model.EvaluationMode
 import com.mitra.learning.learning.model.LearningQuestion
+import com.mitra.learning.study.OfflineStudyAnswerer
 import com.mitra.learning.study.StudyAnswer
 import com.mitra.learning.study.StudyQuestionRequest
 import kotlinx.serialization.json.JsonArray
@@ -256,12 +257,8 @@ class CloudflareAiGateway(
 
     override suspend fun answerStudyQuestion(request: StudyQuestionRequest): StudyAnswer {
         require(request.question.isNotBlank()) { "Ask a question first." }
-        if (request.sources.isEmpty()) {
-            return StudyAnswer(
-                answerGujarati = "આ સવાલનો જવાબ તૈયાર કરેલા પુસ્તકોમાં મળ્યો નથી. Parent ને સંબંધિત પાઠ Prepare કરવા કહો.",
-                grounded = false,
-            )
-        }
+        val localFallback = OfflineStudyAnswerer().answer(request)
+        if (request.sources.isEmpty()) return localFallback
 
         val sourceText = request.sources.joinToString("\n\n") { source ->
             "[${source.bookTitle} | ${source.chapterTitle} | page ${source.pageNumber}]\n${source.text}"
@@ -271,54 +268,50 @@ class CloudflareAiGateway(
         }
         val prompt = """
             You are Mitra, a warm study companion for one Standard 2 Gujarati-medium child.
-            Answer ONLY using the prepared textbook grounding below.
-            If the grounding does not contain enough information, say so simply and do not use general web/world knowledge.
-            Use very simple Gujarati, normally 1-4 short sentences. You may keep familiar English school words when useful.
-            Prefer curiosity: answer, then ask one tiny follow-up question that helps the child think.
-            Never ask for personal information, secrets, location, school name, phone number, or external websites.
-            Never claim to be a human. Never tell the child to browse the web.
+            Answer ONLY from the prepared textbook extracts below.
+            Use 1-4 short, simple Gujarati sentences. Do not output JSON or markdown.
+            Start with FOUND: when the extracts support the answer.
+            Start with NOT_FOUND: when they do not. Never use general internet/world knowledge.
+            After a FOUND answer, ask one tiny thinking question.
+            Never request personal information, secrets, location, school name, phone number or websites.
 
-            Recent conversation (context only):
+            Recent conversation:
             $history
 
             Child question:
             ${request.question}
 
-            Prepared textbook grounding:
+            Prepared textbook extracts:
             $sourceText
-
-            sourceLabels should list only the source labels actually used, in the form "Book • p.12".
-            grounded must be false if the textbooks do not contain enough information to answer.
         """.trimIndent()
 
-        val structured = createStructuredResponse(
-            schemaName = "mitra_study_answer",
-            schema = OpenAiSchemas.studyAnswer,
-            prompt = prompt,
-            pages = emptyList(),
-            maxOutputTokens = 1000,
-        )
-        val grounded = (structured["grounded"] as? JsonPrimitive)?.booleanOrNull ?: false
-        val allowedLabels = request.sources.map { "${it.bookTitle} • p.${it.pageNumber}" }.toSet()
-        val returnedLabels = if (grounded) {
-            structured.stringList("sourceLabels")
-                .map { it.trim() }
-                .filter { it in allowedLabels }
-                .distinct()
-                .take(4)
-        } else emptyList()
-        return StudyAnswer(
-            answerGujarati = if (grounded) {
-                structured.string("answerGujarati").orEmpty().ifBlank {
-                    "આ સવાલનો જવાબ તૈયાર કરેલા પુસ્તકમાં સ્પષ્ટ મળ્યો નથી."
-                }
-            } else {
-                "આ સવાલનો જવાબ તૈયાર કરેલા પુસ્તકમાં સ્પષ્ટ મળ્યો નથી. ચાલો પુસ્તકનો સંબંધિત પાઠ ફરી જોઈએ."
-            },
-            followUpGujarati = if (grounded) structured.string("followUpGujarati")?.trim()?.takeIf { it.isNotBlank() } else null,
-            sourceLabels = returnedLabels,
-            grounded = grounded,
-        )
+        val body = buildJsonObject {
+            put("model", config.model)
+            put("max_completion_tokens", 700)
+            put("temperature", 0.15)
+            put("messages", buildJsonArray {
+                add(buildJsonObject {
+                    put("role", "system")
+                    put("content", "Return one short final Gujarati answer. No JSON, no markdown, no hidden reasoning.")
+                })
+                add(buildJsonObject { put("role", "user"); put("content", prompt) })
+            })
+        }
+
+        return runCatching { postForAssistantText(body).trim() }
+            .mapCatching { raw ->
+                val text = raw
+                    .removePrefix("FOUND:").removePrefix("FOUND :")
+                    .removePrefix("NOT_FOUND:").removePrefix("NOT_FOUND :")
+                    .trim()
+                val notFound = raw.trimStart().startsWith("NOT_FOUND", ignoreCase = true) || text.isBlank()
+                if (notFound) localFallback else StudyAnswer(
+                    answerGujarati = text.take(750),
+                    sourceLabels = request.sources.take(3).map { "${it.bookTitle} • p.${it.pageNumber}" }.distinct(),
+                    grounded = true,
+                )
+            }
+            .getOrElse { localFallback }
     }
 
     override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String = localFeedback(result, expectedAnswer)

@@ -78,6 +78,36 @@ class CloudflareResponseParserTest {
     }
 
     @Test
+    fun extractsNestedNativeOutputText() {
+        val body = buildJsonObject {
+            put("success", true)
+            put("result", buildJsonObject {
+                put("output", buildJsonArray {
+                    add(buildJsonObject {
+                        put("message", buildJsonObject {
+                            put("content", buildJsonArray {
+                                add(buildJsonObject { put("text", "મિત્રનો જવાબ") })
+                            })
+                        })
+                    })
+                })
+            })
+        }.toString()
+
+        assertEquals("મિત્રનો જવાબ", CloudflareResponseParser.messageText(body))
+    }
+
+    @Test
+    fun removesThinkingBlockBeforeFinalAnswer() {
+        val body = buildJsonObject {
+            put("result", buildJsonObject {
+                put("response", "<think>hidden reasoning</think>\nઅંતિમ જવાબ")
+            })
+        }.toString()
+        assertEquals("અંતિમ જવાબ", CloudflareResponseParser.messageText(body))
+    }
+
+    @Test
     fun extractsCloudflareError() {
         val body = """{"success":false,"errors":[{"code":10000,"message":"authentication error"}]}"""
         assertEquals("authentication error", CloudflareResponseParser.errorMessage(body))

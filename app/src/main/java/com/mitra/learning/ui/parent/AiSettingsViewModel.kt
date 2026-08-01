@@ -1,19 +1,21 @@
 package com.mitra.learning.ui.parent
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mitra.learning.ai.ConfigurableAiGateway
+import com.mitra.learning.ai.local.LocalModelStore
 import com.mitra.learning.ai.settings.AiProviderConfig
 import com.mitra.learning.ai.settings.AiProviderType
 import com.mitra.learning.ai.settings.AiSettingsRepository
 import com.mitra.learning.security.AndroidKeystoreSecretStore
 import com.mitra.learning.security.SecretStore
+import java.net.URI
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.net.URI
 
 data class AiSettingsUiState(
     val loading: Boolean = true,
@@ -25,6 +27,9 @@ data class AiSettingsUiState(
     val credentialDraft: String = "",
     val hasStoredOpenAiKey: Boolean = false,
     val hasStoredCloudflareToken: Boolean = false,
+    val hasLocalModel: Boolean = false,
+    val localModelSize: String? = null,
+    val importingModel: Boolean = false,
     val saving: Boolean = false,
     val testing: Boolean = false,
     val message: String? = null,
@@ -34,14 +39,17 @@ data class AiSettingsUiState(
         get() = when (provider) {
             AiProviderType.CLOUDFLARE -> hasStoredCloudflareToken
             AiProviderType.OPENAI -> hasStoredOpenAiKey
-            AiProviderType.MOCK -> false
+            AiProviderType.OFFLINE_LOCAL, AiProviderType.MOCK -> false
         }
+
+    val isOfflineLocal: Boolean get() = provider == AiProviderType.OFFLINE_LOCAL
 }
 
 class AiSettingsViewModel(
     private val repository: AiSettingsRepository,
     private val secretStore: SecretStore,
     private val gateway: ConfigurableAiGateway,
+    private val localModelStore: LocalModelStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow(AiSettingsUiState())
     val state: StateFlow<AiSettingsUiState> = _state.asStateFlow()
@@ -58,24 +66,24 @@ class AiSettingsViewModel(
                 cloudflareAccountId = config.cloudflareAccountId,
                 hasStoredOpenAiKey = hasSecret(AndroidKeystoreSecretStore.OPENAI_API_KEY),
                 hasStoredCloudflareToken = hasSecret(AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN),
+                hasLocalModel = localModelStore.hasModel(),
+                localModelSize = localModelStore.modelSizeBytes().takeIf { it > 0 }?.toHumanSize(),
             )
         }
     }
 
-    fun setRemoteEnabled(value: Boolean) = _state.update { it.copy(remoteEnabled = value, message = null, error = null) }
+    fun setRemoteEnabled(value: Boolean) = _state.update {
+        if (it.provider == AiProviderType.OFFLINE_LOCAL) it.copy(remoteEnabled = false)
+        else it.copy(remoteEnabled = value, message = null, error = null)
+    }
 
     fun setProvider(value: AiProviderType) {
         if (value == AiProviderType.MOCK) return
         _state.update { old ->
-            val oldDefault = AiProviderConfig.defaultModel(old.provider)
-            val nextModel = if (old.model.isBlank() || old.model == oldDefault) {
-                AiProviderConfig.defaultModel(value)
-            } else if (old.provider != value) {
-                AiProviderConfig.defaultModel(value)
-            } else old.model
             old.copy(
                 provider = value,
-                model = nextModel,
+                remoteEnabled = if (value == AiProviderType.OFFLINE_LOCAL) false else old.remoteEnabled,
+                model = AiProviderConfig.defaultModel(value),
                 credentialDraft = "",
                 message = null,
                 error = null,
@@ -86,17 +94,44 @@ class AiSettingsViewModel(
     fun setBaseUrl(value: String) = _state.update { it.copy(baseUrl = value.take(200), message = null, error = null) }
     fun setModel(value: String) = _state.update { it.copy(model = value.take(120), message = null, error = null) }
     fun setCloudflareAccountId(value: String) = _state.update {
-        it.copy(cloudflareAccountId = value.filter { it.isLetterOrDigit() }.take(40), message = null, error = null)
+        it.copy(cloudflareAccountId = value.filter { char -> char.isLetterOrDigit() }.take(40), message = null, error = null)
     }
     fun setCredential(value: String) = _state.update { it.copy(credentialDraft = value.take(500), message = null, error = null) }
+
+    fun importLocalModel(uri: Uri) {
+        viewModelScope.launch {
+            _state.update { it.copy(importingModel = true, message = null, error = null) }
+            runCatching { localModelStore.importFrom(uri) }
+                .onSuccess { size ->
+                    _state.update {
+                        it.copy(
+                            importingModel = false,
+                            hasLocalModel = true,
+                            localModelSize = size.toHumanSize(),
+                            message = "Local model imported. Test it before child use.",
+                        )
+                    }
+                }
+                .onFailure { failure ->
+                    _state.update {
+                        it.copy(importingModel = false, error = failure.message ?: "Could not import the local model.")
+                    }
+                }
+        }
+    }
+
+    fun removeLocalModel() {
+        localModelStore.remove()
+        _state.update {
+            it.copy(hasLocalModel = false, localModelSize = null, message = "Local model removed.", error = null)
+        }
+    }
 
     fun save() {
         viewModelScope.launch {
             _state.update { it.copy(saving = true, message = null, error = null) }
             runCatching { persistCurrentState() }
-                .onSuccess {
-                    refreshSecrets("AI settings saved.", saving = false)
-                }
+                .onSuccess { refreshSecrets("AI settings saved.", saving = false) }
                 .onFailure { failure ->
                     _state.update { it.copy(saving = false, error = failure.message ?: "Could not save AI settings.") }
                 }
@@ -112,7 +147,7 @@ class AiSettingsViewModel(
             }.onSuccess { result ->
                 refreshSecrets(result, testing = false)
             }.onFailure { failure ->
-                _state.update { it.copy(testing = false, error = failure.message ?: "Connection test failed.") }
+                _state.update { it.copy(testing = false, error = failure.message ?: "Provider test failed.") }
             }
         }
     }
@@ -121,7 +156,7 @@ class AiSettingsViewModel(
         val key = when (_state.value.provider) {
             AiProviderType.OPENAI -> AndroidKeystoreSecretStore.OPENAI_API_KEY
             AiProviderType.CLOUDFLARE -> AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN
-            AiProviderType.MOCK -> return
+            AiProviderType.OFFLINE_LOCAL, AiProviderType.MOCK -> return
         }
         secretStore.removeSecret(key)
         refreshSecrets("Saved credential removed.")
@@ -129,10 +164,9 @@ class AiSettingsViewModel(
 
     private suspend fun persistCurrentState() {
         val current = _state.value
-        require(current.model.isNotBlank()) { "Model is required." }
-
         when (current.provider) {
             AiProviderType.OPENAI -> {
+                require(current.model.isNotBlank()) { "Model is required." }
                 val baseUrl = current.baseUrl.trim().trimEnd('/')
                 val uri = runCatching { URI(baseUrl) }.getOrNull()
                 val host = uri?.host.orEmpty().lowercase()
@@ -141,10 +175,8 @@ class AiSettingsViewModel(
                     "OpenAI credentials are only sent to official OpenAI API domains."
                 }
                 saveDraftIfPresent(AndroidKeystoreSecretStore.OPENAI_API_KEY)
-                if (current.remoteEnabled) {
-                    require(hasSecret(AndroidKeystoreSecretStore.OPENAI_API_KEY)) {
-                        "Enter an OpenAI API key before enabling OpenAI."
-                    }
+                if (current.remoteEnabled) require(hasSecret(AndroidKeystoreSecretStore.OPENAI_API_KEY)) {
+                    "Enter an OpenAI API key before enabling OpenAI."
                 }
                 repository.save(
                     AiProviderConfig(
@@ -159,19 +191,15 @@ class AiSettingsViewModel(
 
             AiProviderType.CLOUDFLARE -> {
                 val accountId = current.cloudflareAccountId.trim()
-                if (current.remoteEnabled) {
-                    require(accountId.matches(Regex("[A-Fa-f0-9]{32}"))) {
-                        "Enter the 32-character Cloudflare Account ID shown in Workers AI → Use REST API."
-                    }
+                if (current.remoteEnabled) require(accountId.matches(Regex("[A-Fa-f0-9]{32}"))) {
+                    "Enter the 32-character Cloudflare Account ID shown in Workers AI → Use REST API."
                 }
                 require(current.model.trim().startsWith("@cf/")) {
-                    "Cloudflare free mode only allows Cloudflare-hosted @cf/... Workers AI models."
+                    "Cloudflare mode only allows Cloudflare-hosted @cf/... Workers AI models."
                 }
                 saveDraftIfPresent(AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN)
-                if (current.remoteEnabled) {
-                    require(hasSecret(AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN)) {
-                        "Enter a Cloudflare Workers AI API token before enabling Cloudflare."
-                    }
+                if (current.remoteEnabled) require(hasSecret(AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN)) {
+                    "Enter a Cloudflare Workers AI API token before enabling Cloudflare."
                 }
                 repository.save(
                     AiProviderConfig(
@@ -183,6 +211,14 @@ class AiSettingsViewModel(
                     )
                 )
             }
+
+            AiProviderType.OFFLINE_LOCAL -> repository.save(
+                AiProviderConfig(
+                    provider = AiProviderType.OFFLINE_LOCAL,
+                    remoteEnabled = false,
+                    model = AiProviderConfig.defaultModel(AiProviderType.OFFLINE_LOCAL),
+                )
+            )
 
             AiProviderType.MOCK -> repository.save(AiProviderConfig(remoteEnabled = false))
         }
@@ -202,9 +238,17 @@ class AiSettingsViewModel(
                 credentialDraft = "",
                 hasStoredOpenAiKey = hasSecret(AndroidKeystoreSecretStore.OPENAI_API_KEY),
                 hasStoredCloudflareToken = hasSecret(AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN),
+                hasLocalModel = localModelStore.hasModel(),
+                localModelSize = localModelStore.modelSizeBytes().takeIf { bytes -> bytes > 0 }?.toHumanSize(),
                 message = message,
                 error = null,
             )
         }
     }
+}
+
+private fun Long.toHumanSize(): String = when {
+    this >= 1024L * 1024L * 1024L -> "%.1f GB".format(this / (1024.0 * 1024.0 * 1024.0))
+    this >= 1024L * 1024L -> "%.0f MB".format(this / (1024.0 * 1024.0))
+    else -> "$this bytes"
 }

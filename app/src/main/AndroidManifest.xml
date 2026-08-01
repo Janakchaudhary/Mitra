@@ -24,6 +24,11 @@
         android:usesCleartextTraffic="false"
         android:theme="@style/Theme.Mitra">
 
+        <!-- Optional GPU libraries used by LiteRT-LM. They are not required on every phone;
+             the local provider falls back to CPU when GPU initialization is unavailable. -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"

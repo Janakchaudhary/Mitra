@@ -10,21 +10,12 @@ import kotlinx.serialization.json.contentOrNull
 object CloudflareResponseParser {
     private val json = Json { ignoreUnknownKeys = true }
 
-    /**
-     * Extracts final assistant text from either Cloudflare's OpenAI-compatible
-     * Chat Completions response or the native Workers AI REST envelope.
-     *
-     * Supported examples:
-     *   {"choices":[{"message":{"content":"..."}}]}
-     *   {"choices":[{"message":{"content":[{"type":"text","text":"..."}]}}]}
-     *   {"result":{"response":"..."},"success":true}
-     */
+    /** Extracts final assistant text across Workers AI native and OpenAI-compatible envelopes. */
     fun messageText(body: String): String {
         val root = parseRoot(body)
-
-        openAiCompatibleText(root)?.let { return it }
-        nativeWorkersAiText(root)?.let { return it }
-
+        openAiCompatibleText(root)?.let { return it.cleanAssistantText() }
+        nativeWorkersAiText(root)?.let { return it.cleanAssistantText() }
+        deepOutputText(root)?.let { return it.cleanAssistantText() }
         error("Cloudflare response contained no final assistant text")
     }
 
@@ -53,10 +44,9 @@ object CloudflareResponseParser {
             val message = choice["message"] as? JsonObject
             if (message != null) {
                 contentText(message["content"])?.let { return it }
-                // A few compatibility layers expose structured output as parsed JSON.
+                contentText(message["output_text"])?.let { return it }
                 (message["parsed"] as? JsonObject)?.let { return it.toString() }
             }
-            // Defensive support for completion-like responses.
             contentText(choice["text"])?.let { return it }
         }
         return null
@@ -66,27 +56,54 @@ object CloudflareResponseParser {
         val result = root["result"]
         when (result) {
             is JsonObject -> {
-                contentText(result["response"])?.let { return it }
-                contentText(result["text"])?.let { return it }
-                contentText(result["content"])?.let { return it }
+                PREFERRED_TEXT_KEYS.forEach { key -> contentText(result[key])?.let { return it } }
+                openAiCompatibleText(result)?.let { return it }
             }
             else -> contentText(result)?.let { return it }
         }
-        contentText(root["response"])?.let { return it }
+        PREFERRED_TEXT_KEYS.forEach { key -> contentText(root[key])?.let { return it } }
         return null
+    }
+
+    /** Newer Workers AI models can wrap output in result.output/message/content combinations. */
+    private fun deepOutputText(root: JsonObject): String? {
+        listOf("output", "data", "result").forEach { key ->
+            deepPreferredText(root[key], depth = 0)?.let { return it }
+        }
+        return null
+    }
+
+    private fun deepPreferredText(element: JsonElement?, depth: Int): String? {
+        if (element == null || depth > 7) return null
+        return when (element) {
+            is JsonPrimitive -> element.contentOrNull?.takeIf { it.isNotBlank() }
+            is JsonArray -> element.mapNotNull { deepPreferredText(it, depth + 1) }
+                .filter { it.isNotBlank() }
+                .joinToString("\n")
+                .takeIf { it.isNotBlank() }
+            is JsonObject -> {
+                PREFERRED_TEXT_KEYS.forEach { key ->
+                    contentText(element[key])?.let { return it }
+                }
+                listOf("message", "delta", "output", "result", "data", "choices").forEach { key ->
+                    deepPreferredText(element[key], depth + 1)?.let { return it }
+                }
+                null
+            }
+            else -> null
+        }
     }
 
     private fun contentText(element: JsonElement?): String? = when (element) {
         is JsonPrimitive -> element.contentOrNull?.takeIf { it.isNotBlank() }
         is JsonObject -> {
-            contentText(element["text"])
-                ?: contentText(element["content"])
-                ?: contentText(element["response"])
+            PREFERRED_TEXT_KEYS.asSequence().mapNotNull { key -> contentText(element[key]) }.firstOrNull()
+                ?: openAiCompatibleText(element)
         }
         is JsonArray -> element.asSequence()
             .mapNotNull { part -> contentText(part) }
             .filter { it.isNotBlank() }
-            .joinToString("")
+            .joinToString("\n")
             .takeIf { it.isNotBlank() }
         else -> null
     }
@@ -94,20 +111,26 @@ object CloudflareResponseParser {
     private fun parseRoot(body: String): JsonObject =
         json.parseToJsonElement(body) as? JsonObject ?: error("Cloudflare response was not a JSON object")
 
+    private fun String.cleanAssistantText(): String = this
+        .replace(Regex("(?s)<think>.*?</think>"), "")
+        .replace(Regex("(?s)<analysis>.*?</analysis>"), "")
+        .trim()
+        .takeIf { it.isNotBlank() }
+        ?: error("Cloudflare returned reasoning but no final answer")
+
     private fun String.removeCodeFence(): String {
         if (!startsWith("```")) return this
-        return lines()
-            .drop(1)
-            .dropLastWhile { it.trim() == "```" }
-            .joinToString("\n")
-            .trim()
+        return lines().drop(1).dropLastWhile { it.trim() == "```" }.joinToString("\n").trim()
     }
 
-    /** Gemma can occasionally add a short sentence around JSON despite a JSON-only prompt. */
     private fun String.extractJsonObject(): String {
         if (startsWith("{") && endsWith("}")) return this
         val start = indexOf('{')
         val end = lastIndexOf('}')
         return if (start >= 0 && end > start) substring(start, end + 1) else this
     }
+
+    private val PREFERRED_TEXT_KEYS = listOf(
+        "response", "output_text", "text", "content", "answer", "generated_text", "completion",
+    )
 }

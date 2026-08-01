@@ -3,6 +3,9 @@ package com.mitra.learning.core
 import android.content.Context
 import com.mitra.learning.ai.AiGateway
 import com.mitra.learning.ai.ConfigurableAiGateway
+import com.mitra.learning.ai.local.LiteRtLocalModel
+import com.mitra.learning.ai.local.LocalModelStore
+import com.mitra.learning.ai.local.OfflineAiGateway
 import com.mitra.learning.ai.settings.AiSettingsRepository
 import com.mitra.learning.books.analysis.BookPreparationService
 import com.mitra.learning.books.pdf.AndroidPdfPageRenderer
@@ -76,9 +79,13 @@ class AppContainer(context: Context) {
     val networkMonitor = NetworkMonitor(appContext)
     val learningLimitService = LearningLimitService(learningSettingsRepository, database.sessionDao())
     val secretStore: SecretStore = AndroidKeystoreSecretStore(appContext)
+    val localModelStore = LocalModelStore(appContext)
+    val liteRtLocalModel = LiteRtLocalModel(appContext, localModelStore)
+    val offlineAiGateway = OfflineAiGateway(liteRtLocalModel, localModelStore)
     val configurableAiGateway = ConfigurableAiGateway(
         settingsRepository = aiSettingsRepository,
         secretStore = secretStore,
+        offline = offlineAiGateway,
     )
     val aiGateway: AiGateway = configurableAiGateway
 

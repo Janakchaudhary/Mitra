@@ -156,6 +156,7 @@ class StudyChatViewModel(
         if (localResponder.isStopRequest(question)) {
             setHandsFree(false)
         }
+        val priorMessages = _state.value.messages
         viewModelScope.launch {
             val childMessage = StudyMessage(speaker = StudySpeaker.CHILD, text = question)
             _state.value = _state.value.copy(
@@ -168,8 +169,10 @@ class StudyChatViewModel(
             )
             runCatching {
                 localResponder.respond(question) ?: run {
-                    val sources = contextService.findSources(question)
-                    val history = _state.value.messages
+                    val previousChildQuestion = priorMessages.lastOrNull { it.speaker == StudySpeaker.CHILD }?.text
+                    val retrievalQuestion = contextualStudyQuery(question, previousChildQuestion)
+                    val sources = contextService.findSources(retrievalQuestion)
+                    val history = priorMessages
                         .windowed(2, 2, partialWindows = false)
                         .mapNotNull { pair ->
                             val child = pair.getOrNull(0)?.takeIf { it.speaker == StudySpeaker.CHILD }
@@ -217,6 +220,17 @@ class StudyChatViewModel(
                 )
             }
         }
+    }
+
+    private fun contextualStudyQuery(question: String, previousChildQuestion: String?): String {
+        val normalized = question.lowercase().trim()
+        val vagueFollowUp = normalized.length < 28 && listOf(
+            "એના", "તેના", "આના", "એ વિષે", "તે વિષે", "આ વિષે", "વધારે કહો", "ફરી સમજાવો",
+            "about it", "tell me more", "explain again",
+        ).any { normalized.contains(it) }
+        return if (vagueFollowUp && !previousChildQuestion.isNullOrBlank()) {
+            "$previousChildQuestion $question"
+        } else question
     }
 
     fun setHandsFree(enabled: Boolean) {

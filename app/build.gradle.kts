@@ -32,8 +32,8 @@ android {
         applicationId = "com.mitra.learning"
         minSdk = 26
         targetSdk = 35
-        versionCode = 26
-        versionName = "0.15.0"
+        versionCode = 27
+        versionName = "0.16.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -125,6 +125,10 @@ dependencies {
 
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.1")
+
+    // Optional parent-imported on-device language model. The model file is not bundled
+    // because current useful LiteRT-LM models are typically hundreds of MB to several GB.
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.14.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")

@@ -3,6 +3,7 @@ package com.mitra.learning.ai
 import com.mitra.learning.ai.cloudflare.CloudflareAiGateway
 import com.mitra.learning.ai.openai.OpenAiGateway
 import com.mitra.learning.ai.openai.OpenAiHttp
+import com.mitra.learning.ai.local.OfflineAiGateway
 import com.mitra.learning.ai.settings.AiProviderType
 import com.mitra.learning.ai.settings.AiSettingsRepository
 import com.mitra.learning.books.analysis.ChapterAnalysisRequest
@@ -14,6 +15,7 @@ import com.mitra.learning.data.db.entity.ConceptEntity
 import com.mitra.learning.learning.model.LearningQuestion
 import com.mitra.learning.security.AndroidKeystoreSecretStore
 import com.mitra.learning.security.SecretStore
+import com.mitra.learning.study.OfflineStudyAnswerer
 import com.mitra.learning.study.StudyAnswer
 import com.mitra.learning.study.StudyQuestionRequest
 
@@ -22,6 +24,7 @@ class ConfigurableAiGateway(
     private val secretStore: SecretStore,
     private val mock: AiGateway = MockAiGateway(),
     private val openAiHttp: OpenAiHttp = OpenAiHttp(),
+    private val offline: OfflineAiGateway,
 ) : AiGateway {
 
     override suspend fun analyzeTableOfContents(request: TocAnalysisRequest): TocAnalysisResult =
@@ -41,13 +44,15 @@ class ConfigurableAiGateway(
     }
 
     override suspend fun answerStudyQuestion(request: StudyQuestionRequest): StudyAnswer =
-        currentGateway().answerStudyQuestion(request)
+        runCatching { currentGateway().answerStudyQuestion(request) }
+            .getOrElse { OfflineStudyAnswerer().answer(request) }
 
     override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String =
         OpenAiGateway.localFeedback(result, expectedAnswer)
 
     suspend fun testConfiguredProvider(): String {
         val config = settingsRepository.getConfig()
+        if (config.provider == AiProviderType.OFFLINE_LOCAL) return offline.testConnection()
         if (!config.remoteEnabled || config.provider == AiProviderType.MOCK) {
             return "Offline/mock AI is active. No internet provider is being used."
         }
@@ -66,12 +71,14 @@ class ConfigurableAiGateway(
                 )
                 CloudflareAiGateway(config, token).testConnection()
             }
+            AiProviderType.OFFLINE_LOCAL -> offline.testConnection()
             AiProviderType.MOCK -> "Offline/mock AI is active."
         }
     }
 
     private suspend fun currentGateway(): AiGateway {
         val config = settingsRepository.getConfig()
+        if (config.provider == AiProviderType.OFFLINE_LOCAL) return offline
         if (!config.remoteEnabled || config.provider == AiProviderType.MOCK) return mock
         return when (config.provider) {
             AiProviderType.OPENAI -> OpenAiGateway(
@@ -89,6 +96,7 @@ class ConfigurableAiGateway(
                     "Cloudflare is enabled but no API token is configured in Parent settings.",
                 ),
             )
+            AiProviderType.OFFLINE_LOCAL -> offline
             AiProviderType.MOCK -> mock
         }
     }

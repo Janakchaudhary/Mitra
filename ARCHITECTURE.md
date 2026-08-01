@@ -98,3 +98,11 @@ It excludes API credentials, parent PIN, app signing key, raw audio, and in-memo
 - Physical missions are locally allowlisted/sanitized.
 - No streak pressure, loot boxes, infinite feeds, variable rewards, or push-notification pressure.
 - Mobile-game questions should redirect gently to the current learning activity and balanced offline play, not shame the child.
+
+# Milestone 16 Addendum — Offline Local AI
+
+`AiGateway` now has three parent-selectable production paths: OpenAI, Cloudflare Workers AI, and Offline Local. Offline Local never receives arbitrary internet access. It retrieves only prepared `PageKnowledgeEntity` text and either returns a deterministic extractive answer or asks a parent-imported LiteRT-LM model to phrase a short grounded Gujarati response.
+
+The local model is copied to `files/local_ai/mitra-local.litertlm`; it is deliberately excluded from backups and APK packaging. `LiteRtLocalModel` serializes access with a mutex, keeps one engine warm, reloads when the imported file changes, tries GPU first, and falls back to CPU. New PDF image analysis remains a cloud/manual workflow until a supported local multimodal preparation pipeline is implemented.
+
+Study Talk provider errors are child-safe: cloud parsing/network failures fall back to `OfflineStudyAnswerer`, and technical error text is not displayed when prepared local sources can answer.

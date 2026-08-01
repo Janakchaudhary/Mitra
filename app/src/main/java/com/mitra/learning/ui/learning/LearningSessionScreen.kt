@@ -548,49 +548,66 @@ private fun GuidedStepEntry(
     var tens by remember(questionId) { mutableStateOf("") }
     var message by remember(questionId) { mutableStateOf<String?>(null) }
     var success by remember(questionId) { mutableStateOf(false) }
+    val showRegroup = work.regrouping || expected.regroup > 0
 
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
         Text("પગલાંના ખાના", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text("પહેલા એકમ, પછી કેરિ/ઉધાર, પછી દશક", style = MaterialTheme.typography.bodySmall)
+
+        // Vertical place-value entry: the carry/borrow box sits directly above the tens box.
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Bottom,
         ) {
-            GuidedDigitField(
-                value = tens,
-                label = "દશક",
-                enabled = enabled,
-                onValueChange = { tens = it; message = null; success = false },
-                modifier = Modifier.weight(1f),
-            )
-            if (work.regrouping || expected.regroup > 0) {
+            Spacer(Modifier.size(30.dp, 1.dp))
+            Column(
+                modifier = Modifier.size(70.dp, if (showRegroup) 132.dp else 68.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                if (showRegroup) {
+                    GuidedDigitField(
+                        value = regroup,
+                        label = expected.regroupLabelGujarati,
+                        enabled = enabled,
+                        onValueChange = { regroup = it; message = null; success = false },
+                        modifier = Modifier.size(70.dp, 62.dp),
+                    )
+                    Spacer(Modifier.height(4.dp))
+                }
                 GuidedDigitField(
-                    value = regroup,
-                    label = expected.regroupLabelGujarati,
+                    value = tens,
+                    label = "દશક",
                     enabled = enabled,
-                    onValueChange = { regroup = it; message = null; success = false },
-                    modifier = Modifier.weight(1f),
+                    onValueChange = { tens = it; message = null; success = false },
+                    modifier = Modifier.size(70.dp, 66.dp),
                 )
             }
-            GuidedDigitField(
-                value = ones,
-                label = "એકમ",
-                enabled = enabled,
-                onValueChange = { ones = it; message = null; success = false },
-                modifier = Modifier.weight(1f),
-            )
+            Column(
+                modifier = Modifier.size(70.dp, if (showRegroup) 132.dp else 68.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom,
+            ) {
+                GuidedDigitField(
+                    value = ones,
+                    label = "એકમ",
+                    enabled = enabled,
+                    onValueChange = { ones = it; message = null; success = false },
+                    modifier = Modifier.size(70.dp, 66.dp),
+                )
+            }
         }
-        Text("ભરવાનો ક્રમ: એકમ → કેરિ/ઉધાર → દશક", style = MaterialTheme.typography.bodySmall)
+
         FilledTonalButton(
             onClick = {
                 val result = GuidedMathCoach.check(
                     work = work,
                     ones = GujaratiNumberNormalizer.parseInt(ones),
-                    regroup = if (work.regrouping || expected.regroup > 0) {
-                        GujaratiNumberNormalizer.parseInt(regroup)
-                    } else {
-                        expected.regroup
-                    },
+                    regroup = if (showRegroup) GujaratiNumberNormalizer.parseInt(regroup) else expected.regroup,
                     tens = GujaratiNumberNormalizer.parseInt(tens),
                 )
                 message = result.messageGujarati
