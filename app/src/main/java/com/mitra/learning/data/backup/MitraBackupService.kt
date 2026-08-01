@@ -91,6 +91,7 @@ class MitraBackupService(
             restoreDirectory(File(temp, "books"), File(appContext.filesDir, "books"))
             restoreDirectory(File(temp, "question_bank"), File(appContext.filesDir, "question_bank"))
             temp.deleteRecursively()
+            Unit
         }
     }
 
