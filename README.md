@@ -1,6 +1,6 @@
 # Mitra Android
 
-**Current milestone: 12 (v0.12.0)** — smart tutoring, guided two-digit maths, spaced review, offline textbook question banks, parent-selected practice, local backup/restore, and bounded hands-free Study Talk.
+**Current milestone: 13 (v0.13.0)** — purposeful child-friendly animation, animated tutor moods, responsive learning transitions, guided maths, spaced review, offline question banks, and bounded hands-free Study Talk.
 
 મિત્ર is a local-first Android learning companion for one Standard 2 Gujarati-medium child.
 
@@ -22,6 +22,7 @@
 - Backup and restore for local books, prepared data, progress, question banks, and non-secret learning settings.
 - Configurable daily/session limits and automatic parent relocking.
 - Stable GitHub Actions signing for update installs.
+- Purposeful mascot, activity, progress, listening, thinking, and success animations without streaks or infinite reward loops.
 
 ## Mitra sathe vaat kariye
 
@@ -68,10 +69,10 @@ Download the signed `mitra-update-apk` artifact. Once the stable-signed baseline
 
 ## Upgrade
 
-- `versionCode = 20`
-- `versionName = 0.12.0`
+- `versionCode = 22`
+- `versionName = 0.13.0`
 - Room schema version `5`
-- Migration `4 → 5` adds spaced-review fields while preserving existing books, question history, progress, and sessions.
+- No new database migration is required. Existing books, prepared data, progress, review schedules, credentials, and sessions are preserved.
 
 ## Privacy boundary
 
@@ -90,4 +91,9 @@ Not retained by default:
 
 API credentials and the parent PIN are excluded from exported backups. A parent-entered cloud API token inside a private mobile app remains a personal-development compromise and must never be committed to source control.
 
-See [`MILESTONE12.md`](MILESTONE12.md) for the detailed feature list.
+See [`MILESTONE13.md`](MILESTONE13.md) for the latest animation and visual-polish details; earlier milestone documents remain in the repository.
+
+
+## Milestone 13
+
+Purposeful child-friendly animations and visual polish.

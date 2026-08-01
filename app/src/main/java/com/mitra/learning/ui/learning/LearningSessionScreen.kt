@@ -4,6 +4,17 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -18,6 +29,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -54,6 +66,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -72,6 +85,12 @@ import com.mitra.learning.learning.model.ArithmeticWork
 import com.mitra.learning.learning.model.EvaluationMode
 import com.mitra.learning.learning.evaluation.GuidedMathCoach
 import com.mitra.learning.learning.evaluation.GujaratiNumberNormalizer
+import com.mitra.learning.ui.animation.AnimatedLearningBackground
+import com.mitra.learning.ui.animation.AnimatedMitraMascot
+import com.mitra.learning.ui.animation.AnimatedScale
+import com.mitra.learning.ui.animation.MascotMood
+import com.mitra.learning.ui.animation.SuccessBurst
+import com.mitra.learning.ui.animation.ThinkingDots
 
 @Composable
 fun LearningSessionScreen(
@@ -94,26 +113,37 @@ fun LearningSessionScreen(
         if (state.exitRequested) onStop()
     }
 
-    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surfaceContainerLowest) {
-        when {
-            state.completed -> CompletedContent(state, onDone)
-            state.loading && state.sessionId == null -> LoadingContent()
-            else -> SessionContent(
-                state = state,
-                onAnswerChange = onAnswerChange,
-                onSubmit = onSubmit,
-                onSelectOption = onSelectOption,
-                onHint = onHint,
-                onCompleteParticipation = onCompleteParticipation,
-                onSkip = onSkip,
-                onNext = onNext,
-                onStartVoice = onStartVoice,
-                onStopVoice = onStopVoice,
-                onMicPermissionDenied = onMicPermissionDenied,
-                onReplayPrompt = onReplayPrompt,
-                onStop = onStop,
-            )
+    val successFeedback = state.feedback?.takeIf { feedback ->
+        listOf("સાચું", "Perfect", "બહુ સરસ", "શાબાશ").any { feedback.contains(it, ignoreCase = true) }
+    }
+    AnimatedLearningBackground(
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceContainerLowest),
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize(),
+            color = MaterialTheme.colorScheme.surfaceContainerLowest.copy(alpha = 0.82f),
+        ) {
+            when {
+                state.completed -> CompletedContent(state, onDone)
+                state.loading && state.sessionId == null -> LoadingContent()
+                else -> SessionContent(
+                    state = state,
+                    onAnswerChange = onAnswerChange,
+                    onSubmit = onSubmit,
+                    onSelectOption = onSelectOption,
+                    onHint = onHint,
+                    onCompleteParticipation = onCompleteParticipation,
+                    onSkip = onSkip,
+                    onNext = onNext,
+                    onStartVoice = onStartVoice,
+                    onStopVoice = onStopVoice,
+                    onMicPermissionDenied = onMicPermissionDenied,
+                    onReplayPrompt = onReplayPrompt,
+                    onStop = onStop,
+                )
+            }
         }
+        SuccessBurst(trigger = successFeedback, modifier = Modifier.matchParentSize())
     }
 }
 
@@ -124,9 +154,9 @@ private fun LoadingContent() {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("🦁", style = MaterialTheme.typography.displayLarge)
-        CircularProgressIndicator()
-        Spacer(Modifier.height(16.dp))
+        AnimatedMitraMascot(mood = MascotMood.THINKING, size = 112.dp)
+        ThinkingDots()
+        Spacer(Modifier.height(14.dp))
         Text("તમારી નવી રમત તૈયાર થાય છે…", style = MaterialTheme.typography.titleMedium)
     }
 }
@@ -161,9 +191,15 @@ private fun SessionContent(
             horizontalArrangement = Arrangement.SpaceBetween,
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                    Text("🦁", modifier = Modifier.padding(10.dp), style = MaterialTheme.typography.headlineMedium)
-                }
+                AnimatedMitraMascot(
+                    mood = when {
+                        state.listening -> MascotMood.LISTENING
+                        state.loading || state.ttsSpeaking -> MascotMood.THINKING
+                        state.awaitingNext -> MascotMood.CELEBRATING
+                        else -> MascotMood.IDLE
+                    },
+                    size = 58.dp,
+                )
                 Column(Modifier.padding(start = 10.dp)) {
                     Text("મિત્ર સાથે શીખીએ", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     if (state.conceptTitleGujarati.isNotBlank()) {
@@ -181,22 +217,39 @@ private fun SessionContent(
 
         if (current != null) {
             val progress = (state.questionIndex + 1).toFloat() / state.questions.size.coerceAtLeast(1).toFloat()
-            LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+            val animatedProgress by animateFloatAsState(
+                targetValue = progress,
+                animationSpec = spring(dampingRatio = 0.78f, stiffness = 180f),
+                label = "session-progress",
+            )
+            LinearProgressIndicator(
+                progress = { animatedProgress },
+                modifier = Modifier.fillMaxWidth().height(9.dp),
+            )
 
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            ) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        "${activityEmoji(current.type)} ${activityLabel(current.type)}  •  ${state.questionIndex + 1}/${state.questions.size}",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
-                    current.sourcePage?.let { Text("📖 પુસ્તક પાનું $it", style = MaterialTheme.typography.labelLarge) }
-                    Text(current.promptGujarati, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+            AnimatedContent(
+                targetState = current,
+                transitionSpec = {
+                    (slideInHorizontally { width -> width / 3 } + fadeIn()) togetherWith
+                        (slideOutHorizontally { width -> -width / 4 } + fadeOut())
+                },
+                label = "question-transition",
+            ) { activity ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(26.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text(
+                            "${activityEmoji(activity.type)} ${activityLabel(activity.type)}  •  ${state.questionIndex + 1}/${state.questions.size}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        )
+                        activity.sourcePage?.let { Text("📖 પુસ્તક પાનું $it", style = MaterialTheme.typography.labelLarge) }
+                        Text(activity.promptGujarati, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
 
@@ -259,14 +312,26 @@ private fun SessionContent(
                 )
             }
 
-            state.hintText?.let {
-                Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
-                    Text("💡 $it", modifier = Modifier.fillMaxWidth().padding(14.dp), style = MaterialTheme.typography.bodyLarge)
+            AnimatedVisibility(
+                visible = state.hintText != null,
+                enter = fadeIn() + scaleIn(initialScale = 0.92f),
+                exit = fadeOut() + scaleOut(targetScale = 0.96f),
+            ) {
+                state.hintText?.let {
+                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.tertiaryContainer) {
+                        Text("💡 $it", modifier = Modifier.fillMaxWidth().padding(14.dp), style = MaterialTheme.typography.bodyLarge)
+                    }
                 }
             }
-            state.feedback?.let {
-                Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
-                    Text(it, modifier = Modifier.fillMaxWidth().padding(14.dp), style = MaterialTheme.typography.titleMedium)
+            AnimatedVisibility(
+                visible = state.feedback != null,
+                enter = fadeIn() + scaleIn(initialScale = 0.88f),
+                exit = fadeOut() + scaleOut(targetScale = 0.96f),
+            ) {
+                state.feedback?.let {
+                    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.secondaryContainer, shadowElevation = 3.dp) {
+                        Text(it, modifier = Modifier.fillMaxWidth().padding(16.dp), style = MaterialTheme.typography.titleMedium)
+                    }
                 }
             }
             state.voiceMessage?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
@@ -604,7 +669,14 @@ private fun VoiceAnswerControl(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Icon(if (state.listening) Icons.Default.StopCircle else Icons.Default.Mic, null, Modifier.size(38.dp))
+            AnimatedScale(active = state.listening) {
+                Icon(
+                    if (state.listening) Icons.Default.StopCircle else Icons.Default.Mic,
+                    contentDescription = null,
+                    modifier = Modifier.size(38.dp),
+                    tint = if (state.listening) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                )
+            }
             Text(
                 when {
                     !state.speechInputAvailable -> "આ ફોનમાં voice input ઉપલબ્ધ નથી"
@@ -626,8 +698,8 @@ private fun CompletedContent(state: LearningSessionUiState, onDone: () -> Unit) 
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Text("🌟", style = MaterialTheme.typography.displayLarge)
-        Text("આજની રમત પૂરી!", style = MaterialTheme.typography.headlineLarge)
+        AnimatedMitraMascot(mood = MascotMood.CELEBRATING, size = 124.dp)
+        Text("🌟 આજની રમત પૂરી!", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(12.dp))
         Text(summary.conceptTitleGujarati, style = MaterialTheme.typography.titleLarge)
         Text("${summary.attempts} પ્રવૃત્તિ પૂરી")

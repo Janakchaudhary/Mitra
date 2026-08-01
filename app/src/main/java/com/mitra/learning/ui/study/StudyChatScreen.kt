@@ -4,6 +4,9 @@ import android.Manifest
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,7 +30,6 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +48,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.mitra.learning.ui.animation.AnimatedLearningBackground
+import com.mitra.learning.ui.animation.AnimatedMitraMascot
+import com.mitra.learning.ui.animation.AnimatedScale
+import com.mitra.learning.ui.animation.MascotMood
+import com.mitra.learning.ui.animation.ThinkingDots
 
 @Composable
 fun StudyChatScreen(
@@ -64,16 +71,25 @@ fun StudyChatScreen(
         if (state.messages.isNotEmpty()) listState.animateScrollToItem(state.messages.lastIndex)
     }
 
-    Column(
+    AnimatedLearningBackground(
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .22f)),
     ) {
+        Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
-            Column(Modifier.weight(1f)) {
-                Text("🦁 મિત્ર સાથે વાત કરીએ", style = MaterialTheme.typography.titleLarge)
+            AnimatedMitraMascot(
+                mood = when {
+                    state.listening -> MascotMood.LISTENING
+                    state.loading -> MascotMood.THINKING
+                    else -> MascotMood.IDLE
+                },
+                size = 54.dp,
+            )
+            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                Text("મિત્ર સાથે વાત કરીએ", style = MaterialTheme.typography.titleLarge)
                 Text("પુસ્તક + ધોરણ ૨ ગણિત • સતત voice વાત", style = MaterialTheme.typography.bodySmall)
                 state.remainingSeconds?.let { seconds ->
                     val min = seconds / 60
@@ -115,7 +131,8 @@ fun StudyChatScreen(
             if (state.loading) {
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                        AnimatedMitraMascot(mood = MascotMood.THINKING, size = 42.dp)
+                        ThinkingDots()
                         Text("  વિચારું છું…")
                     }
                 }
@@ -139,6 +156,7 @@ fun StudyChatScreen(
             onMicDenied = onMicDenied,
             onHandsFreeChange = onHandsFreeChange,
         )
+        }
     }
 }
 
@@ -160,32 +178,40 @@ private fun StudyWelcomeCard() {
 
 @Composable
 private fun MessageBubble(message: StudyMessage) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = if (message.speaker == StudySpeaker.CHILD) Arrangement.End else Arrangement.Start,
+    var visible by remember(message.id) { mutableStateOf(false) }
+    LaunchedEffect(message.id) { visible = true }
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + slideInVertically { fullHeight -> fullHeight / 3 },
     ) {
-        Surface(
-            modifier = Modifier.fillMaxWidth(.88f),
-            shape = RoundedCornerShape(22.dp),
-            color = if (message.speaker == StudySpeaker.CHILD)
-                MaterialTheme.colorScheme.tertiaryContainer
-            else MaterialTheme.colorScheme.primaryContainer,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = if (message.speaker == StudySpeaker.CHILD) Arrangement.End else Arrangement.Start,
         ) {
-            Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(if (message.speaker == StudySpeaker.CHILD) "તમે" else "🦁 મિત્ર", style = MaterialTheme.typography.labelLarge)
-                message.responseKind?.let { kind ->
-                    Text(
-                        when (kind) {
-                            com.mitra.learning.study.StudyResponseKind.TEXTBOOK -> "📖 પુસ્તક પરથી"
-                            com.mitra.learning.study.StudyResponseKind.LOCAL_MATH -> "🧮 સ્થાનિક ગણિત સમજણ"
-                            com.mitra.learning.study.StudyResponseKind.LOCAL_GUIDANCE -> "🌱 મિત્રનું માર્ગદર્શન"
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-                Text(message.text, style = MaterialTheme.typography.bodyLarge)
-                if (message.sources.isNotEmpty()) {
-                    Text("📖 ${message.sources.joinToString(" • ")}", style = MaterialTheme.typography.labelSmall)
+            Surface(
+                modifier = Modifier.fillMaxWidth(.88f),
+                shape = RoundedCornerShape(22.dp),
+                color = if (message.speaker == StudySpeaker.CHILD)
+                    MaterialTheme.colorScheme.tertiaryContainer
+                else MaterialTheme.colorScheme.primaryContainer,
+                shadowElevation = 2.dp,
+            ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(if (message.speaker == StudySpeaker.CHILD) "તમે" else "🦁 મિત્ર", style = MaterialTheme.typography.labelLarge)
+                    message.responseKind?.let { kind ->
+                        Text(
+                            when (kind) {
+                                com.mitra.learning.study.StudyResponseKind.TEXTBOOK -> "📖 પુસ્તક પરથી"
+                                com.mitra.learning.study.StudyResponseKind.LOCAL_MATH -> "🧮 સ્થાનિક ગણિત સમજણ"
+                                com.mitra.learning.study.StudyResponseKind.LOCAL_GUIDANCE -> "🌱 મિત્રનું માર્ગદર્શન"
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                    Text(message.text, style = MaterialTheme.typography.bodyLarge)
+                    if (message.sources.isNotEmpty()) {
+                        Text("📖 ${message.sources.joinToString(" • ")}", style = MaterialTheme.typography.labelSmall)
+                    }
                 }
             }
         }
@@ -266,11 +292,13 @@ private fun StudyComposer(
                         } else if (state.listening) onStopVoice() else onStartVoice()
                     },
                 ) {
-                    Icon(
-                        if (state.listening) Icons.Default.StopCircle else Icons.Default.Mic,
-                        contentDescription = "Voice question",
-                        tint = if (state.listening) MaterialTheme.colorScheme.error else Color.Unspecified,
-                    )
+                    AnimatedScale(active = state.listening) {
+                        Icon(
+                            if (state.listening) Icons.Default.StopCircle else Icons.Default.Mic,
+                            contentDescription = "Voice question",
+                            tint = if (state.listening) MaterialTheme.colorScheme.error else Color.Unspecified,
+                        )
+                    }
                 }
                 Button(onClick = onAsk, enabled = state.input.isNotBlank() && !state.loading && !state.timeLimitReached) {
                     Icon(Icons.Default.Send, contentDescription = null)
