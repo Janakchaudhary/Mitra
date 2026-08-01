@@ -27,7 +27,7 @@ class LearningSessionVoiceTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `session speaks first question and submits recognized answer`() = runTest {
+    fun `session speaks first question and confirms recognized answer before submit`() = runTest {
         val engine = FakeLearningEngine()
         val input = FakeSpeechInput()
         val output = FakeSpeechOutput()
@@ -37,6 +37,13 @@ class LearningSessionVoiceTest {
         assertTrue(output.spoken.contains("૪ પછી કયો અંક આવે?"))
 
         input.emit(SpeechInputState.Result("૫"))
+        advanceUntilIdle()
+
+        assertEquals(null, engine.lastSubmittedAnswer)
+        assertTrue(vm.state.value.pendingVoiceConfirmation)
+        assertEquals("૫", vm.state.value.answer)
+
+        vm.submit()
         advanceUntilIdle()
 
         assertEquals("૫", engine.lastSubmittedAnswer)

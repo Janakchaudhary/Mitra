@@ -13,6 +13,7 @@ object ConceptSelector {
         concepts: List<ConceptEntity>,
         mastery: List<MasteryEntity>,
         prerequisites: List<ConceptPrerequisiteEntity>,
+        nowMillis: Long = System.currentTimeMillis(),
     ): ConceptEntity? {
         if (concepts.isEmpty()) return null
 
@@ -26,10 +27,16 @@ object ConceptSelector {
         if (eligible.isEmpty()) return null
 
         val preferred = eligible.filter { !it.builtIn }.ifEmpty { eligible }
-        val pool = preferred.filter { (masteryById[it.id]?.mastery ?: 0f) < masteredThreshold }
-            .ifEmpty { preferred }
+        val dueForReview = preferred.filter { concept ->
+            val item = masteryById[concept.id] ?: return@filter false
+            item.totalAttempts > 0 && item.nextReviewAt?.let { it <= nowMillis } == true
+        }
+        val pool = dueForReview.ifEmpty {
+            preferred.filter { (masteryById[it.id]?.mastery ?: 0f) < masteredThreshold }
+                .ifEmpty { preferred }
+        }
 
-        // Do not drill one concept endlessly. Rotate among skills whose mastery is close to the
+        // Due spaced reviews come first. Otherwise do not drill one concept endlessly. Rotate among skills whose mastery is close to the
         // weakest one, choosing the least recently practised concept first.
         val weakest = pool.minOf { masteryById[it.id]?.mastery ?: 0f }
         val rotationPool = pool.filter { (masteryById[it.id]?.mastery ?: 0f) <= weakest + rotationBand }

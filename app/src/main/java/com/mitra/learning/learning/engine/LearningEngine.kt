@@ -10,6 +10,8 @@ interface LearningEngine {
 
     suspend fun startSkillSession(questionCount: Int = 6): SessionPlan? = startSession(questionCount)
 
+    suspend fun startConceptSession(conceptId: String, questionCount: Int = 6): SessionPlan? = startSession(questionCount)
+
     suspend fun submitAnswer(
         sessionId: String,
         conceptId: String,

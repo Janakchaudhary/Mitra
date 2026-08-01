@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,6 +55,7 @@ fun StudyChatScreen(
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
     onMicDenied: () -> Unit,
+    onHandsFreeChange: (Boolean) -> Unit,
     onReplay: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -71,8 +73,13 @@ fun StudyChatScreen(
         ) {
             IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back") }
             Column(Modifier.weight(1f)) {
-                Text("🦁 મિત્ર સાથે વાત કરો", style = MaterialTheme.typography.titleLarge)
-                Text("જવાબ તમારા તૈયાર કરેલા પુસ્તકોમાંથી", style = MaterialTheme.typography.bodySmall)
+                Text("🦁 મિત્ર સાથે વાત કરીએ", style = MaterialTheme.typography.titleLarge)
+                Text("પુસ્તક + ધોરણ ૨ ગણિત • સતત voice વાત", style = MaterialTheme.typography.bodySmall)
+                state.remainingSeconds?.let { seconds ->
+                    val min = seconds / 60
+                    val sec = seconds % 60
+                    Text("બાકી સમય %02d:%02d".format(min, sec), style = MaterialTheme.typography.labelSmall)
+                }
             }
             IconButton(onClick = onReplay) {
                 Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Replay answer")
@@ -86,7 +93,7 @@ fun StudyChatScreen(
                 color = MaterialTheme.colorScheme.secondaryContainer,
             ) {
                 Text(
-                    "Parent mode માં પહેલા એક પુસ્તકનો પાઠ Prepare કરો. પછી મિત્ર એ પુસ્તકમાંથી સવાલોના જવાબ આપશે.",
+                    "પુસ્તકના જવાબ માટે Parent mode માં પાઠ Prepare કરો. ગણિત અને મોબાઇલ-ગેમ વિશેનું માર્ગદર્શન હમણાં પણ ચાલશે.",
                     modifier = Modifier.padding(16.dp),
                 )
             }
@@ -109,7 +116,7 @@ fun StudyChatScreen(
                 item {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp))
-                        Text("  પુસ્તકમાં શોધું છું…")
+                        Text("  વિચારું છું…")
                     }
                 }
             }
@@ -130,6 +137,7 @@ fun StudyChatScreen(
             onStartVoice = onStartVoice,
             onStopVoice = onStopVoice,
             onMicDenied = onMicDenied,
+            onHandsFreeChange = onHandsFreeChange,
         )
     }
 }
@@ -145,7 +153,7 @@ private fun StudyWelcomeCard() {
             Text("📚 કંઈ પણ પૂછો!", style = MaterialTheme.typography.headlineSmall)
             Text("ઉદાહરણ: ‘આ પાઠમાં હાથી વિશે શું લખ્યું છે?’")
             Text("અથવા: ‘૨૭ + ૧૮ કેવી રીતે કરીએ?’")
-            Text("મિત્ર માત્ર તૈયાર કરેલા textbook context પરથી જવાબ આપશે.", style = MaterialTheme.typography.bodySmall)
+            Text("પુસ્તકના સવાલો પુસ્તકમાંથી મળે છે. સરવાળો, બાદબાકી અને પહાડા મિત્ર સ્થાનિક રીતે સમજાવે છે.", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -165,6 +173,16 @@ private fun MessageBubble(message: StudyMessage) {
         ) {
             Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(if (message.speaker == StudySpeaker.CHILD) "તમે" else "🦁 મિત્ર", style = MaterialTheme.typography.labelLarge)
+                message.responseKind?.let { kind ->
+                    Text(
+                        when (kind) {
+                            com.mitra.learning.study.StudyResponseKind.TEXTBOOK -> "📖 પુસ્તક પરથી"
+                            com.mitra.learning.study.StudyResponseKind.LOCAL_MATH -> "🧮 સ્થાનિક ગણિત સમજણ"
+                            com.mitra.learning.study.StudyResponseKind.LOCAL_GUIDANCE -> "🌱 મિત્રનું માર્ગદર્શન"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
                 Text(message.text, style = MaterialTheme.typography.bodyLarge)
                 if (message.sources.isNotEmpty()) {
                     Text("📖 ${message.sources.joinToString(" • ")}", style = MaterialTheme.typography.labelSmall)
@@ -182,45 +200,81 @@ private fun StudyComposer(
     onStartVoice: () -> Unit,
     onStopVoice: () -> Unit,
     onMicDenied: () -> Unit,
+    onHandsFreeChange: (Boolean) -> Unit,
 ) {
     val context = LocalContext.current
+    var pendingHandsFree by remember { mutableStateOf(false) }
     var granted by remember {
         mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
     }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         granted = ok
-        if (ok) onStartVoice() else onMicDenied()
+        if (ok) {
+            if (pendingHandsFree) onHandsFreeChange(true) else onStartVoice()
+        } else onMicDenied()
+        pendingHandsFree = false
     }
 
     Surface(tonalElevation = 4.dp) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            OutlinedTextField(
-                value = state.input,
-                onValueChange = onInput,
-                placeholder = { Text("મારો સવાલ…") },
-                modifier = Modifier.weight(1f),
-                enabled = !state.loading,
-                maxLines = 3,
-            )
-            IconButton(
-                enabled = state.speechAvailable && !state.loading,
+            FilledTonalButton(
                 onClick = {
-                    if (!granted) launcher.launch(Manifest.permission.RECORD_AUDIO)
-                    else if (state.listening) onStopVoice() else onStartVoice()
+                    if (state.handsFreeEnabled) onHandsFreeChange(false)
+                    else if (!granted) {
+                        pendingHandsFree = true
+                        launcher.launch(Manifest.permission.RECORD_AUDIO)
+                    } else onHandsFreeChange(true)
                 },
+                enabled = state.speechAvailable && !state.loading && !state.timeLimitReached,
+                modifier = Modifier.fillMaxWidth(),
             ) {
                 Icon(
-                    if (state.listening) Icons.Default.StopCircle else Icons.Default.Mic,
-                    contentDescription = "Voice question",
-                    tint = if (state.listening) MaterialTheme.colorScheme.error else Color.Unspecified,
+                    if (state.handsFreeEnabled) Icons.Default.StopCircle else Icons.Default.Mic,
+                    contentDescription = null,
+                )
+                Text(
+                    when {
+                        state.handsFreeEnabled && state.listening -> "  લાઇવ વાત ચાલુ • મિત્ર સાંભળે છે"
+                        state.handsFreeEnabled && state.waitingForNextTurn -> "  લાઇવ વાત ચાલુ • આગળ બોલો"
+                        state.handsFreeEnabled -> "  લાઇવ વાત બંધ કરો"
+                        else -> "  લાઇવ વાત શરૂ કરો"
+                    }
                 )
             }
-            Button(onClick = onAsk, enabled = state.input.isNotBlank() && !state.loading) {
-                Icon(Icons.Default.Send, contentDescription = null)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedTextField(
+                    value = state.input,
+                    onValueChange = onInput,
+                    placeholder = { Text("મારો સવાલ…") },
+                    modifier = Modifier.weight(1f),
+                    enabled = !state.loading && !state.timeLimitReached,
+                    maxLines = 3,
+                )
+                IconButton(
+                    enabled = state.speechAvailable && !state.loading && !state.timeLimitReached,
+                    onClick = {
+                        if (!granted) {
+                            pendingHandsFree = false
+                            launcher.launch(Manifest.permission.RECORD_AUDIO)
+                        } else if (state.listening) onStopVoice() else onStartVoice()
+                    },
+                ) {
+                    Icon(
+                        if (state.listening) Icons.Default.StopCircle else Icons.Default.Mic,
+                        contentDescription = "Voice question",
+                        tint = if (state.listening) MaterialTheme.colorScheme.error else Color.Unspecified,
+                    )
+                }
+                Button(onClick = onAsk, enabled = state.input.isNotBlank() && !state.loading && !state.timeLimitReached) {
+                    Icon(Icons.Default.Send, contentDescription = null)
+                }
             }
         }
     }

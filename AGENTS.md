@@ -3,61 +3,59 @@
 Read `ARCHITECTURE.md` before architectural changes.
 
 ## Fixed constraints
+
 - Native Android, Kotlin, Jetpack Compose.
-- Local-first single-child app.
+- Local-first, one child, one APK.
 - Room + DataStore + app-private files only.
-- No Firebase, Supabase, PostgreSQL, account system, backend, ads, web browser, YouTube, feeds or streak mechanics.
+- No Firebase, Supabase, PostgreSQL, account system, backend database, ads, browser, YouTube, feed, or streak mechanics.
 - Imported PDFs are copied into `files/books/{bookId}/source.pdf`.
-- Parent-only configuration is PIN protected.
-- Do not embed cloud API secrets in source or BuildConfig.
-- `LearningEngine` controls curriculum, answer evaluation and mastery.
-- `AiGateway` controls presentation/content only; it must never assign mastery.
-- Built-in Standard 2 skill drills must remain local/deterministic and must not require a remote provider.
-- Voice input/output must remain replaceable behind `SpeechInput` and `SpeechOutput`.
-- Text answer entry must continue working when voice is unavailable or permission is denied.
-- Gujarati voice defaults to `gu-IN`; English spelling/read-aloud may use `en-IN` where the activity requests it.
+- Parent configuration is PIN protected.
+- Never embed API or signing secrets in source/BuildConfig.
+- `LearningEngine` owns evaluation/mastery/review decisions.
+- `AiGateway` may present/analyze grounded material but must never write mastery.
+- Built-in Standard 2 drills must remain local/deterministic and work without a remote provider.
+- Text input must remain available if voice is unavailable.
+- Raw audio, rough-work strokes, and Study Talk history must not be persisted.
+
+## Current scope — Milestone 12
+
+Implemented:
+
+- exact/recent question suppression and mixed question forms
+- guided two-digit addition/subtraction with carry/borrow fields
+- local mistake classification and targeted retry
+- spaced review using Room schema v5
+- offline prepared-book question bank
+- parent concept enable/disable and exact skill selection
+- weekly parent report
+- local backup/restore excluding secrets/PIN
+- speech confirmation before answer submission
+- bounded turn-based hands-free Study Talk
+- local Standard 2 maths explanations in Study Talk
+- mobile-game balance guidance
+
+## Milestone 12 invariants
+
+- Keep `questionFingerprint` and migrations `3 → 4` and `4 → 5`.
+- Never persist rough-work strokes.
+- Participation-only activities never improve mastery.
+- Do not reveal a spelling target on screen before submission.
+- Built-in skill practice must not depend on OpenAI or Cloudflare.
+- Study Talk must not add web search.
+- Prepared-book answers must remain grounded in `StudyContextService` sources.
+- Hands-free mode must respect stop commands and learning-time limits.
+- Exact parent-selected practice must use the requested concept.
+- Exported backups must exclude API credentials, parent PIN, and signing files.
 
 ## Development process
-For every milestone or fix:
-1. Keep domain/business logic outside Compose functions.
-2. Add/update tests.
+
+For each change:
+
+1. Keep domain/business logic outside Composables.
+2. Add or update tests.
 3. Run `gradle testDebugUnitTest`.
 4. Run `gradle lintDebug`.
 5. Run `gradle assembleDebug`.
-6. Do not disable tests or lint just to make builds pass.
-7. Preserve Room data with explicit migrations; never use destructive migration in release behavior.
-
-## Current scope — Milestone 9
-Milestone 9 is implemented in this source. It adds the offline Standard 2 skill engine:
-- two-digit addition/subtraction with separate carry/borrow mastery,
-- missing numbers, comparison and word problems,
-- multiplication meaning and tables 2–10 as separate concepts,
-- Gujarati word recognition, spelling, missing letters, read aloud, sentence completion, meaning and singular/plural,
-- English word recognition, spelling, missing letters, read aloud and sentence completion,
-- dedicated child `કૌશલ્ય રમત` mode,
-- per-activity speech/recognition language tags,
-- parent progress listing every built-in Standard 2 skill.
-
-## Milestone 9 guardrails
-- Do not collapse all multiplication tables into one mastery record.
-- Do not collapse carrying and non-carrying addition into one mastery record.
-- Do not collapse borrowing and non-borrowing subtraction into one mastery record.
-- Spelling dictation must not display the target word before the answer is submitted.
-- Participation-only activities must never improve mastery.
-- Book-derived concepts may use remote AI; built-in skill practice must remain usable offline.
-- Keep session and daily learning limits enforced for both normal and skill-only sessions.
-
-## Milestone 10 constraints
-
-- Study Talk must answer only from `StudyContextService` prepared textbook grounding. Do not add web search.
-- Do not persist child free-form study conversations or raw microphone audio.
-- Voice presets are style presets only; do not label or ship exact copyrighted-character voice clones.
-- Keep Color Lab and Sentence Builder deterministic/offline.
-- Preserve Room schema version 3 unless a real database schema change is introduced.
-
-## Milestone 11 invariants
-
-- Do not remove `questionFingerprint` or Room migration 3 → 4.
-- Do not persist rough-work strokes; they are temporary child scratch data.
-- Mixed skill sessions must include at least one two-digit addition and one carry question.
-- Questions in one session must have distinct fingerprints.
+6. Never disable tests/lint to get green CI.
+7. Add explicit Room migrations for schema changes.
+8. Preserve the stable signing workflow and increment `versionCode` for every installable release.

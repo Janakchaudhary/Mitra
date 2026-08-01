@@ -15,6 +15,7 @@ data class ProgressDashboard(
     val standard2Skills: List<ConceptProgress>,
     val recentSessions: List<RecentSessionProgress>,
     val recommendation: ConceptProgress?,
+    val weeklyReport: WeeklyReport,
 )
 
 data class SubjectProgress(
@@ -34,6 +35,7 @@ data class ConceptProgress(
     val hints: Int,
     val lastPracticedAt: Long?,
     val fromBook: Boolean,
+    val nextReviewAt: Long? = null,
 )
 
 data class RecentSessionProgress(
@@ -45,4 +47,14 @@ data class RecentSessionProgress(
     val assessed: Int,
     val correct: Int,
     val participation: Int,
+)
+
+
+data class WeeklyReport(
+    val minutes: Int,
+    val assessed: Int,
+    val correct: Int,
+    val mostPracticedTitleGujarati: String?,
+    val needsPracticeTitleGujarati: String?,
+    val dueReviewCount: Int,
 )

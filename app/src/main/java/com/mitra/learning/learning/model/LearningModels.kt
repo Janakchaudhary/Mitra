@@ -87,6 +87,8 @@ data class AnswerFeedback(
     val messageGujarati: String,
     val expectedAnswer: Int?,
     val mastery: Float,
+    val retrySuggested: Boolean = false,
+    val mistakeCode: String? = null,
 )
 
 data class SessionSummary(

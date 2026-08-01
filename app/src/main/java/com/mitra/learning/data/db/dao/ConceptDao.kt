@@ -34,6 +34,9 @@ interface ConceptDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertAll(concepts: List<ConceptEntity>)
 
+    @Query("UPDATE concepts SET practiceReady = :ready WHERE id = :conceptId")
+    suspend fun updatePracticeReady(conceptId: String, ready: Boolean)
+
     @Query("DELETE FROM concepts WHERE chapterId = :chapterId")
     suspend fun deleteForChapter(chapterId: String)
 

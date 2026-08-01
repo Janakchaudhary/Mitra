@@ -1,54 +1,60 @@
 # Mitra Android
 
-**Current milestone: 9 (v0.9.0)** — Standard 2 skill engine for two-digit arithmetic, carrying/borrowing, multiplication tables 2–10, Gujarati spelling/reading, and English spelling/reading.
+**Current milestone: 12 (v0.12.0)** — smart tutoring, guided two-digit maths, spaced review, offline textbook question banks, parent-selected practice, local backup/restore, and bounded hands-free Study Talk.
 
-મિત્ર
+મિત્ર is a local-first Android learning companion for one Standard 2 Gujarati-medium child.
 
-A local-first Android learning companion for one Standard 2 Gujarati-medium child.
-
-## Current version — Milestone 9 (0.9.0)
-
-Mitra now supports the full local-first path from PDF books to richer child learning sessions:
+## Current capabilities
 
 - Parent PIN and separate child/parent areas.
-- Dedicated **કૌશલ્ય રમત** child mode that always uses the offline Standard 2 skill curriculum.
-- Separate mastery concepts for two-digit addition/subtraction, carrying, borrowing, missing numbers, comparison and word problems.
-- Multiplication meaning plus separate mastery for tables 2 through 10.
-- Gujarati word recognition, dictated spelling, missing letters, read-aloud, sentence completion, meaning and singular/plural.
-- English word recognition, dictated spelling, missing letters, read-aloud and sentence completion.
-- Spelling prompts keep the answer hidden on-screen while TTS dictates the target word.
-- Parent progress now lists every built-in Standard 2 skill, including not-started skills.
-- Built-in skill drills remain local even when a remote AI provider is configured.
-- Private PDF import, SHA-256 duplicate detection and local PDF viewer.
-- Room curriculum, concepts, prerequisites, mastery, sessions and attempts.
-- Gujarati push-to-talk and Gujarati TTS with text fallback; English skill activities can request `en-IN` speech/recognition.
-- Spoken maths/table answers can be normalized locally from Gujarati number words through 100.
-- Parent-reviewed chapter detection and manual chapter editing.
-- Optional remote textbook page analysis through a replaceable `AiGateway` (OpenAI default, Cloudflare Workers AI secondary).
-- Book-grounded activity generation from locally cached page knowledge.
-- Numeric questions, multiple choice, short text, keyword checks, riddles, reading, vocabulary, stories, book-look, drawing, physical missions, Teach-Mitra and recap activities.
-- Hints that reduce mastery gain on assessed answers.
-- Participation-only activities recorded without changing mastery.
-- Local safety replacement for physical/drawing instructions.
-- Automatic off-screen activity injection for longer sessions.
-- Parent-only local progress dashboard with subject/concept mastery, weak areas, recent sessions and next-practice recommendation.
-- Configurable session/daily learning limits with local enforcement and countdown.
-- Parent access relocks on timeout/background.
-- Parent-only privacy/data reset controls.
-- Offline child-home messaging and built-in local fallback when remote book question generation is unavailable.
-- No Firebase, Supabase, PostgreSQL, account system, browser, feed, ads or social features.
+- Private PDF import, duplicate detection, chapter setup, parent-reviewed preparation, and local PDF viewing.
+- OpenAI as the default optional remote provider and Cloudflare Workers AI as a secondary option for textbook preparation and grounded Study Talk.
+- Built-in Standard 2 maths, Gujarati, English, spelling, and tables remain deterministic and usable without a remote AI provider.
+- Question fingerprints and recent-history suppression reduce repeated questions.
+- Two-digit addition/subtraction with and without carrying/borrowing.
+- Finger-writing rough-work notebook plus guided ones/carry-or-borrow/tens fields.
+- Local mistake classification and step-specific Gujarati hints.
+- Spaced review scheduling at increasing intervals.
+- Offline book-derived question banks generated during chapter preparation.
+- Mixed activities: numeric, multiple choice, spelling, reading, vocabulary, stories, riddles, book-look, physical missions, drawing, and Teach-Mitra.
+- Parent-selected practice for an exact built-in or prepared-book concept.
+- Parent progress dashboard and weekly report.
+- Backup and restore for local books, prepared data, progress, question banks, and non-secret learning settings.
+- Configurable daily/session limits and automatic parent relocking.
+- Stable GitHub Actions signing for update installs.
 
-## Important textbook preparation note
+## Mitra sathe vaat kariye
 
-Milestone 5 marked reading/vocabulary/open-ended concepts `practiceReady=false` because only integer evaluation existed then. After upgrading from Milestone 5 or earlier, use **Prepare again** on a textbook chapter to let the new analysis rules enable appropriate language/story concepts.
+The child can use a bounded, turn-based hands-free conversation:
 
-## Build online with GitHub
+1. child speaks
+2. Mitra processes the utterance
+3. Mitra speaks its reply
+4. listening begins again when hands-free mode is enabled
 
-1. Update your private GitHub repository with this project.
-2. Push to `main`.
-3. Open **Actions** and run **Android build**.
-4. Download the `mitra-debug-apk` artifact.
-5. Install `app-debug.apk` over the existing Mitra APK.
+This is not unrestricted full-duplex audio. It retains microphone permission checks, a stop command, and the configured learning-time limit.
+
+Study Talk has two answer paths:
+
+- **Local Standard 2 maths:** addition, subtraction, carrying, borrowing, multiplication, tables 2–10, before/after, greater/smaller, Gujarati digits, and common Gujarati number words.
+- **Prepared textbook grounding:** other study questions retrieve relevant locally prepared pages and use the selected remote provider. The app must not replace missing textbook evidence with web answers.
+
+Questions about mobile games receive a short age-appropriate reminder that Mitra is already a learning game, prolonged mobile gaming can reduce study, sleep, physical play, and family time, and the phone should rest after the short session.
+
+## Book preparation
+
+1. Parent adds a PDF.
+2. Parent selects contents/index pages or creates chapters manually.
+3. Parent reviews and saves chapter ranges.
+4. Parent presses **Prepare** for one chapter.
+5. Mitra renders only that chapter's pages in small batches and asks the configured provider for structured page knowledge and concepts.
+6. Prepared concepts are stored locally.
+7. A reusable offline activity bank is generated while the parent is already online.
+8. Parent can enable/disable detected concepts and see each concept's cached-question count.
+
+## Build with GitHub Actions
+
+Complete the one-time signing setup in [`SIGNING_SETUP.md`](SIGNING_SETUP.md). Then push to `main` and run **Android build**.
 
 The workflow runs:
 
@@ -58,54 +64,30 @@ gradle lintDebug
 gradle assembleDebug
 ```
 
-## Recommended physical-device test
+Download the signed `mitra-update-apk` artifact. Once the stable-signed baseline is installed, future higher-`versionCode` artifacts can be installed over it without uninstalling.
 
-1. Upgrade over 0.8.0; do not uninstall first.
-2. Confirm existing books/PIN/progress remain.
-3. In Parent Mode, configure/test the AI provider if not already configured.
-4. Open one real textbook chapter and press **Prepare again**.
-5. Start **કૌશલ્ય રમત** and verify local tables/spelling, then start **રમીએ** for book-grounded practice.
-6. Verify mixed activities appear, including a locally assessed question and an exploration/off-screen activity.
-7. Use **સંકેત** on an assessed question.
-8. Try a multiple-choice activity.
-9. Complete a physical/drawing/Teach-Mitra activity and confirm it advances without claiming a correct answer.
-10. Open **Parent → Learning progress** and verify the completed session appears with time, accuracy and mastery.
-11. Say **બસ** in another session and confirm immediate exit still works.
+## Upgrade
 
-## Privacy/runtime boundary
+- `versionCode = 20`
+- `versionName = 0.12.0`
+- Room schema version `5`
+- Migration `4 → 5` adds spaced-review fields while preserving existing books, question history, progress, and sessions.
 
-Books, prepared knowledge, progress and settings remain on the phone. Remote AI receives only the parent-selected book material/context required for analysis/activity generation. Child microphone recordings, child answer transcripts, mastery and session history are not sent to the remote model.
+## Privacy boundary
 
-A parent-entered API key inside a mobile APK is only appropriate for this private development/personal-use setup; do not publish an APK containing or depending on a shared client-side secret.
+Stored locally:
 
-## Milestone 10
+- PDFs and prepared page knowledge
+- curriculum and offline question banks
+- mastery, attempts, sessions, and settings
 
-Milestone 10 adds a textbook-grounded child Study Talk screen, parent-selectable voice styles, an activity-first Color Lab and English Sentence Builder, and a more playful child UI. Study Talk retrieves only locally prepared uploaded-book page knowledge and asks the configured AI provider to answer from that grounding. Conversation history is memory-only.
+Not retained by default:
 
-Voice presets are style controls (pitch/rate), not exact character voice cloning. The included presets are Warm Mitra, Energetic Hero, Playful Hero, and Storyteller.
+- raw microphone audio
+- rough-work strokes
+- free-form Study Talk history
+- location, contacts, school, or advertising identifiers
 
-## AI providers
+API credentials and the parent PIN are excluded from exported backups. A parent-entered cloud API token inside a private mobile app remains a personal-development compromise and must never be committed to source control.
 
-Mitra supports two optional remote providers for prepared-textbook analysis and grounded study Q&A:
-
-- OpenAI (default remote provider)
-- Cloudflare Workers AI (free-tier option; parent supplies Cloudflare Account ID and Workers AI API token)
-
-Built-in Standard 2 skills remain local/offline. Provider credentials are entered after install and stored separately using the app secret store.
-
-
-
-### 0.10.3 Cloudflare response fix
-Cloudflare uses the OpenAI-compatible endpoint first and falls back to the native Workers AI `/ai/run/@cf/...` endpoint when a successful response contains no final assistant text.
-
-## APK updates without uninstalling
-
-GitHub APK artifacts now use a persistent signing key. Complete the one-time setup
-in [`SIGNING_SETUP.md`](SIGNING_SETUP.md) before downloading installable builds.
-After one migration uninstall/install, future `mitra-update-apk` artifacts can be
-installed directly over the existing Mitra app without losing local books or
-progress.
-
-## Milestone 11
-
-Milestone 11 adds recent-question suppression, dynamically generated two-digit/carry arithmetic, mixed skill sessions, and a finger-writing rough-work notebook inside maths activities. See `MILESTONE11.md`.
+See [`MILESTONE12.md`](MILESTONE12.md) for the detailed feature list.

@@ -133,6 +133,75 @@ object GujaratiNumberNormalizer {
         text.forEach { append(gujaratiDigits[it] ?: it) }
     }
 
+
+
+    /** Extracts numbers from a spoken or typed expression while preserving order. */
+    fun extractInts(text: String, maxCount: Int = 8): List<Int> {
+        if (maxCount <= 0) return emptyList()
+        val clean = normalizeDigits(text.lowercase()).replace('-', ' ')
+        val tokens = Regex("[\\p{L}\\p{M}\\d]+")
+            .findAll(clean)
+            .map { it.value }
+            .toList()
+        val values = mutableListOf<Int>()
+        var index = 0
+        while (index < tokens.size && values.size < maxCount) {
+            val token = tokens[index]
+            val numeric = token.toIntOrNull()
+            if (numeric != null) {
+                values += numeric
+                index += 1
+                continue
+            }
+
+            if (token == "એક" && tokens.getOrNull(index + 1) == "સો") {
+                values += 100
+                index += 2
+                continue
+            }
+            val gujarati = words[token]
+            if (gujarati != null) {
+                values += gujarati
+                index += 1
+                continue
+            }
+
+            if (token == "one" && tokens.getOrNull(index + 1) == "hundred") {
+                values += 100
+                index += 2
+                continue
+            }
+            val tens = englishTens[token]
+            if (tens != null) {
+                val unit = tokens.getOrNull(index + 1)?.let(englishUnits::get)
+                if (unit != null && unit in 1..9) {
+                    values += tens + unit
+                    index += 2
+                } else {
+                    values += tens
+                    index += 1
+                }
+                continue
+            }
+            val english = englishUnits[token]
+            if (english != null) {
+                values += english
+                index += 1
+                continue
+            }
+            index += 1
+        }
+        return values
+    }
+
+    fun toGujaratiDigits(number: Int): String = number.toString().map { digit ->
+        when (digit) {
+            '0' -> '૦'; '1' -> '૧'; '2' -> '૨'; '3' -> '૩'; '4' -> '૪'
+            '5' -> '૫'; '6' -> '૬'; '7' -> '૭'; '8' -> '૮'; '9' -> '૯'
+            else -> digit
+        }
+    }.joinToString("")
+
     fun parseInt(text: String): Int? {
         val clean = text.trim().lowercase()
             .replace(Regex("[,.!?।॥]+$"), "")

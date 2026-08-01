@@ -1,5 +1,8 @@
 package com.mitra.learning.ui.settings
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -42,12 +45,26 @@ fun ParentSettingsScreen(
     onVoiceStyle: (VoiceStyle) -> Unit,
     onPreviewVoice: () -> Unit,
     onSave: () -> Unit,
+    onExportBackup: (Uri) -> Unit,
+    onRestoreBackup: (Uri) -> Unit,
     onResetProgress: () -> Unit,
     onResetBookAnalysis: () -> Unit,
     onResetEverything: () -> Unit,
     onBack: () -> Unit,
 ) {
     var confirmAction by remember { mutableStateOf<ResetAction?>(null) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri -> uri?.let(onExportBackup) }
+    val restoreLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            pendingRestoreUri = uri
+            confirmAction = ResetAction.RESTORE
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -107,6 +124,20 @@ fun ParentSettingsScreen(
                     Text("Privacy & data", style = MaterialTheme.typography.titleLarge)
                     Text("Books, progress and prepared lesson data are stored locally on this phone.")
                     Text("Raw microphone audio is not saved by Mitra.", style = MaterialTheme.typography.bodySmall)
+                    Button(
+                        onClick = { exportLauncher.launch("mitra-backup.zip") },
+                        enabled = !state.busy,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                    ) { Text("Export local backup") }
+                    OutlinedButton(
+                        onClick = { restoreLauncher.launch(arrayOf("application/zip", "application/octet-stream")) },
+                        enabled = !state.busy,
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp),
+                    ) { Text("Restore local backup") }
+                    Text(
+                        "Backup includes books, prepared analysis, progress and offline question banks. API keys and parent PIN are excluded.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     OutlinedButton(
                         onClick = { confirmAction = ResetAction.PROGRESS },
                         enabled = !state.busy,
@@ -143,6 +174,7 @@ fun ParentSettingsScreen(
                         ResetAction.PROGRESS -> onResetProgress()
                         ResetAction.ANALYSIS -> onResetBookAnalysis()
                         ResetAction.EVERYTHING -> onResetEverything()
+                        ResetAction.RESTORE -> pendingRestoreUri?.let(onRestoreBackup)
                     }
                 }) { Text("Confirm") }
             },
@@ -179,4 +211,5 @@ private enum class ResetAction(val title: String, val description: String) {
     PROGRESS("Reset learning progress?", "Mastery, attempts and session history will be removed. Books remain."),
     ANALYSIS("Remove prepared book analysis?", "Prepared page knowledge and book-derived concepts will be removed. PDFs and chapter ranges remain."),
     EVERYTHING("Reset entire app?", "Books, progress, settings, AI credential and parent PIN will be removed from this phone."),
+    RESTORE("Restore Mitra backup?", "Current books and learning data will be replaced by the selected backup. API credentials and the current parent PIN stay unchanged."),
 }

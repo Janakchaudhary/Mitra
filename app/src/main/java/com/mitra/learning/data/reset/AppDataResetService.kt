@@ -10,6 +10,7 @@ import com.mitra.learning.security.AndroidKeystoreSecretStore
 import com.mitra.learning.security.ParentPinRepository
 import com.mitra.learning.security.SecretStore
 import com.mitra.learning.settings.LearningSettingsRepository
+import com.mitra.learning.learning.offline.OfflineQuestionBank
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -22,6 +23,7 @@ class AppDataResetService(
     private val aiSettingsRepository: AiSettingsRepository,
     private val learningSettingsRepository: LearningSettingsRepository,
     private val secretStore: SecretStore,
+    private val questionBank: OfflineQuestionBank? = null,
 ) {
     suspend fun resetLearningProgress() = withContext(Dispatchers.IO) {
         database.attemptDao().deleteAll()
@@ -30,6 +32,7 @@ class AppDataResetService(
     }
 
     suspend fun resetBookAnalysis() = withContext(Dispatchers.IO) {
+        questionBank?.clear()
         database.bookDao().getAll().forEach { book ->
             bookKnowledgeRepository.chaptersForBook(book.id).forEach { chapter ->
                 bookKnowledgeRepository.replacePageKnowledge(chapter.id, emptyList())
@@ -43,6 +46,7 @@ class AppDataResetService(
     suspend fun resetEverything() = withContext(Dispatchers.IO) {
         database.clearAllTables()
         File(context.filesDir, "books").deleteRecursively()
+        questionBank?.clear()
         secretStore.removeSecret(AndroidKeystoreSecretStore.OPENAI_API_KEY)
         secretStore.removeSecret(AndroidKeystoreSecretStore.CLOUDFLARE_API_TOKEN)
         aiSettingsRepository.reset()

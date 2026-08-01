@@ -109,6 +109,20 @@ fun ProgressScreen(
                     }
                 }
 
+                item {
+                    val weekly = dashboard.weeklyReport
+                    Card(modifier = Modifier.fillMaxWidth()) {
+                        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Weekly parent report", style = MaterialTheme.typography.titleLarge)
+                            val accuracy = if (weekly.assessed == 0) 0 else (weekly.correct * 100f / weekly.assessed).roundToInt()
+                            Text("${weekly.minutes} min • ${weekly.assessed} assessed • $accuracy% correct")
+                            weekly.mostPracticedTitleGujarati?.let { Text("Most practised: $it") }
+                            weekly.needsPracticeTitleGujarati?.let { Text("Needs attention: $it") }
+                            if (weekly.dueReviewCount > 0) Text("${weekly.dueReviewCount} skills are due for spaced review")
+                        }
+                    }
+                }
+
                 dashboard.recommendation?.let { recommendation ->
                     item {
                         Card(modifier = Modifier.fillMaxWidth()) {

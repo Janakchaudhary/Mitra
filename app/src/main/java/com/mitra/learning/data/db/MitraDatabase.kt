@@ -34,7 +34,7 @@ import com.mitra.learning.data.db.entity.SessionEntity
         ChapterEntity::class,
         PageKnowledgeEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -176,13 +176,22 @@ abstract class MitraDatabase : RoomDatabase() {
             }
         }
 
+
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE mastery ADD COLUMN nextReviewAt INTEGER")
+                db.execSQL("ALTER TABLE mastery ADD COLUMN reviewIntervalDays INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE mastery ADD COLUMN consecutiveSuccesses INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         fun create(context: Context): MitraDatabase =
             Room.databaseBuilder(
                 context,
                 MitraDatabase::class.java,
                 "mitra.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
                 .build()
     }
 }

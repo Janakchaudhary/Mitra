@@ -20,6 +20,7 @@ interface BookKnowledgeRepository {
 
     suspend fun conceptsForChapter(chapterId: String): List<ConceptEntity>
     suspend fun replaceChapterConcepts(chapterId: String, concepts: List<ConceptEntity>)
+    suspend fun setConceptPracticeReady(conceptId: String, ready: Boolean)
 
     suspend fun deleteAllForBook(bookId: String)
 }

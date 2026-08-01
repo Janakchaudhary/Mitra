@@ -4,121 +4,97 @@ Mitra is a personal, single-child, local-first Android learning companion for St
 
 ## Product principle
 
-`curiosity -> child thinks -> child tries -> hint -> discovery -> real-world activity -> book -> reflection`
+`curiosity → child thinks → child tries → targeted hint → discovery → real-world/book activity → reflection`
 
-The goal is not to maximize screen time. Learning sessions should increasingly direct the child to the physical book, pencil, toys and real objects.
+The application should help the child put the phone down rather than maximize screen time.
 
 ## Runtime boundaries
 
-- Android APK owns books, curriculum, progress, settings and lesson state.
-- Room stores structured data.
-- DataStore stores simple preferences.
-- App-private files store imported PDFs and thumbnails.
-- No external database/account/cloud synchronization.
-- `LearningEngine` owns concept selection, evaluation and mastery updates.
-- `AiGateway` is replaceable and must never own curriculum/mastery decisions.
-- `SpeechInput` and `SpeechOutput` isolate Android speech services from session logic.
-- `AiGateway` can use mock/offline behavior or the parent-configured remote provider. Child answers are never sent through the gateway.
+- Native Android/Kotlin/Jetpack Compose.
+- Room stores structured books, curriculum, mastery, sessions, attempts, and review state.
+- DataStore stores non-secret preferences.
+- App-private files store imported PDFs, thumbnails, and offline question banks.
+- No Firebase, Supabase, PostgreSQL, login account, browser, feed, advertising, or social feature.
+- `LearningEngine` owns concept selection, answer evaluation, mastery, retries, and review scheduling.
+- `AiGateway` may analyze prepared textbook material and generate grounded activities, but never assigns mastery.
+- Built-in Standard 2 activities remain local/deterministic.
+- `SpeechInput` and `SpeechOutput` isolate Android speech services.
 
 ## Book lifecycle
 
-1. Parent unlocks Parent Mode.
-2. Parent chooses a PDF using Android Storage Access Framework.
-3. App copies PDF into `files/books/{uuid}/source.pdf`.
-4. App computes SHA-256; duplicate hashes are rejected.
-5. App reads page count with `PdfRenderer` and renders a cover thumbnail.
-6. Book metadata is stored in Room.
-7. Parent opens **Set up chapters**.
-8. Parent previews PDF pages and marks one or more contents/index pages.
-9. `BookPreparationService` renders only those pages and calls `AiGateway.analyzeTableOfContents`.
-10. Suggestions become editable `ChapterDraft` objects; parent can also add/remove chapters manually.
-11. Saved chapters are persisted locally. Changed chapter ranges invalidate stale page knowledge/concepts.
-12. Parent prepares one chapter at a time. Pages are rendered in chunks of four and sent through `AiGateway.analyzeChapter`.
-13. Structured page knowledge and concepts are cached in Room.
-14. Book/chapter preparation status is updated locally.
-
-`MockAiGateway` clearly labels its results and keeps mock book concepts disabled. A configured remote provider can enable validated concepts. Chapters can be prepared again when activity capabilities change.
+1. Parent selects a PDF with Storage Access Framework.
+2. App copies it to `files/books/{bookId}/source.pdf` and calculates SHA-256.
+3. Parent selects contents pages or creates chapters manually.
+4. AI chapter suggestions remain editable before persistence.
+5. Parent prepares one chapter at a time.
+6. Pages are rendered in bounded batches and sent to `AiGateway.analyzeChapter`.
+7. Structured page knowledge and concepts are stored in Room.
+8. Parent can enable/disable extracted concepts.
+9. `BookPreparationService` generates a reusable offline question bank and stores it under `files/question_bank`.
+10. Re-preparing a chapter invalidates stale page knowledge/concepts/question-bank files.
 
 ## Learning lifecycle
 
-1. Child presses **રમીએ** for book-priority learning or **કૌશલ્ય રમત** for the local Standard 2 skill engine.
-2. Local built-in curriculum is seeded if needed.
-3. Only `practiceReady` concepts are eligible.
-4. `ConceptSelector` considers prerequisites and mastery.
-5. `LearningEngine` creates a persisted session.
-6. The current gateway creates a bounded activity plan grounded in local prepared book knowledge.
-7. `ActivityPlanPolicy` sanitizes physical/drawing activities and ensures off-screen variety.
-8. Child can type, choose, speak, explore, draw, use the book, or teach Mitra depending on the activity.
-9. Numeric/choice/short-text/keyword answers are evaluated locally; participation activities are recorded as `UNKNOWN`.
-10. Only assessed results affect mastery. Attempts and summaries are stored in Room.
-11. Session is completed or stopped and persisted.
+1. Child starts book-priority learning, local skill practice, or a parent-selected concept.
+2. `ConceptSelector` checks prerequisites, due spaced reviews, mastery, and recent practice.
+3. `QuestionVarietyPolicy` removes exact/recent duplicates.
+4. Built-in questions are generated locally; prepared-book activities use cached questions first and remote generation only when needed.
+5. `ActivityPlanPolicy` sanitizes physical/drawing missions and preserves off-screen variety.
+6. Child answers with text, choice, confirmed speech, physical participation, book exploration, or rough work.
+7. Numeric/choice/text/keyword activities are assessed locally. Participation-only activities never change mastery.
+8. Incorrect numeric work may be classified as carry, borrow, place-value, reversed-digit, or table error and receives one targeted retry.
+9. `SpacedReviewPolicy` updates the next review date.
+10. Structured attempts/session summaries are persisted; raw audio and rough-work strokes are not.
+
+## Guided maths
+
+`LearningQuestion.arithmeticWork` activates two temporary workspaces:
+
+- a freehand grid notebook
+- guided fields for ones, carry/borrow, and tens
+
+`GuidedMathCoach` checks each column independently. The final answer remains separate from the scratch work.
+
+## Study Talk
+
+`StudyLocalResponder` runs before remote retrieval and handles safe deterministic Standard 2 maths and mobile-game guidance locally.
+
+Other questions flow through:
+
+`child utterance → StudyContextService local retrieval → bounded prepared-page excerpts → AiGateway → grounded response`
+
+Hands-free mode is turn-based: Android recognition ends after one utterance, TTS speaks, then listening starts again. The conversation is limited by the same learning-time policy as normal sessions. Recent turns are held in memory only.
 
 ## Room schema
 
-Version 1:
-- books
+- **v1:** books
+- **v2:** concepts, prerequisites, mastery, sessions, attempts
+- **v3:** chapters, page knowledge, `concepts.practiceReady`
+- **v4:** `attempts.questionFingerprint` for repetition control
+- **v5:** `mastery.nextReviewAt`, `reviewIntervalDays`, `consecutiveSuccesses`
 
-Version 2:
-- books
-- concepts
-- concept_prerequisites
-- mastery
-- learning_sessions
-- attempts
+Explicit migrations:
 
-Version 3:
-- all v2 tables
-- chapters
-- page_knowledge
-- `concepts.practiceReady`
+`1 → 2`, `2 → 3`, `3 → 4`, `4 → 5`
 
-Explicit `1 -> 2` and `2 -> 3` migrations preserve installed app data.
+Release behavior must never use destructive migration.
 
-## Milestones
+## Backup boundary
 
-### Milestone 1 — complete
-Parent PIN, child/parent navigation, private PDF import, duplicate detection, Room book library, PDF viewer and delete.
+The parent-triggered ZIP backup contains:
 
-### Milestone 2 — complete
-Local curriculum, prerequisites, mastery, sessions, attempts, learning engine, deterministic evaluation and mock tutor practice UI.
+- Room database
+- books directory
+- offline question bank
+- non-secret learning settings and voice style
 
-### Milestone 3 — complete
-Push-to-talk Gujarati recognition, Gujarati TTS, spoken stop commands and text fallback.
-
-### Milestone 4 — complete
-Parent-controlled contents-page selection, editable/manual chapters, chapter preparation, page-knowledge cache, book-derived concept storage, schema v3 and mock analysis boundary.
-
-### Milestone 5 — complete
-Parent-configured remote textbook image analysis and book-grounded activity generation with structured output and local privacy boundaries.
-
-### Milestone 6 — complete
-Mixed activity types, local non-numeric evaluation, hints, participation-only mastery protection, Teach-Mitra, drawing, book exploration, and local physical-mission safety policy.
-
-### Milestone 7 — complete
-Parent-only local progress analytics: time spent, accuracy, subject/concept mastery, weak/strong concepts, recent sessions and prerequisite-aware next-practice recommendation. No remote AI call is required to calculate progress.
+It excludes API credentials, parent PIN, app signing key, raw audio, and in-memory conversation state.
 
 ## Safety constraints
 
-- No browser/web-search tools in child mode.
-- No location, contacts, school/address collection or raw voice retention.
+- No child web search or arbitrary URL opening.
+- No location, contacts, school/address collection, or raw voice retention.
 - Child can always stop immediately.
-- Physical missions must come from a safe allowlist.
-- No streaks, loot boxes, infinite feeds, variable rewards or pressure mechanics.
-
-## Milestone 8 implementation note
-
-Runtime learning limits are stored in local DataStore. `LearningLimitPolicy` independently enforces daily allowance and per-session maximums. Parent access uses an in-memory `ParentAccessManager`: successful PIN verification unlocks parent routes temporarily, and the access state is cleared after a short background grace period, while brief system surfaces such as the PDF picker can return without losing parent context. Parent settings also expose local reset operations. None of these dashboard/limit/reset features require an AI request.
-
-
-### Milestone 9 — complete in this source
-The offline Standard 2 skill engine expands built-in curriculum into separate mastery concepts for two-digit addition/subtraction (including carrying/borrowing), missing numbers, comparison, word problems, multiplication meaning, tables 2–10, Gujarati spelling/reading/language skills, and English spelling/reading skills. Built-in skill sessions never require the remote AI provider. Dictation activities separate visible prompt text from TTS text so spelling answers are not exposed on screen. Parent progress lists each built-in skill independently.
-
-## Milestone 10 study conversation boundary
-
-`StudyContextService` is the retrieval boundary for child free-form study questions. It reads prepared local `PageKnowledgeEntity` rows, ranks relevant pages locally, and supplies a bounded set of excerpts to `AiGateway.answerStudyQuestion`. The remote model is instructed to answer only from those excerpts. Raw audio and complete conversation transcripts are not persisted. `StudyChatViewModel` keeps a small in-memory recent-turn window only.
-
-Creative activities (`ColorLabScreen`, `SentenceBuilderScreen`) are deterministic child UI modules and require no remote AI call.
-
-## Milestone 11: question variety and rough work
-
-`AttemptEntity.questionFingerprint` records a non-personal stable fingerprint of each activity. `QuestionVarietyPolicy` removes duplicates within a session and prioritizes prompts not seen recently. Built-in Standard 2 arithmetic is generated locally from constraints, including two-digit addition with and without carrying. `LearningQuestion.arithmeticWork` enables a transient finger-writing board; strokes are intentionally not persisted.
+- Physical missions are locally allowlisted/sanitized.
+- No streak pressure, loot boxes, infinite feeds, variable rewards, or push-notification pressure.
+- Mobile-game questions should redirect gently to the current learning activity and balanced offline play, not shame the child.

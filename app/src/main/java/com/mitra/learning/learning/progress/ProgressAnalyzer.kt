@@ -56,6 +56,7 @@ object ProgressAnalyzer {
                     hints = item?.hintCount ?: 0,
                     lastPracticedAt = item?.lastPracticedAt,
                     fromBook = !concept.builtIn,
+                    nextReviewAt = item?.nextReviewAt,
                 )
             }
 
@@ -131,6 +132,22 @@ object ProgressAnalyzer {
             ?: recommendationPool
                 .minWithOrNull(compareBy<ConceptProgress> { it.lastPracticedAt ?: Long.MIN_VALUE }.thenBy { it.mastery })
 
+        val weeklyAttempts = attempts.filter { it.createdAt >= sevenDaysAgo && it.result != AttemptResult.UNKNOWN }
+        val weeklyByConcept = weeklyAttempts.groupingBy { it.conceptId }.eachCount()
+        val mostPracticed = weeklyByConcept.maxByOrNull { it.value }?.key?.let { conceptById[it]?.titleGujarati }
+        val weeklyWeak = conceptProgress
+            .filter { it.conceptId in weeklyByConcept.keys && it.mastery < NEEDS_PRACTICE_THRESHOLD }
+            .minByOrNull { it.mastery }
+            ?.titleGujarati
+        val weeklyReport = WeeklyReport(
+            minutes = finalized.filter { it.startedAt >= sevenDaysAgo }.sumOf { it.durationSeconds }.secondsToRoundedMinutes(),
+            assessed = weeklyAttempts.size,
+            correct = weeklyAttempts.count { it.result == AttemptResult.CORRECT },
+            mostPracticedTitleGujarati = mostPracticed,
+            needsPracticeTitleGujarati = weeklyWeak,
+            dueReviewCount = mastery.count { it.nextReviewAt?.let { due -> due <= nowMillis } == true },
+        )
+
         return ProgressDashboard(
             todayMinutes = finalized.filter { it.startedAt >= todayStart }
                 .sumOf { it.durationSeconds }
@@ -148,6 +165,7 @@ object ProgressAnalyzer {
             standard2Skills = conceptProgress.filter { !it.fromBook }.sortedWith(compareBy<ConceptProgress> { it.subject }.thenBy { conceptById[it.conceptId]?.sortOrder ?: Int.MAX_VALUE }),
             recentSessions = recent,
             recommendation = recommendation,
+            weeklyReport = weeklyReport,
         )
     }
 

@@ -44,6 +44,9 @@ class LocalBookKnowledgeRepository(
         conceptDao.upsertAll(concepts)
     }
 
+    override suspend fun setConceptPracticeReady(conceptId: String, ready: Boolean) =
+        conceptDao.updatePracticeReady(conceptId, ready)
+
     override suspend fun deleteAllForBook(bookId: String) {
         pageKnowledgeDao.deleteForBook(bookId)
         conceptDao.deleteForBook(bookId)

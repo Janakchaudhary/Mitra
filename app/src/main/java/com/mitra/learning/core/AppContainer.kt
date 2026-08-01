@@ -7,6 +7,7 @@ import com.mitra.learning.ai.settings.AiSettingsRepository
 import com.mitra.learning.books.analysis.BookPreparationService
 import com.mitra.learning.books.pdf.AndroidPdfPageRenderer
 import com.mitra.learning.data.db.MitraDatabase
+import com.mitra.learning.data.backup.MitraBackupService
 import com.mitra.learning.data.repository.BookKnowledgeRepository
 import com.mitra.learning.data.repository.BookRepository
 import com.mitra.learning.data.repository.LearningRepository
@@ -17,6 +18,7 @@ import com.mitra.learning.data.repository.LocalProgressRepository
 import com.mitra.learning.data.repository.ProgressRepository
 import com.mitra.learning.data.reset.AppDataResetService
 import com.mitra.learning.learning.limits.LearningLimitService
+import com.mitra.learning.learning.offline.OfflineQuestionBank
 import com.mitra.learning.network.NetworkMonitor
 import com.mitra.learning.security.ParentAccessManager
 import com.mitra.learning.settings.LearningSettingsRepository
@@ -80,12 +82,15 @@ class AppContainer(context: Context) {
     )
     val aiGateway: AiGateway = configurableAiGateway
 
+    val offlineQuestionBank = OfflineQuestionBank(appContext)
+
     val bookPreparationService = BookPreparationService(
         bookRepository = bookRepository,
         knowledgeRepository = bookKnowledgeRepository,
         bookDao = database.bookDao(),
         pdfRenderer = pdfRenderer,
         aiGateway = aiGateway,
+        questionBank = offlineQuestionBank,
     )
 
     val speechInput: SpeechInput = AndroidSpeechInput(appContext)
@@ -109,9 +114,12 @@ class AppContainer(context: Context) {
         aiGateway = aiGateway,
         bookKnowledgeRepository = bookKnowledgeRepository,
         bookRepository = bookRepository,
+        questionBank = offlineQuestionBank,
     )
 
     val parentPinRepository = ParentPinRepository(appContext)
+
+    val backupService = MitraBackupService(appContext, database, learningSettingsRepository)
 
     val dataResetService = AppDataResetService(
         context = appContext,
@@ -121,5 +129,6 @@ class AppContainer(context: Context) {
         aiSettingsRepository = aiSettingsRepository,
         learningSettingsRepository = learningSettingsRepository,
         secretStore = secretStore,
+        questionBank = offlineQuestionBank,
     )
 }

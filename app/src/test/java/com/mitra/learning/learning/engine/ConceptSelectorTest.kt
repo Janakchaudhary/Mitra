@@ -129,6 +129,22 @@ class ConceptSelectorTest {
         assertEquals("book-ready", selected?.id)
     }
 
+
+    @Test
+    fun dueSpacedReviewIsSelectedBeforeNewWeakWork() {
+        val due = BuiltInCurriculum.concepts.first { it.id == BuiltInCurriculum.ADD_UNDER_10 }
+        val newSkill = BuiltInCurriculum.concepts.first { it.id == BuiltInCurriculum.SUBTRACT_UNDER_10 }
+        val selected = ConceptSelector.select(
+            concepts = listOf(due, newSkill),
+            mastery = listOf(
+                mastery(due.id, 0.90f).copy(nextReviewAt = 900L, totalAttempts = 5),
+            ),
+            prerequisites = emptyList(),
+            nowMillis = 1_000L,
+        )
+        assertEquals(due.id, selected?.id)
+    }
+
     private fun mastery(id: String, value: Float) = MasteryEntity(
         conceptId = id,
         mastery = value,

@@ -1,6 +1,7 @@
 package com.mitra.learning
 
 import android.os.Bundle
+import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -52,6 +53,8 @@ import com.mitra.learning.ui.parent.ParentPinScreen
 import com.mitra.learning.ui.parent.ParentPinViewModel
 import com.mitra.learning.ui.progress.ProgressScreen
 import com.mitra.learning.ui.progress.ProgressViewModel
+import com.mitra.learning.ui.practice.PracticePickerScreen
+import com.mitra.learning.ui.practice.PracticePickerViewModel
 import com.mitra.learning.ui.settings.ParentSettingsScreen
 import com.mitra.learning.ui.settings.ParentSettingsViewModel
 import com.mitra.learning.ui.setup.SetupPinScreen
@@ -104,6 +107,8 @@ private object Routes {
     const val AiSettings = "parent/ai-settings"
     const val Settings = "parent/settings"
     const val Progress = "parent/progress"
+    const val PracticePicker = "parent/practice"
+    const val LearningConcept = "child/learning-concept/{conceptId}"
     const val Books = "books"
     const val AddBook = "books/add"
     const val Book = "books/{bookId}"
@@ -113,6 +118,7 @@ private object Routes {
     fun book(id: String) = "books/$id"
     fun pdf(id: String) = "books/$id/pdf"
     fun setupBook(id: String) = "books/$id/setup"
+    fun learningConcept(id: String) = "child/learning-concept/${Uri.encode(id)}"
 }
 
 @Composable
@@ -233,6 +239,7 @@ private fun MitraNav(container: AppContainer) {
                         aiGateway = container.aiGateway,
                         speechInput = container.speechInput,
                         speechOutput = container.speechOutput,
+                        limitService = container.learningLimitService,
                     )
                 }
             )
@@ -244,6 +251,7 @@ private fun MitraNav(container: AppContainer) {
                 onStartVoice = vm::startVoice,
                 onStopVoice = vm::stopVoice,
                 onMicDenied = vm::microphoneDenied,
+                onHandsFreeChange = vm::setHandsFree,
                 onReplay = vm::replayLastAnswer,
                 onBack = { nav.popBackStack() },
             )
@@ -303,6 +311,7 @@ private fun MitraNav(container: AppContainer) {
                     onProgress = { nav.navigate(Routes.Progress) },
                     onSettings = { nav.navigate(Routes.Settings) },
                     onAiSettings = { nav.navigate(Routes.AiSettings) },
+                    onPractice = { nav.navigate(Routes.PracticePicker) },
                     onChildMode = {
                         container.parentAccessManager.lock()
                         nav.navigate(Routes.Child) { popUpTo(Routes.Child) { inclusive = true } }
@@ -315,7 +324,7 @@ private fun MitraNav(container: AppContainer) {
             ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
                 val vm: ParentSettingsViewModel = viewModel(
                     factory = simpleViewModelFactory {
-                        ParentSettingsViewModel(container.learningSettingsRepository, container.dataResetService, container.speechOutput)
+                        ParentSettingsViewModel(container.learningSettingsRepository, container.dataResetService, container.speechOutput, container.backupService)
                     }
                 )
                 val state by vm.state.collectAsStateWithLifecycle()
@@ -333,12 +342,64 @@ private fun MitraNav(container: AppContainer) {
                     onVoiceStyle = vm::setVoiceStyle,
                     onPreviewVoice = vm::previewVoice,
                     onSave = vm::save,
+                    onExportBackup = vm::exportBackup,
+                    onRestoreBackup = vm::restoreBackup,
                     onResetProgress = vm::resetProgress,
                     onResetBookAnalysis = vm::resetBookAnalysis,
                     onResetEverything = vm::resetEverything,
                     onBack = { nav.popBackStack() },
                 )
             }
+        }
+
+        composable(Routes.PracticePicker) {
+            ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                val vm: PracticePickerViewModel = viewModel(
+                    factory = simpleViewModelFactory { PracticePickerViewModel(container.progressRepository) }
+                )
+                val state by vm.state.collectAsStateWithLifecycle()
+                PracticePickerScreen(
+                    state = state,
+                    onSelect = { nav.navigate(Routes.learningConcept(it)) },
+                    onBack = { nav.popBackStack() },
+                )
+            }
+        }
+
+        composable(
+            Routes.LearningConcept,
+            arguments = listOf(navArgument("conceptId") { type = NavType.StringType }),
+        ) { entry ->
+            val conceptId = Uri.decode(requireNotNull(entry.arguments?.getString("conceptId")))
+            val vm: LearningSessionViewModel = viewModel(
+                key = "parent-selected-$conceptId",
+                factory = simpleViewModelFactory {
+                    LearningSessionViewModel(
+                        engine = container.learningEngine,
+                        speechInput = container.speechInput,
+                        speechOutput = container.speechOutput,
+                        limitService = container.learningLimitService,
+                        requestedConceptId = conceptId,
+                    )
+                }
+            )
+            val state by vm.state.collectAsStateWithLifecycle()
+            LearningSessionScreen(
+                state = state,
+                onAnswerChange = vm::updateAnswer,
+                onSubmit = vm::submit,
+                onSelectOption = vm::selectOption,
+                onHint = vm::showHint,
+                onCompleteParticipation = vm::completeParticipation,
+                onSkip = vm::skip,
+                onNext = vm::next,
+                onStartVoice = vm::startVoiceInput,
+                onStopVoice = vm::stopVoiceInput,
+                onMicPermissionDenied = vm::onMicrophonePermissionDenied,
+                onReplayPrompt = vm::replayPrompt,
+                onStop = { vm.stop { nav.popBackStack() } },
+                onDone = { nav.popBackStack() },
+            )
         }
 
         composable(Routes.Progress) {
@@ -434,21 +495,27 @@ private fun MitraNav(container: AppContainer) {
                             repository = container.bookRepository,
                             knowledgeRepository = container.bookKnowledgeRepository,
                             preparationService = container.bookPreparationService,
+                            questionBank = container.offlineQuestionBank,
                         )
                     }
                 )
                 val book by vm.book.collectAsStateWithLifecycle()
                 val chapters by vm.chapters.collectAsStateWithLifecycle()
                 val preparingChapterId by vm.preparingChapterId.collectAsStateWithLifecycle()
+                val conceptsByChapter by vm.conceptsByChapter.collectAsStateWithLifecycle()
+                val offlineQuestionCounts by vm.offlineQuestionCounts.collectAsStateWithLifecycle()
                 val message by vm.message.collectAsStateWithLifecycle()
                 BookDetailScreen(
                     book = book,
                     chapters = chapters,
                     preparingChapterId = preparingChapterId,
+                    conceptsByChapter = conceptsByChapter,
+                    offlineQuestionCounts = offlineQuestionCounts,
                     message = message,
                     onOpenPdf = { nav.navigate(Routes.pdf(bookId)) },
                     onSetupChapters = { nav.navigate(Routes.setupBook(bookId)) },
                     onPrepareChapter = vm::prepareChapter,
+                    onConceptEnabled = vm::setConceptEnabled,
                     onDelete = { vm.delete { nav.popBackStack() } },
                     onBack = { nav.popBackStack() },
                 )

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -63,6 +64,7 @@ fun ParentHomeScreen(
     onProgress: () -> Unit,
     onSettings: () -> Unit,
     onAiSettings: () -> Unit,
+    onPractice: () -> Unit,
     onChildMode: () -> Unit,
 ) {
     Column(
@@ -70,7 +72,7 @@ fun ParentHomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Parent dashboard", style = MaterialTheme.typography.headlineLarge)
-        Text("Milestone 8 — limits, privacy, offline UX and app hardening")
+        Text("Milestone 12 — guided maths, review, backup and Study Talk")
         Button(onClick = onBooks, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null)
             Text("  My books")
@@ -78,6 +80,10 @@ fun ParentHomeScreen(
         Button(onClick = onProgress, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.ShowChart, contentDescription = null)
             Text("  Learning progress")
+        }
+        Button(onClick = onPractice, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.PlayCircle, contentDescription = null)
+            Text("  Choose a practice skill")
         }
         OutlinedButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Tune, contentDescription = null)

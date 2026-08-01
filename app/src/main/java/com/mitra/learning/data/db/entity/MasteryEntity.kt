@@ -12,4 +12,7 @@ data class MasteryEntity(
     val hintCount: Int,
     val lastPracticedAt: Long?,
     val lastSuccessAt: Long?,
+    val nextReviewAt: Long? = null,
+    val reviewIntervalDays: Int = 0,
+    val consecutiveSuccesses: Int = 0,
 )

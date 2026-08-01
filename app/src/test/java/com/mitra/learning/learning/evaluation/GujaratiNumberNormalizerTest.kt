@@ -40,4 +40,11 @@ class GujaratiNumberNormalizerTest {
         assertEquals(100, GujaratiNumberNormalizer.parseInt("one hundred"))
     }
 
+    @Test
+    fun extractsNumbersFromSpokenExpressions() {
+        assertEquals(listOf(27, 18), GujaratiNumberNormalizer.extractInts("સત્તાવીસ વત્તા અઢાર કેવી રીતે?", 2))
+        assertEquals(listOf(27, 18), GujaratiNumberNormalizer.extractInts("twenty seven plus eighteen", 2))
+        assertEquals(listOf(42, 17), GujaratiNumberNormalizer.extractInts("૪૨ માંથી ૧૭", 2))
+    }
+
 }

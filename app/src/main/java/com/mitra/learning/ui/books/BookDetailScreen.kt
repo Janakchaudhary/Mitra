@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.mitra.learning.data.db.entity.BookEntity
 import com.mitra.learning.data.db.entity.ChapterAnalysisStatus
 import com.mitra.learning.data.db.entity.ChapterEntity
+import com.mitra.learning.data.db.entity.ConceptEntity
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
@@ -39,10 +41,13 @@ fun BookDetailScreen(
     book: BookEntity?,
     chapters: List<ChapterEntity>,
     preparingChapterId: String?,
+    conceptsByChapter: Map<String, List<ConceptEntity>>,
+    offlineQuestionCounts: Map<String, Int>,
     message: String?,
     onOpenPdf: () -> Unit,
     onSetupChapters: () -> Unit,
     onPrepareChapter: (String) -> Unit,
+    onConceptEnabled: (String, String, Boolean) -> Unit,
     onDelete: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -93,6 +98,29 @@ fun BookDetailScreen(
                                 Text("${chapter.chapterNumber ?: ""}. ${chapter.titleGujarati}", style = MaterialTheme.typography.titleMedium)
                                 Text("Pages ${chapter.startPage}–${chapter.endPage}")
                                 Text(chapter.analysisStatus.name.replace('_', ' '), style = MaterialTheme.typography.bodySmall)
+                                val detected = conceptsByChapter[chapter.id].orEmpty()
+                                if (detected.isNotEmpty()) {
+                                    Text("Detected learning goals:", style = MaterialTheme.typography.labelMedium)
+                                    detected.take(4).forEach { concept ->
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(concept.titleGujarati, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                                            Column(horizontalAlignment = Alignment.End) {
+                                                Text(
+                                                    "Offline: ${offlineQuestionCounts[concept.id] ?: 0}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                )
+                                                Switch(
+                                                    checked = concept.practiceReady,
+                                                    onCheckedChange = { onConceptEnabled(chapter.id, concept.id, it) },
+                                                )
+                                            }
+                                        }
+                                    }
+                                    if (detected.size > 4) Text("+ ${detected.size - 4} more", style = MaterialTheme.typography.bodySmall)
+                                }
                             }
                             Button(
                                 onClick = { onPrepareChapter(chapter.id) },

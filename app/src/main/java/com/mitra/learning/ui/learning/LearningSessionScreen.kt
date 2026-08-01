@@ -70,6 +70,8 @@ import androidx.core.content.ContextCompat
 import com.mitra.learning.learning.model.ActivityType
 import com.mitra.learning.learning.model.ArithmeticWork
 import com.mitra.learning.learning.model.EvaluationMode
+import com.mitra.learning.learning.evaluation.GuidedMathCoach
+import com.mitra.learning.learning.evaluation.GujaratiNumberNormalizer
 
 @Composable
 fun LearningSessionScreen(
@@ -345,14 +347,8 @@ private fun RoughWorkBoard(questionId: String, work: ArithmeticWork, enabled: Bo
                 }
             }
 
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("દશક   એકમ", style = MaterialTheme.typography.labelMedium)
-                    Text(work.top.toString(), style = MaterialTheme.typography.headlineMedium, fontFamily = FontFamily.Monospace)
-                    Text("${work.operator} ${work.bottom}", style = MaterialTheme.typography.headlineMedium, fontFamily = FontFamily.Monospace)
-                    Text("────", style = MaterialTheme.typography.headlineSmall, fontFamily = FontFamily.Monospace)
-                }
-            }
+            GuidedColumnLayout(work)
+            GuidedStepEntry(questionId = questionId, work = work, enabled = enabled)
 
             Box(
                 modifier = Modifier
@@ -407,6 +403,155 @@ private fun RoughWorkBoard(questionId: String, work: ArithmeticWork, enabled: Bo
                     )
                 }
             }
+        }
+    }
+}
+
+
+@Composable
+private fun GuidedStepEntry(
+    questionId: String,
+    work: ArithmeticWork,
+    enabled: Boolean,
+) {
+    val expected = remember(questionId) { GuidedMathCoach.expected(work) } ?: return
+    var ones by remember(questionId) { mutableStateOf("") }
+    var regroup by remember(questionId) { mutableStateOf("") }
+    var tens by remember(questionId) { mutableStateOf("") }
+    var message by remember(questionId) { mutableStateOf<String?>(null) }
+    var success by remember(questionId) { mutableStateOf(false) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("પગલાંના ખાના", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GuidedDigitField(
+                value = ones,
+                label = "એકમ",
+                enabled = enabled,
+                onValueChange = { ones = it; message = null; success = false },
+                modifier = Modifier.weight(1f),
+            )
+            if (work.regrouping || expected.regroup > 0) {
+                GuidedDigitField(
+                    value = regroup,
+                    label = expected.regroupLabelGujarati,
+                    enabled = enabled,
+                    onValueChange = { regroup = it; message = null; success = false },
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            GuidedDigitField(
+                value = tens,
+                label = "દશક",
+                enabled = enabled,
+                onValueChange = { tens = it; message = null; success = false },
+                modifier = Modifier.weight(1f),
+            )
+        }
+        FilledTonalButton(
+            onClick = {
+                val result = GuidedMathCoach.check(
+                    work = work,
+                    ones = GujaratiNumberNormalizer.parseInt(ones),
+                    regroup = if (work.regrouping || expected.regroup > 0) GujaratiNumberNormalizer.parseInt(regroup) else expected.regroup,
+                    tens = GujaratiNumberNormalizer.parseInt(tens),
+                )
+                message = result.messageGujarati
+                success = result.correct
+            },
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth(),
+        ) { Text("પગલાં ચકાસો") }
+        message?.let {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                color = if (success) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
+            ) {
+                Text(it, modifier = Modifier.padding(10.dp), style = MaterialTheme.typography.bodyMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuidedDigitField(
+    value: String,
+    label: String,
+    enabled: Boolean,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = { candidate ->
+            val clean = candidate.filter { it.isDigit() || it in '૦'..'૯' }.take(2)
+            onValueChange(clean)
+        },
+        label = { Text(label) },
+        singleLine = true,
+        enabled = enabled,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun GuidedColumnLayout(work: ArithmeticWork) {
+    val topTens = (work.top / 10) % 10
+    val topOnes = work.top % 10
+    val bottomTens = (work.bottom / 10) % 10
+    val bottomOnes = work.bottom % 10
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("દશક", modifier = Modifier.size(58.dp).padding(top = 18.dp), style = MaterialTheme.typography.labelMedium)
+            Text("એકમ", modifier = Modifier.size(58.dp).padding(top = 18.dp), style = MaterialTheme.typography.labelMedium)
+        }
+        if (work.regrouping) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MathCell("કેરિ/ઉધાર", small = true)
+                MathCell("", small = true)
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MathCell(topTens.toString())
+            MathCell(topOnes.toString())
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(work.operator, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            MathCell(bottomTens.toString())
+            MathCell(bottomOnes.toString())
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            MathCell("?")
+            MathCell("?")
+        }
+        Text("પહેલા એકમ → પછી દશક", style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun MathCell(text: String, small: Boolean = false) {
+    Surface(
+        modifier = Modifier.size(if (small) 58.dp else 58.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Text(
+                text,
+                style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.headlineMedium,
+                fontFamily = FontFamily.Monospace,
+            )
         }
     }
 }

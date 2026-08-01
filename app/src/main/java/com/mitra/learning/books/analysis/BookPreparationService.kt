@@ -2,6 +2,7 @@ package com.mitra.learning.books.analysis
 
 import android.graphics.Bitmap
 import com.mitra.learning.ai.AiGateway
+import com.mitra.learning.ai.PracticeContext
 import com.mitra.learning.books.pdf.PdfPageRenderer
 import com.mitra.learning.data.db.dao.BookDao
 import com.mitra.learning.data.db.entity.BookAnalysisStatus
@@ -11,6 +12,7 @@ import com.mitra.learning.data.db.entity.ConceptEntity
 import com.mitra.learning.data.db.entity.PageKnowledgeEntity
 import com.mitra.learning.data.repository.BookKnowledgeRepository
 import com.mitra.learning.data.repository.BookRepository
+import com.mitra.learning.learning.offline.OfflineQuestionBank
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -27,6 +29,7 @@ class BookPreparationService(
     private val bookDao: BookDao,
     private val pdfRenderer: PdfPageRenderer,
     private val aiGateway: AiGateway,
+    private val questionBank: OfflineQuestionBank? = null,
     private val now: () -> Long = { System.currentTimeMillis() },
 ) {
     suspend fun detectChapters(bookId: String, tocPageIndices: List<Int>): Result<Pair<List<ChapterDraft>, String>> = runCatching {
@@ -200,6 +203,8 @@ class BookPreparationService(
             }
 
             knowledgeRepository.replacePageKnowledge(chapter.id, allPages.distinctBy { it.pageNumber })
+            val previousConceptIds = knowledgeRepository.conceptsForChapter(chapter.id).map { it.id }
+            previousConceptIds.forEach { questionBank?.deleteForConcept(it) }
             val mergedConcepts = allConcepts
                 .groupBy { it.titleGujarati.trim().lowercase() }
                 .values
@@ -211,6 +216,31 @@ class BookPreparationService(
                     )
                 }
             knowledgeRepository.replaceChapterConcepts(chapter.id, mergedConcepts)
+
+            // Prepare a reusable offline question bank while the parent is already online.
+            val groundedText = allPages.sortedBy { it.pageNumber }.joinToString("\n\n") { page ->
+                buildString {
+                    append("Page ${page.pageNumber}: ${page.summaryGujarati}")
+                    page.visibleTextGujarati?.takeIf { it.isNotBlank() }?.let { append("\nVisible text: $it") }
+                    page.exercisesJson?.takeIf { it.isNotBlank() }?.let { append("\nExercises: $it") }
+                }
+            }.take(16_000)
+            mergedConcepts.filter { it.practiceReady }.take(8).forEach { concept ->
+                runCatching {
+                    aiGateway.createPracticeQuestions(
+                        concept = concept,
+                        count = 8,
+                        context = PracticeContext(
+                            bookTitle = book.title,
+                            chapterTitleGujarati = chapter.titleGujarati,
+                            groundedBookText = groundedText,
+                        ),
+                    )
+                }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { generated ->
+                    questionBank?.save(concept.id, generated.map { it.copy(conceptId = it.conceptId ?: concept.id) })
+                }
+            }
+
             knowledgeRepository.setChapterStatus(chapter.id, ChapterAnalysisStatus.READY)
             refreshBookStatus(book.id)
             BookPreparationResult.Success(sourceLabel)

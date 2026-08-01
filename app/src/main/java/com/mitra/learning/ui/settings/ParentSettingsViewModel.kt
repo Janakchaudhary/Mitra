@@ -1,8 +1,10 @@
 package com.mitra.learning.ui.settings
 
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mitra.learning.data.reset.AppDataResetService
+import com.mitra.learning.data.backup.MitraBackupService
 import com.mitra.learning.settings.LearningSettings
 import com.mitra.learning.settings.LearningSettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +30,7 @@ class ParentSettingsViewModel(
     private val settingsRepository: LearningSettingsRepository,
     private val resetService: AppDataResetService,
     private val speechOutput: SpeechOutput,
+    private val backupService: MitraBackupService? = null,
 ) : ViewModel() {
     private val _state = MutableStateFlow(ParentSettingsUiState())
     val state: StateFlow<ParentSettingsUiState> = _state.asStateFlow()
@@ -76,6 +79,26 @@ class ParentSettingsViewModel(
         }.onFailure { error ->
             _state.value = _state.value.copy(busy = false, message = error.message ?: "Could not save settings")
         }
+    }
+
+
+    fun exportBackup(uri: Uri) = viewModelScope.launch {
+        val service = backupService ?: return@launch
+        _state.value = _state.value.copy(busy = true, message = null)
+        service.exportTo(uri)
+            .onSuccess { _state.value = _state.value.copy(busy = false, message = "Backup saved. Keep it private.") }
+            .onFailure { error -> _state.value = _state.value.copy(busy = false, message = error.message ?: "Backup failed") }
+    }
+
+    fun restoreBackup(uri: Uri) = viewModelScope.launch {
+        val service = backupService ?: return@launch
+        _state.value = _state.value.copy(busy = true, message = "Restoring backup…")
+        service.restoreFrom(uri)
+            .onSuccess {
+                _state.value = _state.value.copy(busy = false, message = "Backup restored. Mitra will restart.")
+                service.restartApp()
+            }
+            .onFailure { error -> _state.value = _state.value.copy(busy = false, message = error.message ?: "Restore failed") }
     }
 
     fun resetProgress() = runReset("Learning progress reset") { resetService.resetLearningProgress() }

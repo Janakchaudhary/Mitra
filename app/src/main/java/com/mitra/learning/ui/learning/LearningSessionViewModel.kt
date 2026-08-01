@@ -45,6 +45,9 @@ data class LearningSessionUiState(
     val hintsUsed: Int = 0,
     val remainingSessionSeconds: Int? = null,
     val timeLimitReached: Boolean = false,
+    val retryCount: Int = 0,
+    val mistakeCode: String? = null,
+    val pendingVoiceConfirmation: Boolean = false,
 ) {
     val currentQuestion: LearningQuestion?
         get() = questions.getOrNull(questionIndex)
@@ -59,6 +62,7 @@ class LearningSessionViewModel(
     private val speechOutput: SpeechOutput,
     private val limitService: LearningLimitService? = null,
     private val skillOnly: Boolean = false,
+    private val requestedConceptId: String? = null,
 ) : ViewModel() {
     private var countdownJob: Job? = null
     private val _state = MutableStateFlow(
@@ -74,7 +78,7 @@ class LearningSessionViewModel(
 
     fun updateAnswer(value: String) {
         if (_state.value.awaitingNext) return
-        _state.update { it.copy(answer = value.take(160), error = null) }
+        _state.update { it.copy(answer = value.take(160), error = null, pendingVoiceConfirmation = false) }
     }
 
     fun submit() {
@@ -186,6 +190,9 @@ class LearningSessionViewModel(
                     voiceMessage = null,
                     hintText = null,
                     hintsUsed = 0,
+                    retryCount = 0,
+                    mistakeCode = null,
+                    pendingVoiceConfirmation = false,
                 )
             }
             current.questions.getOrNull(nextIndex)?.let(::speakActivity)
@@ -264,6 +271,7 @@ class LearningSessionViewModel(
                     error = null,
                     listening = false,
                     partialTranscript = "",
+                    pendingVoiceConfirmation = false,
                 )
             }
             runCatching {
@@ -275,16 +283,24 @@ class LearningSessionViewModel(
                     hintsUsed = current.hintsUsed,
                 )
             }.onSuccess { feedback ->
+                val shouldRetry = feedback.retrySuggested && current.retryCount < 1
+                val finalMessage = if (!shouldRetry && feedback.result == AttemptResult.INCORRECT && feedback.expectedAnswer != null) {
+                    "${feedback.messageGujarati} સાચો જવાબ ${feedback.expectedAnswer} છે; હવે આગળના પ્રશ્નમાં આ પગલું યાદ રાખીએ."
+                } else feedback.messageGujarati
                 _state.update {
                     it.copy(
                         loading = false,
-                        answer = answerText,
-                        feedback = feedback.messageGujarati,
+                        answer = if (shouldRetry) "" else answerText,
+                        feedback = finalMessage,
+                        hintText = if (shouldRetry) feedback.messageGujarati else it.hintText,
                         lastResult = feedback.result,
-                        awaitingNext = true,
+                        awaitingNext = !shouldRetry,
+                        retryCount = if (shouldRetry) it.retryCount + 1 else it.retryCount,
+                        hintsUsed = if (shouldRetry) (it.hintsUsed + 1).coerceAtMost(3) else it.hintsUsed,
+                        mistakeCode = feedback.mistakeCode,
                     )
                 }
-                speak(feedback.messageGujarati)
+                speak(finalMessage)
             }.onFailure { failure ->
                 _state.update { it.copy(loading = false, error = failure.message ?: "કંઈક ખોટું થયું.") }
             }
@@ -305,7 +321,13 @@ class LearningSessionViewModel(
                 return@launch
             }
 
-            runCatching { if (skillOnly) engine.startSkillSession() else engine.startSession() }
+            runCatching {
+                when {
+                    requestedConceptId != null -> engine.startConceptSession(requestedConceptId)
+                    skillOnly -> engine.startSkillSession()
+                    else -> engine.startSession()
+                }
+            }
                 .onSuccess { plan -> applyPlan(plan, limits?.sessionLimitSeconds) }
                 .onFailure { failure ->
                     _state.update { it.copy(loading = false, error = failure.message ?: "સત્ર શરૂ થઈ શક્યું નહીં.") }
@@ -425,11 +447,11 @@ class LearningSessionViewModel(
                 answer = text.take(160),
                 listening = false,
                 partialTranscript = "",
-                voiceMessage = "મેં સાંભળ્યું: $text",
+                pendingVoiceConfirmation = activity?.evaluationMode != EvaluationMode.PARTICIPATION,
+                voiceMessage = if (activity?.evaluationMode != EvaluationMode.PARTICIPATION)
+                    "મેં સાંભળ્યું: $text • સાચું હોય તો ‘જવાબ ચકાસો’ દબાવો."
+                else "મેં સાંભળ્યું: $text",
             )
-        }
-        if (activity?.evaluationMode != EvaluationMode.PARTICIPATION) {
-            submitAnswer(text)
         }
     }
 

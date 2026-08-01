@@ -13,11 +13,15 @@ data class StudyQuestionRequest(
     val recentTurns: List<StudyChatTurn> = emptyList(),
 )
 
+enum class StudyResponseKind { TEXTBOOK, LOCAL_MATH, LOCAL_GUIDANCE }
+
 data class StudyAnswer(
     val answerGujarati: String,
     val followUpGujarati: String? = null,
     val sourceLabels: List<String> = emptyList(),
     val grounded: Boolean = true,
+    val responseKind: StudyResponseKind = StudyResponseKind.TEXTBOOK,
+    val endConversation: Boolean = false,
 )
 
 data class StudyChatTurn(
