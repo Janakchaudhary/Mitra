@@ -7,6 +7,7 @@ package com.mitra.learning.study
 class OfflineStudyAnswerer {
     fun answer(request: StudyQuestionRequest): StudyAnswer {
         if (request.sources.isEmpty()) return notFound()
+        definitionAnswer(request)?.let { return it }
         val queryTokens = tokens(request.question)
         if (queryTokens.isEmpty()) return notFound()
 
@@ -34,6 +35,33 @@ class OfflineStudyAnswerer {
             responseKind = StudyResponseKind.TEXTBOOK,
         )
     }
+
+    private fun definitionAnswer(request: StudyQuestionRequest): StudyAnswer? {
+        val normalizedQuestion = normalize(request.question)
+        if (DEFINITION_MARKERS.none { normalizedQuestion.contains(" $it ") }) return null
+
+        val entry = GLOSSARY.entries.firstOrNull { (word, _) ->
+            normalizedQuestion.contains(" $word ") || normalizedQuestion.contains(word)
+        } ?: return null
+        val source = request.sources.firstOrNull { source ->
+            val text = normalize(source.text)
+            text.contains(" ${entry.key} ") || text.contains(entry.key)
+        } ?: return null
+
+        return StudyAnswer(
+            answerGujarati = "‘${entry.key}’ એટલે ${entry.value}. પુસ્તકના આ પાઠમાં પણ આ શબ્દ એ જ અર્થમાં વપરાયો છે.",
+            followUpGujarati = "હવે ‘${entry.key}’ શબ્દ વાપરીને એક નાનું વાક્ય બોલશો?",
+            sourceLabels = listOf("${source.bookTitle} • p.${source.pageNumber}"),
+            grounded = true,
+            responseKind = StudyResponseKind.TEXTBOOK,
+        )
+    }
+
+    private fun normalize(value: String): String = " " + value
+        .lowercase()
+        .replace(Regex("[^\\p{L}\\p{M}\\p{N}]+"), " ")
+        .replace(Regex("\\s+"), " ")
+        .trim() + " "
 
     private fun notFound() = StudyAnswer(
         answerGujarati = "આ સવાલનો જવાબ તૈયાર કરેલા પુસ્તકમાં સ્પષ્ટ મળ્યો નથી. સંબંધિત પાઠ Prepare થયો છે કે નહીં તે Parent સાથે તપાસીએ.",
@@ -65,6 +93,16 @@ class OfflineStudyAnswerer {
     private data class Candidate(val source: StudySource, val sentence: String, val score: Int)
 
     companion object {
+        private val DEFINITION_MARKERS = setOf("અર્થ", "એટલે", "મતલબ", "meaning")
+        private val DEFINITION_FILLERS = setOf("શબ્દ", "શબ્દનો", "શબ્દની", "શું", "કયો", "કહો")
+        private val GLOSSARY = linkedMapOf(
+            "દંગોરો" to "હાથમાં ટેકો લેવા અથવા હાંકવા માટે વપરાતી લાંબી અને મજબૂત લાકડી",
+            "ઘોડો" to "ચાર પગવાળું દોડતું પ્રાણી",
+            "ફૂદવું" to "ઉછળીને આગળ વધવું",
+            "ઘમઘમ" to "જોરથી અથવા સતત થતો અવાજ",
+            "ધમધમ" to "ભારે વસ્તુ અથડાય કે ચાલે ત્યારે થતો જોરદાર અવાજ",
+        )
+
         private val STOP_WORDS = setOf(
             "શું", "કેમ", "ક્યાં", "કોણ", "વિશે", "વાત", "કરીએ", "છે", "હતું", "હતી", "હતા",
             "the", "is", "are", "what", "why", "where", "about",

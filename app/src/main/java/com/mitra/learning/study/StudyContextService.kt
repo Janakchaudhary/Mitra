@@ -40,10 +40,9 @@ class StudyContextService(
                 )
             }
             .sortedWith(compareByDescending<RankedSource> { it.score }.thenBy { it.source.pageNumber })
-            .let { ranked ->
-                val positive = ranked.filter { it.score > 0 }
-                if (positive.isNotEmpty()) positive else ranked.take(4)
-            }
+            // Never feed unrelated first pages to the answerer. An empty result is safer and
+            // lets Mitra clearly say that this prepared chapter does not contain the requested word.
+            .filter { it.score > 0 }
             .take(limit.coerceIn(1, 10))
             .map { it.source }
     }

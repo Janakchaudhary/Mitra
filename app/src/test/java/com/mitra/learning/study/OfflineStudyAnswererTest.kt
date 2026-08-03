@@ -41,4 +41,25 @@ class OfflineStudyAnswererTest {
         assertFalse(answer.grounded)
         assertTrue(answer.answerGujarati.contains("મળ્યો નથી"))
     }
+    @Test
+    fun explainsDangoroWhenPreparedPageContainsTheWord() {
+        val answer = answerer.answer(
+            StudyQuestionRequest(
+                question = "દંગોરો નો અર્થ શું?",
+                sources = listOf(
+                    StudySource(
+                        bookTitle = "Std-2 Gujarati First Language",
+                        chapterTitle = "ટબૂકડું હું ટાળું",
+                        pageNumber = 13,
+                        text = "દાદાનો દંગોરો લીધો, એનો તો મેં ઘોડો કીધો.",
+                    )
+                ),
+            )
+        )
+
+        assertTrue(answer.grounded)
+        assertTrue(answer.answerGujarati.contains("લાંબી અને મજબૂત લાકડી"))
+        assertTrue(answer.sourceLabels.contains("Std-2 Gujarati First Language • p.13"))
+    }
+
 }

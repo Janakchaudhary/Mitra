@@ -66,7 +66,16 @@ class BookPreparationService(
                 pages = pages,
             )
         )
-        val ranged = ChapterRangeResolver.fromStarts(result.chapters, book.pageCount)
+        // Contents pages commonly show printed textbook page numbers, while PdfRenderer uses
+        // physical PDF pages. When the first detected lesson page points at/before the selected
+        // contents page, treat it as a printed number and shift every lesson past the contents.
+        // Example: contents is PDF page 12 and lesson 1 says page 1 -> physical PDF page 13.
+        val normalizedSuggestions = mapPrintedPagesToPdfPages(
+            suggestions = result.chapters,
+            selectedTocPageIndices = indices,
+            pdfPageCount = book.pageCount,
+        )
+        val ranged = ChapterRangeResolver.fromStarts(normalizedSuggestions, book.pageCount)
         val drafts = ranged.mapIndexed { index, item ->
             ChapterDraft(
                 id = UUID.randomUUID().toString(),
@@ -78,6 +87,29 @@ class BookPreparationService(
             )
         }
         drafts to result.sourceLabel
+    }
+
+
+    private fun mapPrintedPagesToPdfPages(
+        suggestions: List<TocChapterSuggestion>,
+        selectedTocPageIndices: List<Int>,
+        pdfPageCount: Int,
+    ): List<TocChapterSuggestion> {
+        if (suggestions.isEmpty() || selectedTocPageIndices.isEmpty()) return suggestions
+        val firstPrintedPage = suggestions.minOf { it.startPage }
+        val lastSelectedTocPdfPage = selectedTocPageIndices.maxOrNull()!! + 1 // one-based
+
+        // A genuine physical chapter start should normally be after the contents page. A start
+        // at/before it is the strong signal that OCR/model returned the number printed in the book.
+        if (firstPrintedPage > lastSelectedTocPdfPage) return suggestions
+
+        val firstPhysicalContentPage = (lastSelectedTocPdfPage + 1).coerceAtMost(pdfPageCount)
+        val offset = firstPhysicalContentPage - firstPrintedPage
+        if (offset <= 0) return suggestions
+
+        return suggestions.map { item ->
+            item.copy(startPage = (item.startPage + offset).coerceIn(1, pdfPageCount))
+        }.distinctBy { it.startPage }.sortedBy { it.startPage }
     }
 
     suspend fun saveChapters(bookId: String, drafts: List<ChapterDraft>): Result<Unit> = runCatching {
