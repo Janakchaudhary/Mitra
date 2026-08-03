@@ -142,4 +142,8 @@ The child-facing Study Talk route now combines free-form grounded Q&A with an ex
 
 `MitraPracticeEvaluator` performs numeric, exact-text, spelling, and keyword evaluation locally. It allows one hinted retry. The second wrong attempt reveals the correction method and advances, preventing an endless failure loop. Praise varies deterministically and may mention a short in-session streak; the streak is not persisted and does not unlock rewards.
 
-Speech input is language-aware per challenge. Gujarati uses `gu-IN`, while English spelling recognition uses `en-IN`. Android 12+ prefers the on-device recognizer when installed, and all recognizer intents request offline handling. Raw audio remains outside Room, backups, and analytics.
+Speech input is language-aware per challenge. Gujarati uses `gu-IN`, while English spelling recognition uses `en-IN`. Mitra prefers Android's normal system recognizer so the device can use either an installed offline pack or a network recognition service. An on-device-only recognizer is used only when the normal recognizer is unavailable. Raw audio remains outside Room, backups, and analytics.
+
+## Mitra 0.19.1 voice recognition reliability
+
+`AndroidSpeechInput` now prefers `SpeechRecognizer.createSpeechRecognizer()` so Android can choose an installed offline pack or a remote recognition service. It uses `createOnDeviceSpeechRecognizer()` only when no normal recognizer is available. The Study Talk view model allows at most one automatic retry for transient BUSY/CLIENT failures; all other errors stop hands-free mode and wait for a deliberate microphone tap. This prevents recognizer request storms and preserves typed input as a fallback.

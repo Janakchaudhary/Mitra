@@ -7,7 +7,19 @@ sealed interface SpeechInputState {
     data object Listening : SpeechInputState
     data class Partial(val text: String) : SpeechInputState
     data class Result(val text: String) : SpeechInputState
-    data class Error(val messageGujarati: String, val recoverable: Boolean = true) : SpeechInputState
+
+    /**
+     * @param recoverable true when the child can try the microphone again.
+     * @param automaticRetry true only for short-lived recognizer states such as BUSY.
+     * Automatic retries must stay rare because repeatedly restarting Android's
+     * recognizer can itself cause ERROR_TOO_MANY_REQUESTS.
+     */
+    data class Error(
+        val messageGujarati: String,
+        val recoverable: Boolean = true,
+        val automaticRetry: Boolean = false,
+        val errorCode: Int? = null,
+    ) : SpeechInputState
 }
 
 interface SpeechInput {

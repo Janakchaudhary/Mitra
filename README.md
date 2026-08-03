@@ -2,9 +2,17 @@
 
 ## Milestone 19 — “મિત્રને પૂછીએ” voice tutor
 
-**Current version: 0.19.0 (`versionCode 35`)**
+**Current version: 0.19.1 (`versionCode 36`)**
 
 મિત્ર is a local-first Android learning companion for one Standard 2 Gujarati-medium child. Milestone 19 adds a two-way voice tutor that answers prepared-book questions and runs spoken practice with adaptive feedback. Milestone 18 offline PDF/OCR preparation remains included.
+
+### 0.19.1 voice reliability patch
+
+- Uses the normal Android speech recognizer first instead of forcing an on-device Gujarati model.
+- Stops the continuous “અવાજ સમજવામાં સમસ્યા આવી” restart loop.
+- Automatically retries only one temporary BUSY/CLIENT failure.
+- Shows specific guidance for missing Gujarati/English speech languages and modern Android error codes.
+
 
 
 ## What “મિત્રને પૂછીએ” now does
@@ -91,8 +99,8 @@ Download the signed `mitra-update-apk` artifact. A higher `versionCode` signed w
 
 ## Upgrade
 
-- `versionCode = 35`
-- `versionName = 0.19.0`
+- `versionCode = 36`
+- `versionName = 0.19.1`
 - Room schema version `5`
 - No database migration is required from Milestone 17.
 - Existing books, prepared data, progress, review schedules, credentials, and sessions are preserved.

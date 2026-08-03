@@ -70,6 +70,7 @@ class StudyChatViewModel(
     private var speechStartedForAutoTurn = false
     private var countdownJob: Job? = null
     private var recoveryJob: Job? = null
+    private var automaticVoiceRecoveryCount = 0
 
     init {
         viewModelScope.launch {
@@ -88,16 +89,19 @@ class StudyChatViewModel(
             speechInput.state.collect { inputState ->
                 when (inputState) {
                     SpeechInputState.Idle -> _state.value = _state.value.copy(listening = false)
-                    SpeechInputState.Listening -> _state.value = _state.value.copy(
-                        listening = true,
-                        waitingForNextTurn = false,
-                        error = null,
-                    )
+                    SpeechInputState.Listening -> {
+                        _state.value = _state.value.copy(
+                            listening = true,
+                            waitingForNextTurn = false,
+                            error = null,
+                        )
+                    }
                     is SpeechInputState.Partial -> _state.value = _state.value.copy(
                         listening = true,
                         partialTranscript = inputState.text,
                     )
                     is SpeechInputState.Result -> {
+                        automaticVoiceRecoveryCount = 0
                         _state.value = _state.value.copy(
                             listening = false,
                             partialTranscript = "",
@@ -107,8 +111,19 @@ class StudyChatViewModel(
                     }
                     is SpeechInputState.Error -> {
                         val shouldRecover = _state.value.handsFreeEnabled &&
-                            inputState.recoverable && !_state.value.loading && !_state.value.timeLimitReached
+                            inputState.recoverable &&
+                            inputState.automaticRetry &&
+                            automaticVoiceRecoveryCount < MAX_AUTOMATIC_VOICE_RECOVERIES &&
+                            !_state.value.loading &&
+                            !_state.value.timeLimitReached
+
+                        if (shouldRecover) automaticVoiceRecoveryCount += 1
+
+                        // A recognition/language/no-match error must stop live
+                        // listening instead of entering an endless restart loop.
+                        // The child can tap the microphone once the cause is fixed.
                         _state.value = _state.value.copy(
+                            handsFreeEnabled = shouldRecover,
                             listening = false,
                             waitingForNextTurn = shouldRecover,
                             partialTranscript = "",
@@ -117,7 +132,7 @@ class StudyChatViewModel(
                         recoveryJob?.cancel()
                         if (shouldRecover) {
                             recoveryJob = viewModelScope.launch {
-                                delay(900)
+                                delay(VOICE_RECOVERY_DELAY_MS)
                                 if (_state.value.handsFreeEnabled && !_state.value.loading && !_state.value.timeLimitReached) {
                                     startListeningInternal()
                                 }
@@ -439,6 +454,7 @@ class StudyChatViewModel(
     fun setHandsFree(enabled: Boolean) {
         autoListenAfterSpeech = false
         recoveryJob?.cancel()
+        automaticVoiceRecoveryCount = 0
         speechStartedForAutoTurn = false
         if (!enabled) {
             speechInput.cancel()
@@ -464,6 +480,8 @@ class StudyChatViewModel(
 
     fun startVoice() = viewModelScope.launch {
         speechOutput.stop()
+        recoveryJob?.cancel()
+        automaticVoiceRecoveryCount = 0
         autoListenAfterSpeech = false
         speechStartedForAutoTurn = false
         startListeningInternal()
@@ -536,5 +554,7 @@ class StudyChatViewModel(
     private companion object {
         const val MAX_CHALLENGE_ATTEMPTS = 2
         const val MAX_MESSAGES = 30
+        const val MAX_AUTOMATIC_VOICE_RECOVERIES = 1
+        const val VOICE_RECOVERY_DELAY_MS = 1_500L
     }
 }
