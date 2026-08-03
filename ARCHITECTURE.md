@@ -131,3 +131,15 @@ When a compatible `.litertlm` file exists, `OfflineAiGateway` asks it for strict
 The parent can prepare one chapter or all saved chapters. Full-book preparation remains sequential to bound memory and native-model pressure. Existing `READY` chapters retain their ready state and cached data after a failed re-prepare.
 
 The Room schema remains version 5 because the new extraction method is transient request metadata; persisted page-knowledge and concept entities are unchanged.
+
+# Milestone 19 Addendum — Two-way voice tutor
+
+The child-facing Study Talk route now combines free-form grounded Q&A with an explicit challenge state machine:
+
+`topic selection or spoken intent → MitraVoicePracticeService → MitraVoiceChallenge → TTS → speech recognition → MitraPracticeEvaluator → adaptive feedback → next challenge`
+
+`MitraVoicePracticeService` owns challenge creation but no child profile data. Built-in table, number-neighbor, and spelling challenges are deterministic. Prepared-book challenges come from the local `OfflineQuestionBank`; when its cache is empty, the service passes bounded prepared page text to `AiGateway.createPracticeQuestions` and stores the generated questions for reuse.
+
+`MitraPracticeEvaluator` performs numeric, exact-text, spelling, and keyword evaluation locally. It allows one hinted retry. The second wrong attempt reveals the correction method and advances, preventing an endless failure loop. Praise varies deterministically and may mention a short in-session streak; the streak is not persisted and does not unlock rewards.
+
+Speech input is language-aware per challenge. Gujarati uses `gu-IN`, while English spelling recognition uses `en-IN`. Android 12+ prefers the on-device recognizer when installed, and all recognizer intents request offline handling. Raw audio remains outside Room, backups, and analytics.

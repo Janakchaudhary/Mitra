@@ -51,4 +51,22 @@ class StudyLocalResponderTest {
         assertTrue(answer!!.answerGujarati.contains("૧૦"))
     }
 
+
+    @Test
+    fun `answers Gujarati ghadiya request`() {
+        val answer = responder.respond("૫ નો ઘડિયો કહો")
+        assertTrue(answer?.answerGujarati.orEmpty().contains("5 × 10 = 50"))
+    }
+
+    @Test
+    fun `answers English spelling request locally`() {
+        val answer = responder.respond("CAT નો spelling શું છે?")
+        assertTrue(answer?.answerGujarati.orEmpty().contains("C - A - T"))
+    }
+
+    @Test
+    fun `answers before and after number wording`() {
+        assertTrue(responder.respond("૩૮ પછીની સંખ્યા કઈ?")?.answerGujarati.orEmpty().contains("39"))
+        assertTrue(responder.respond("૩૮ પહેલાની સંખ્યા કઈ?")?.answerGujarati.orEmpty().contains("37"))
+    }
 }

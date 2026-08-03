@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
@@ -23,7 +24,9 @@ class AndroidSpeechInput(
     override val state: StateFlow<SpeechInputState> = _state.asStateFlow()
 
     override val isAvailable: Boolean
-        get() = SpeechRecognizer.isRecognitionAvailable(appContext)
+        get() = SpeechRecognizer.isRecognitionAvailable(appContext) ||
+            (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext))
 
     private var recognizer: SpeechRecognizer? = null
 
@@ -48,7 +51,7 @@ class AndroidSpeechInput(
             return@withContext
         }
 
-        val speechRecognizer = recognizer ?: SpeechRecognizer.createSpeechRecognizer(appContext).also {
+        val speechRecognizer = recognizer ?: createRecognizer().also {
             recognizer = it
             it.setRecognitionListener(listener)
         }
@@ -74,12 +77,22 @@ class AndroidSpeechInput(
         _state.value = SpeechInputState.Idle
     }
 
+    private fun createRecognizer(): SpeechRecognizer =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext)
+        ) {
+            SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext)
+        } else {
+            SpeechRecognizer.createSpeechRecognizer(appContext)
+        }
+
     private fun recognizerIntent(languageTag: String): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, languageTag)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, languageTag)
         putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
         putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         putExtra(RecognizerIntent.EXTRA_PROMPT, "જવાબ બોલો")
     }
 
@@ -132,7 +145,7 @@ class AndroidSpeechInput(
         SpeechRecognizer.ERROR_CLIENT -> "અવાજ ઓળખવાનું અટકી ગયું. ફરી પ્રયત્ન કરો."
         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "માઇક્રોફોનની પરવાનગી આપો અથવા લખીને જવાબ આપો."
         SpeechRecognizer.ERROR_NETWORK,
-        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "અવાજ ઓળખવા માટે નેટવર્ક મળ્યું નહીં. લખીને જવાબ આપી શકો."
+        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Offline speech pack ઉપલબ્ધ ન હોય તો અવાજ ઓળખવા નેટવર્ક જોઈએ. Gujarati/English speech pack ડાઉનલોડ કરો અથવા લખીને જવાબ આપો."
         SpeechRecognizer.ERROR_NO_MATCH -> "અવાજ સમજાયો નહીં. ફરી બોલો અથવા લખીને જવાબ આપો."
         SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "માઇક્રોફોન વ્યસ્ત છે. થોડું પછી ફરી બોલો."
         SpeechRecognizer.ERROR_SERVER -> "અવાજ સેવા હાલમાં ઉપલબ્ધ નથી. લખીને જવાબ આપો."

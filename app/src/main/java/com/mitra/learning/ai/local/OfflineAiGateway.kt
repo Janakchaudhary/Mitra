@@ -14,6 +14,8 @@ import com.mitra.learning.books.analysis.TocAnalysisResult
 import com.mitra.learning.books.analysis.TocChapterSuggestion
 import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.data.db.entity.ConceptEntity
+import com.mitra.learning.learning.model.ActivityType
+import com.mitra.learning.learning.model.EvaluationMode
 import com.mitra.learning.learning.model.LearningQuestion
 import com.mitra.learning.study.OfflineStudyAnswerer
 import com.mitra.learning.study.StudyAnswer
@@ -74,7 +76,135 @@ class OfflineAiGateway(
         concept: ConceptEntity,
         count: Int,
         context: PracticeContext?,
-    ): List<LearningQuestion> = mock.createPracticeQuestions(concept, count, context)
+    ): List<LearningQuestion> {
+        val groundedText = context?.groundedBookText?.takeIf { it.isNotBlank() }
+            ?: return mock.createPracticeQuestions(concept, count, context)
+        val modelQuestions = if (modelStore.hasModel()) {
+            runCatching {
+                createGroundedPracticeWithModel(concept, count, context, groundedText)
+            }.getOrNull()
+        } else {
+            null
+        }
+        return modelQuestions?.takeIf { it.isNotEmpty() }
+            ?: createGroundedPracticeFallback(concept, count, context)
+    }
+
+    private suspend fun createGroundedPracticeWithModel(
+        concept: ConceptEntity,
+        count: Int,
+        context: PracticeContext,
+        groundedText: String,
+    ): List<LearningQuestion> {
+        val requested = count.coerceIn(1, 8)
+        val prompt = """
+            Book: ${context.bookTitle.orEmpty()}
+            Chapter: ${context.chapterTitleGujarati.orEmpty()}
+            Concept: ${concept.titleGujarati}
+            Expected learning outcome: ${concept.expectedLearningOutcome}
+
+            Prepared textbook text:
+            ${groundedText.take(14_000)}
+
+            Create $requested short Standard 2 voice-answerable questions using only the supplied textbook text.
+            Return STRICT JSON only:
+            {"questions":[{
+              "id":"q1",
+              "promptGujarati":"...",
+              "expectedAnswer":null,
+              "expectedText":"...",
+              "acceptedAnswers":["..."],
+              "evaluationMode":"SHORT_TEXT",
+              "hintGujarati":"...",
+              "sourcePage":1
+            }]}
+
+            Rules:
+            - Use NUMERIC only when the textbook gives a definite numeric answer.
+            - Otherwise use SHORT_TEXT or KEYWORD and include a definite expectedText plus useful acceptedAnswers.
+            - Questions and answers must be supported by the supplied text; never invent facts.
+            - Keep answers short enough for speech recognition.
+            - Do not create participation, drawing, opinion, or open-ended questions.
+        """.trimIndent()
+        val raw = model.generate(
+            systemInstruction = "You create faithful textbook-grounded voice questions for a young child. Output compact valid JSON only.",
+            prompt = prompt,
+        )
+        val root = raw.parseFirstJsonObject()
+        return root.array("questions").mapNotNull { element ->
+            val item = element as? JsonObject ?: return@mapNotNull null
+            val promptGujarati = item.string("promptGujarati").orEmpty().trim()
+            if (promptGujarati.isBlank()) return@mapNotNull null
+            val expectedNumber = item.int("expectedAnswer")
+            val expectedText = item.string("expectedText")?.trim()?.takeIf { it.isNotBlank() }
+            val accepted = item.arrayOrNull("acceptedAnswers")
+                ?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull?.trim()?.takeIf(String::isNotBlank) }
+                .orEmpty()
+            if (expectedNumber == null && expectedText == null && accepted.isEmpty()) return@mapNotNull null
+            val requestedMode = item.string("evaluationMode")?.uppercase()
+            val mode = when {
+                expectedNumber != null -> EvaluationMode.NUMERIC
+                requestedMode == "KEYWORD" -> EvaluationMode.KEYWORD
+                else -> EvaluationMode.SHORT_TEXT
+            }
+            LearningQuestion(
+                id = "offline-book-${item.string("id").orEmpty().ifBlank { promptGujarati.hashCode().toString() }}",
+                promptGujarati = promptGujarati.take(300),
+                spokenPromptGujarati = promptGujarati.take(300),
+                recognitionLanguageTag = "gu-IN",
+                expectedAnswer = expectedNumber,
+                activityType = ActivityType.QUESTION.name,
+                evaluationMode = mode,
+                expectedText = expectedText,
+                acceptedAnswers = (accepted + listOfNotNull(expectedText)).distinct().take(8),
+                hintGujarati = item.string("hintGujarati")?.take(220),
+                sourcePage = item.int("sourcePage"),
+                conceptId = concept.id,
+            )
+        }.distinctBy { it.fingerprint }.take(requested)
+    }
+
+    private fun createGroundedPracticeFallback(
+        concept: ConceptEntity,
+        count: Int,
+        context: PracticeContext,
+    ): List<LearningQuestion> {
+        val title = concept.titleGujarati.trim().ifBlank { context.chapterTitleGujarati.orEmpty().trim() }
+        if (title.isBlank()) return emptyList()
+        val keywords = title.lowercase()
+            .replace(Regex("[^\\p{L}\\p{M}\\p{N}]+"), " ")
+            .split(' ')
+            .filter { it.length >= 2 && it !in setOf("અને", "ના", "ની", "નું") }
+            .take(5)
+        val page = concept.sourcePageStart
+        val questions = listOf(
+            LearningQuestion(
+                id = "offline-title-${concept.id}",
+                promptGujarati = "તૈયાર પાઠનો મુખ્ય વિષય કયો છે?",
+                spokenPromptGujarati = "આ પાઠનો મુખ્ય વિષય કયો છે?",
+                expectedText = title,
+                acceptedAnswers = (listOf(title) + keywords).distinct(),
+                evaluationMode = EvaluationMode.KEYWORD,
+                activityType = ActivityType.QUESTION.name,
+                hintGujarati = "પાઠનું નામ યાદ કરો.",
+                sourcePage = page,
+                conceptId = concept.id,
+            ),
+            LearningQuestion(
+                id = "offline-outcome-${concept.id}",
+                promptGujarati = "આ પાઠમાં આપણે શે વિશે શીખીએ છીએ?",
+                spokenPromptGujarati = "આ પાઠમાં આપણે શે વિશે શીખીએ છીએ?",
+                expectedText = title,
+                acceptedAnswers = (listOf(title) + keywords).distinct(),
+                evaluationMode = EvaluationMode.KEYWORD,
+                activityType = ActivityType.QUESTION.name,
+                hintGujarati = concept.descriptionGujarati.take(180),
+                sourcePage = page,
+                conceptId = concept.id,
+            ),
+        )
+        return questions.take(count.coerceIn(1, questions.size))
+    }
 
     override suspend fun answerStudyQuestion(request: StudyQuestionRequest): StudyAnswer {
         val groundedFallback = fallback.answer(request)

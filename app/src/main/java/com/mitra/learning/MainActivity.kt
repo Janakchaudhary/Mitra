@@ -267,6 +267,7 @@ private fun MitraNav(
                         aiGateway = container.aiGateway,
                         speechInput = container.speechInput,
                         speechOutput = container.speechOutput,
+                        practiceService = container.mitraVoicePracticeService,
                         limitService = container.learningLimitService,
                     )
                 }
@@ -280,6 +281,8 @@ private fun MitraNav(
                 onStopVoice = vm::stopVoice,
                 onMicDenied = vm::microphoneDenied,
                 onHandsFreeChange = vm::setHandsFree,
+                onStartPractice = vm::startPractice,
+                onStopPractice = { vm.stopPractice() },
                 onReplay = vm::replayLastAnswer,
                 onBack = { nav.popBackStack() },
             )

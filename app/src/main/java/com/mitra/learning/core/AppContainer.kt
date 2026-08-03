@@ -37,6 +37,7 @@ import com.mitra.learning.voice.AndroidSpeechOutput
 import com.mitra.learning.voice.SpeechInput
 import com.mitra.learning.voice.SpeechOutput
 import com.mitra.learning.study.StudyContextService
+import com.mitra.learning.study.practice.MitraVoicePracticeService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -115,6 +116,14 @@ class AppContainer(context: Context) {
         bookDao = database.bookDao(),
         chapterDao = database.chapterDao(),
         pageKnowledgeDao = database.pageKnowledgeDao(),
+    )
+    val mitraVoicePracticeService = MitraVoicePracticeService(
+        conceptDao = database.conceptDao(),
+        chapterDao = database.chapterDao(),
+        bookDao = database.bookDao(),
+        pageKnowledgeDao = database.pageKnowledgeDao(),
+        questionBank = offlineQuestionBank,
+        aiGateway = aiGateway,
     )
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

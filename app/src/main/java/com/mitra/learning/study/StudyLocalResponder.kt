@@ -1,6 +1,7 @@
 package com.mitra.learning.study
 
 import com.mitra.learning.learning.evaluation.GujaratiNumberNormalizer
+import com.mitra.learning.study.practice.EnglishSpellingLexicon
 
 /**
  * Handles safe, deterministic Standard 2 maths and screen-time questions without a cloud model.
@@ -33,6 +34,7 @@ class StudyLocalResponder {
             )
         }
 
+        spellingReply(question)?.let { return it }
         conceptualMathReply(question)?.let { return it }
         parseArithmetic(question)?.let { arithmetic ->
             return StudyAnswer(
@@ -56,6 +58,24 @@ class StudyLocalResponder {
             (normalized.contains(" મોબાઇલ ") && normalized.contains(" રમત "))
     }
 
+
+    private fun spellingReply(value: String): StudyAnswer? {
+        val normalized = normalize(value)
+        if (SPELLING_WORDS.none { normalized.contains(" $it ") }) return null
+        val word = EnglishSpellingLexicon.find(value) ?: return StudyAnswer(
+            answerGujarati = "કયો English શબ્દનો spelling જોઈએ છે? જેમ કે CAT, BOOK અથવા APPLE કહો.",
+            followUpGujarati = "અથવા ‘મને spelling પૂછો’ કહો, તો હું voice spelling રમત શરૂ કરીશ.",
+            grounded = true,
+            responseKind = StudyResponseKind.LOCAL_GUIDANCE,
+        )
+        return StudyAnswer(
+            answerGujarati = "${word.word.uppercase()} નો spelling ${EnglishSpellingLexicon.letters(word.word)} છે.",
+            followUpGujarati = "હવે તમે અક્ષર-અક્ષર બોલી શકો?",
+            grounded = true,
+            responseKind = StudyResponseKind.LOCAL_GUIDANCE,
+        )
+    }
+
     private fun conceptualMathReply(value: String): StudyAnswer? {
         val normalized = normalize(value)
         val numbers = GujaratiNumberNormalizer.extractInts(value, maxCount = 2)
@@ -74,7 +94,7 @@ class StudyLocalResponder {
         }
         if (TABLE_WORDS.any { normalized.contains(" $it ") } && numbers.size == 1) {
             val table = numbers.first()
-            if (table in 2..10) {
+            if (table in 1..20) {
                 val lines = (1..10).joinToString("\n") { multiplier ->
                     "$table × $multiplier = ${table * multiplier}"
                 }
@@ -236,10 +256,11 @@ class StudyLocalResponder {
         val MULTIPLY_WORDS = setOf("ગુણ્યા", "ગુણાકાર", "times", "multiply", "multiplication")
         val CARRY_WORDS = setOf("કેરી", "carry", "હાથમાં")
         val BORROW_WORDS = setOf("ઉધાર", "borrow", "borrowing")
-        val TABLE_WORDS = setOf("પહાડો", "ટેબલ", "table", "tables")
+        val TABLE_WORDS = setOf("પહાડો", "ટેબલ", "table", "tables", "ઘડિયા", "ઘડિયો", "ગડિયા")
         val GREATER_WORDS = setOf("મોટી", "મોટું", "મોટો", "greater", "larger", "big")
-        val AFTER_WORDS = setOf("પછી", "after", "next")
-        val BEFORE_WORDS = setOf("પહેલાં", "પહેલા", "before", "previous")
+        val AFTER_WORDS = setOf("પછી", "પછીની", "આગળ", "after", "next")
+        val BEFORE_WORDS = setOf("પહેલાં", "પહેલા", "પહેલાની", "પાછળ", "before", "previous")
+        val SPELLING_WORDS = setOf("spelling", "સ્પેલિંગ", "જોડણી")
         val GAME_WORDS = setOf(
             "game", "games", "ગેમ", "ગેમ્સ", "બીજી ગેમ", "મોબાઇલ ગેમ",
             "pubg", "free fire", "roblox", "minecraft", "bgmi",

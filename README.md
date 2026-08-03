@@ -1,10 +1,22 @@
 # Mitra Android
 
-## Milestone 18 — Fully offline book preparation
+## Milestone 19 — “મિત્રને પૂછીએ” voice tutor
 
-**Current version: 0.18.0 (`versionCode 33`)**
+**Current version: 0.19.0 (`versionCode 35`)**
 
-મિત્ર is a local-first Android learning companion for one Standard 2 Gujarati-medium child. Milestone 18 can detect chapter structure and prepare new PDF chapters without OpenAI, Cloudflare, an API key, or an internet connection.
+મિત્ર is a local-first Android learning companion for one Standard 2 Gujarati-medium child. Milestone 19 adds a two-way voice tutor that answers prepared-book questions and runs spoken practice with adaptive feedback. Milestone 18 offline PDF/OCR preparation remains included.
+
+
+## What “મિત્રને પૂછીએ” now does
+
+- Answers child questions from locally prepared textbook pages.
+- Answers ઘડિયા/પહાડા, પહેલાંની સંખ્યા, પછીની સંખ્યા, arithmetic, and common English spelling requests locally.
+- Offers one-tap voice practice for prepared-book questions, tables, number neighbors, spelling, or mixed practice.
+- Speaks each question, switches speech recognition to Gujarati or English as needed, and evaluates the child’s spoken reply.
+- Gives varied praise for correct answers and tracks the current correct streak.
+- Gives one guided retry after a wrong answer; after the second attempt it explains the correct method and continues with a new question.
+- Prefers Android on-device speech recognition and requests offline recognition where the device supports it.
+- Does not store raw microphone audio or free-form voice transcripts after the screen closes.
 
 ## What Offline Local now does
 
@@ -34,7 +46,7 @@ The local language model remains text-only. Page images are converted to text by
 - Parent-selected practice for an exact built-in or prepared-book concept.
 - Parent progress dashboard, weekly report, backup, and restore.
 - Configurable daily/session limits and automatic parent relocking.
-- Bounded turn-based voice conversation.
+- Bounded turn-based voice conversation with spoken quizzes and adaptive correction.
 
 ## Offline book preparation flow
 
@@ -60,7 +72,7 @@ The child can use a bounded, turn-based conversation:
 
 Study Talk has two grounded paths:
 
-- **Local Standard 2 maths:** deterministic support for addition, subtraction, carrying, borrowing, multiplication, tables 2–10, before/after, comparison, Gujarati digits, and common Gujarati number words.
+- **Local Standard 2 maths:** deterministic support for addition, subtraction, carrying, borrowing, multiplication, tables 1–20, before/after, comparison, Gujarati digits, and common Gujarati number words.
 - **Prepared textbook grounding:** questions retrieve relevant locally prepared pages. Offline Local answers through the imported LiteRT-LM model or a deterministic extractive fallback. Missing textbook evidence is not replaced with web answers.
 
 ## Build with GitHub Actions
@@ -79,8 +91,8 @@ Download the signed `mitra-update-apk` artifact. A higher `versionCode` signed w
 
 ## Upgrade
 
-- `versionCode = 33`
-- `versionName = 0.18.0`
+- `versionCode = 35`
+- `versionName = 0.19.0`
 - Room schema version `5`
 - No database migration is required from Milestone 17.
 - Existing books, prepared data, progress, review schedules, credentials, and sessions are preserved.
@@ -104,7 +116,7 @@ Not retained by default:
 
 Offline preparation does not upload textbook pages or OCR text. API credentials and the parent PIN are excluded from exported backups. The imported local model is also excluded from normal backups.
 
-See [`MILESTONE18.md`](MILESTONE18.md) for the implementation details, [`ARCHITECTURE.md`](ARCHITECTURE.md) for runtime boundaries, and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the offline PDF/OCR components.
+See [`MILESTONE19.md`](MILESTONE19.md) for the voice tutor implementation, [`MILESTONE18.md`](MILESTONE18.md) for offline preparation, [`ARCHITECTURE.md`](ARCHITECTURE.md) for runtime boundaries, and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the offline PDF/OCR components.
 
 
 ## 0.18.1 OCR compilation fix

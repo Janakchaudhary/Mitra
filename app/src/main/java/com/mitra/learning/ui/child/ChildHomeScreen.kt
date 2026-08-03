@@ -115,7 +115,7 @@ fun ChildHomeScreen(
             ChildActionCard(
                 emoji = "🎤",
                 title = "મિત્રને પૂછો",
-                subtitle = "પુસ્તક અને ધોરણ ૨ ગણિત વિશે વાત કરો",
+                subtitle = "પુસ્તક પૂછો • ઘડિયા • પહેલાં-પછી • voice spelling",
                 icon = Icons.Default.Chat,
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 enabled = state.canPlay && !state.loading,

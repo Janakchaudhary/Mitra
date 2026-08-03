@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -53,6 +54,7 @@ import com.mitra.learning.ui.animation.AnimatedMitraMascot
 import com.mitra.learning.ui.animation.AnimatedScale
 import com.mitra.learning.ui.animation.MascotMood
 import com.mitra.learning.ui.animation.ThinkingDots
+import com.mitra.learning.study.practice.MitraPracticeTopic
 
 @Composable
 fun StudyChatScreen(
@@ -63,6 +65,8 @@ fun StudyChatScreen(
     onStopVoice: () -> Unit,
     onMicDenied: () -> Unit,
     onHandsFreeChange: (Boolean) -> Unit,
+    onStartPractice: (MitraPracticeTopic) -> Unit,
+    onStopPractice: () -> Unit,
     onReplay: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -89,8 +93,8 @@ fun StudyChatScreen(
                 size = 54.dp,
             )
             Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                Text("મિત્ર સાથે વાત કરીએ", style = MaterialTheme.typography.titleLarge)
-                Text("પુસ્તક + ધોરણ ૨ ગણિત • સતત voice વાત", style = MaterialTheme.typography.bodySmall)
+                Text("મિત્રને પૂછીએ", style = MaterialTheme.typography.titleLarge)
+                Text("પુસ્તક • ઘડિયા • સંખ્યા • spelling • voice રમત", style = MaterialTheme.typography.bodySmall)
                 state.remainingSeconds?.let { seconds ->
                     val min = seconds / 60
                     val sec = seconds % 60
@@ -101,6 +105,12 @@ fun StudyChatScreen(
                 Icon(Icons.AutoMirrored.Filled.VolumeUp, contentDescription = "Replay answer")
             }
         }
+
+        PracticeTopicBar(
+            state = state,
+            onStartPractice = onStartPractice,
+            onStopPractice = onStopPractice,
+        )
 
         if (!state.preparedBooksAvailable) {
             Surface(
@@ -161,6 +171,70 @@ fun StudyChatScreen(
 }
 
 @Composable
+private fun PracticeTopicBar(
+    state: StudyChatUiState,
+    onStartPractice: (MitraPracticeTopic) -> Unit,
+    onStopPractice: () -> Unit,
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        shape = RoundedCornerShape(20.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+    ) {
+        Column(Modifier.padding(vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column {
+                    Text("મિત્ર મને પ્રશ્ન પૂછે", style = MaterialTheme.typography.titleMedium)
+                    if (state.practiceTopic != null) {
+                        Text(
+                            "સાચા જવાબ: ${state.correctCount} • સતત: ${state.correctStreak}",
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
+                if (state.activeChallenge != null) {
+                    FilledTonalButton(onClick = onStopPractice, enabled = !state.loading) {
+                        Text("રોકો")
+                    }
+                }
+            }
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+            ) {
+                items(MitraPracticeTopic.entries, key = { it.name }) { topic ->
+                    FilledTonalButton(
+                        onClick = { onStartPractice(topic) },
+                        enabled = !state.loading && !state.timeLimitReached,
+                    ) {
+                        Text("${topic.emoji} ${topic.titleGujarati}")
+                    }
+                }
+            }
+            state.activeChallenge?.let { challenge ->
+                Surface(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                ) {
+                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("હાલનો પ્રશ્ન", style = MaterialTheme.typography.labelLarge)
+                        Text(challenge.promptGujarati, style = MaterialTheme.typography.titleMedium)
+                        if (state.challengeAttempts > 0) {
+                            Text("ફરી પ્રયાસ ${state.challengeAttempts + 1}/2", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun StudyWelcomeCard() {
     Surface(
         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -168,10 +242,10 @@ private fun StudyWelcomeCard() {
         color = MaterialTheme.colorScheme.primaryContainer,
     ) {
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("📚 કંઈ પણ પૂછો!", style = MaterialTheme.typography.headlineSmall)
-            Text("ઉદાહરણ: ‘આ પાઠમાં હાથી વિશે શું લખ્યું છે?’")
-            Text("અથવા: ‘૨૭ + ૧૮ કેવી રીતે કરીએ?’")
-            Text("પુસ્તકના સવાલો પુસ્તકમાંથી મળે છે. સરવાળો, બાદબાકી અને પહાડા મિત્ર સ્થાનિક રીતે સમજાવે છે.", style = MaterialTheme.typography.bodySmall)
+            Text("🎤 પૂછો અથવા voice રમત રમો!", style = MaterialTheme.typography.headlineSmall)
+            Text("પુસ્તક: ‘આ પાઠમાં હાથી વિશે શું લખ્યું છે?’")
+            Text("ગણિત: ‘૫ નો ઘડિયો કહો’ અથવા ‘૩૮ પછી શું આવે?’")
+            Text("રમત: ‘મને spelling પૂછો’ અથવા ઉપરથી વિષય પસંદ કરો.", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -204,6 +278,7 @@ private fun MessageBubble(message: StudyMessage) {
                                 com.mitra.learning.study.StudyResponseKind.TEXTBOOK -> "📖 પુસ્તક પરથી"
                                 com.mitra.learning.study.StudyResponseKind.LOCAL_MATH -> "🧮 સ્થાનિક ગણિત સમજણ"
                                 com.mitra.learning.study.StudyResponseKind.LOCAL_GUIDANCE -> "🌱 મિત્રનું માર્ગદર્શન"
+                                com.mitra.learning.study.StudyResponseKind.VOICE_PRACTICE -> "🎤 voice પ્રશ્ન રમત"
                             },
                             style = MaterialTheme.typography.labelSmall,
                         )
@@ -278,7 +353,7 @@ private fun StudyComposer(
                 OutlinedTextField(
                     value = state.input,
                     onValueChange = onInput,
-                    placeholder = { Text("મારો સવાલ…") },
+                    placeholder = { Text(if (state.activeChallenge != null) "જવાબ બોલો અથવા લખો…" else "મારો સવાલ…") },
                     modifier = Modifier.weight(1f),
                     enabled = !state.loading && !state.timeLimitReached,
                     maxLines = 3,

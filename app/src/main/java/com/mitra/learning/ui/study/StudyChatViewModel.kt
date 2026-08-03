@@ -3,12 +3,15 @@ package com.mitra.learning.ui.study
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mitra.learning.ai.AiGateway
+import com.mitra.learning.learning.limits.LearningLimitService
 import com.mitra.learning.study.StudyChatTurn
 import com.mitra.learning.study.StudyContextService
 import com.mitra.learning.study.StudyLocalResponder
 import com.mitra.learning.study.StudyQuestionRequest
 import com.mitra.learning.study.StudyResponseKind
-import com.mitra.learning.learning.limits.LearningLimitService
+import com.mitra.learning.study.practice.MitraPracticeTopic
+import com.mitra.learning.study.practice.MitraVoiceChallenge
+import com.mitra.learning.study.practice.MitraVoicePracticeService
 import com.mitra.learning.voice.SpeechInput
 import com.mitra.learning.voice.SpeechInputState
 import com.mitra.learning.voice.SpeechOutput
@@ -41,6 +44,11 @@ data class StudyChatUiState(
     val preparedBooksAvailable: Boolean = true,
     val handsFreeEnabled: Boolean = false,
     val waitingForNextTurn: Boolean = false,
+    val activeChallenge: MitraVoiceChallenge? = null,
+    val practiceTopic: MitraPracticeTopic? = null,
+    val challengeAttempts: Int = 0,
+    val correctCount: Int = 0,
+    val correctStreak: Int = 0,
     val remainingSeconds: Int? = null,
     val timeLimitReached: Boolean = false,
     val error: String? = null,
@@ -51,6 +59,7 @@ class StudyChatViewModel(
     private val aiGateway: AiGateway,
     private val speechInput: SpeechInput,
     private val speechOutput: SpeechOutput,
+    private val practiceService: MitraVoicePracticeService,
     private val localResponder: StudyLocalResponder = StudyLocalResponder(),
     private val limitService: LearningLimitService? = null,
 ) : ViewModel() {
@@ -133,7 +142,8 @@ class StudyChatViewModel(
                         }
                     }
                     is SpeechOutputState.Error,
-                    SpeechOutputState.Unavailable -> {
+                    SpeechOutputState.Unavailable,
+                    -> {
                         autoListenAfterSpeech = false
                         speechStartedForAutoTurn = false
                         _state.value = _state.value.copy(waitingForNextTurn = false)
@@ -153,19 +163,182 @@ class StudyChatViewModel(
     fun ask(questionRaw: String) {
         val question = questionRaw.trim()
         if (question.isBlank() || _state.value.loading || _state.value.timeLimitReached) return
+
         if (localResponder.isStopRequest(question)) {
+            stopPractice(speakClosing = false)
             setHandsFree(false)
+            return
         }
-        val priorMessages = _state.value.messages
+
+        _state.value.activeChallenge?.let { challenge ->
+            answerChallenge(challenge, question)
+            return
+        }
+
+        practiceService.detectTopic(question)?.let { topic ->
+            beginPractice(topic, childRequest = question)
+            return
+        }
+
+        askStudyQuestion(question)
+    }
+
+    fun startPractice(topic: MitraPracticeTopic) {
+        if (_state.value.loading || _state.value.timeLimitReached) return
+        beginPractice(topic, childRequest = null)
+    }
+
+    fun stopPractice(speakClosing: Boolean = true) {
+        val wasActive = _state.value.activeChallenge != null || _state.value.practiceTopic != null
+        _state.value = _state.value.copy(
+            activeChallenge = null,
+            practiceTopic = null,
+            challengeAttempts = 0,
+            correctStreak = 0,
+            waitingForNextTurn = false,
+        )
+        if (wasActive && speakClosing) {
+            val closing = "બરાબર, voice પ્રશ્ન રમત અહીં રોકીએ. હવે તમે પુસ્તક વિશે કોઈપણ સવાલ પૂછો."
+            appendMitraMessage(closing, StudyResponseKind.VOICE_PRACTICE)
+            viewModelScope.launch { speechOutput.speakGujarati(closing) }
+        }
+    }
+
+    private fun beginPractice(topic: MitraPracticeTopic, childRequest: String?) {
         viewModelScope.launch {
-            val childMessage = StudyMessage(speaker = StudySpeaker.CHILD, text = question)
+            childRequest?.let { appendChildMessage(it) }
             _state.value = _state.value.copy(
                 input = "",
                 loading = true,
                 listening = false,
                 waitingForNextTurn = false,
                 error = null,
-                messages = (_state.value.messages + childMessage).takeLast(20),
+                practiceTopic = topic,
+                challengeAttempts = 0,
+                correctStreak = 0,
+            )
+            runCatching { practiceService.nextChallenge(topic) }
+                .onSuccess { challenge ->
+                    if (challenge.id == "book-unavailable") {
+                        _state.value = _state.value.copy(
+                            loading = false,
+                            activeChallenge = null,
+                            practiceTopic = null,
+                        )
+                        appendMitraMessage(
+                            text = challenge.promptGujarati,
+                            kind = StudyResponseKind.VOICE_PRACTICE,
+                        )
+                        speechOutput.speakGujarati(challenge.spokenPrompt)
+                    } else {
+                        _state.value = _state.value.copy(
+                            loading = false,
+                            activeChallenge = challenge,
+                            practiceTopic = topic,
+                            challengeAttempts = 0,
+                            waitingForNextTurn = _state.value.handsFreeEnabled,
+                        )
+                        appendMitraMessage(
+                            text = "ચાલો ${topic.emoji} ${topic.titleGujarati} શરૂ કરીએ.\n\n${challenge.promptGujarati}",
+                            kind = StudyResponseKind.VOICE_PRACTICE,
+                            sources = challenge.sourceLabels,
+                        )
+                        speakForNextTurn(challenge.spokenPrompt, challenge.speechLanguageTag)
+                    }
+                }
+                .onFailure { error ->
+                    _state.value = _state.value.copy(
+                        loading = false,
+                        activeChallenge = null,
+                        practiceTopic = null,
+                        error = error.message ?: "voice પ્રશ્ન તૈયાર થઈ શક્યો નહીં.",
+                    )
+                }
+        }
+    }
+
+    private fun answerChallenge(challenge: MitraVoiceChallenge, rawAnswer: String) {
+        viewModelScope.launch {
+            appendChildMessage(rawAnswer)
+            _state.value = _state.value.copy(
+                input = "",
+                loading = true,
+                listening = false,
+                waitingForNextTurn = false,
+                error = null,
+            )
+            val evaluation = practiceService.evaluate(challenge, rawAnswer, _state.value.correctStreak)
+            val attempt = _state.value.challengeAttempts + 1
+
+            if (!evaluation.correct && attempt < MAX_CHALLENGE_ATTEMPTS) {
+                val retry = "${evaluation.feedbackGujarati}\n\nફરી પ્રયત્ન કરો: ${challenge.promptGujarati}"
+                val spokenRetry = "${evaluation.feedbackGujarati}. ફરી પ્રયત્ન કરો. ${challenge.spokenPrompt}"
+                _state.value = _state.value.copy(
+                    loading = false,
+                    activeChallenge = challenge,
+                    challengeAttempts = attempt,
+                    correctStreak = 0,
+                    waitingForNextTurn = _state.value.handsFreeEnabled,
+                )
+                appendMitraMessage(retry, StudyResponseKind.VOICE_PRACTICE, challenge.sourceLabels)
+                speakForNextTurn(spokenRetry)
+                return@launch
+            }
+
+            val feedback = if (evaluation.correct) {
+                evaluation.feedbackGujarati
+            } else {
+                "${evaluation.feedbackGujarati} ${practiceService.revealedCorrection(challenge)}"
+            }
+            val selectedTopic = _state.value.practiceTopic ?: challenge.topic
+            val next = runCatching {
+                practiceService.nextChallenge(selectedTopic, previousChallengeId = challenge.id)
+            }.getOrNull()
+
+            if (next == null || next.id == "book-unavailable") {
+                val closing = "$feedback\n\nઆ રાઉન્ડ પૂરો થયો. હવે બીજો વિષય પસંદ કરો અથવા પુસ્તકનો સવાલ પૂછો."
+                _state.value = _state.value.copy(
+                    loading = false,
+                    activeChallenge = null,
+                    practiceTopic = null,
+                    challengeAttempts = 0,
+                    correctCount = _state.value.correctCount + if (evaluation.correct) 1 else 0,
+                    correctStreak = if (evaluation.correct) _state.value.correctStreak + 1 else 0,
+                )
+                appendMitraMessage(closing, StudyResponseKind.VOICE_PRACTICE, challenge.sourceLabels)
+                speechOutput.speakGujarati(closing)
+                return@launch
+            }
+
+            val nextText = "$feedback\n\nઆગળનો પ્રશ્ન: ${next.promptGujarati}"
+            val nextSpokenText = "$feedback. આગળનો પ્રશ્ન. ${next.spokenPrompt}"
+            _state.value = _state.value.copy(
+                loading = false,
+                activeChallenge = next,
+                challengeAttempts = 0,
+                correctCount = _state.value.correctCount + if (evaluation.correct) 1 else 0,
+                correctStreak = if (evaluation.correct) _state.value.correctStreak + 1 else 0,
+                waitingForNextTurn = _state.value.handsFreeEnabled,
+            )
+            appendMitraMessage(
+                nextText,
+                StudyResponseKind.VOICE_PRACTICE,
+                (challenge.sourceLabels + next.sourceLabels).distinct(),
+            )
+            speakForNextTurn(nextSpokenText)
+        }
+    }
+
+    private fun askStudyQuestion(question: String) {
+        val priorMessages = _state.value.messages
+        viewModelScope.launch {
+            appendChildMessage(question)
+            _state.value = _state.value.copy(
+                input = "",
+                loading = true,
+                listening = false,
+                waitingForNextTurn = false,
+                error = null,
             )
             runCatching {
                 localResponder.respond(question) ?: run {
@@ -200,12 +373,11 @@ class StudyChatViewModel(
                 _state.value = _state.value.copy(
                     loading = false,
                     waitingForNextTurn = continueHandsFree,
-                    messages = (_state.value.messages + StudyMessage(
-                        speaker = StudySpeaker.MITRA,
-                        text = combined,
-                        sources = answer.sourceLabels,
-                        responseKind = answer.responseKind,
-                    )).takeLast(20),
+                )
+                appendMitraMessage(
+                    text = combined,
+                    kind = answer.responseKind,
+                    sources = answer.sourceLabels,
                 )
                 autoListenAfterSpeech = continueHandsFree
                 speechStartedForAutoTurn = false
@@ -220,6 +392,37 @@ class StudyChatViewModel(
                 )
             }
         }
+    }
+
+    private fun appendChildMessage(text: String) {
+        _state.value = _state.value.copy(
+            messages = (_state.value.messages + StudyMessage(
+                speaker = StudySpeaker.CHILD,
+                text = text,
+            )).takeLast(MAX_MESSAGES),
+        )
+    }
+
+    private fun appendMitraMessage(
+        text: String,
+        kind: StudyResponseKind,
+        sources: List<String> = emptyList(),
+    ) {
+        _state.value = _state.value.copy(
+            messages = (_state.value.messages + StudyMessage(
+                speaker = StudySpeaker.MITRA,
+                text = text,
+                sources = sources,
+                responseKind = kind,
+            )).takeLast(MAX_MESSAGES),
+        )
+    }
+
+    private fun speakForNextTurn(text: String, speechLanguageTag: String = "gu-IN") {
+        val continueHandsFree = _state.value.handsFreeEnabled && !_state.value.timeLimitReached
+        autoListenAfterSpeech = continueHandsFree
+        speechStartedForAutoTurn = false
+        viewModelScope.launch { speechOutput.speak(text, speechLanguageTag) }
     }
 
     private fun contextualStudyQuery(question: String, previousChildQuestion: String?): String {
@@ -269,7 +472,8 @@ class StudyChatViewModel(
     private suspend fun startListeningInternal() {
         if (_state.value.loading || _state.value.listening || _state.value.timeLimitReached || !speechInput.isAvailable) return
         _state.value = _state.value.copy(waitingForNextTurn = true, error = null)
-        runCatching { speechInput.startListening("gu-IN") }
+        val languageTag = _state.value.activeChallenge?.recognitionLanguageTag ?: "gu-IN"
+        runCatching { speechInput.startListening(languageTag) }
             .onFailure {
                 _state.value = _state.value.copy(
                     listening = false,
@@ -312,12 +516,10 @@ class StudyChatViewModel(
                     timeLimitReached = true,
                     loading = false,
                     waitingForNextTurn = false,
-                    messages = (_state.value.messages + StudyMessage(
-                        speaker = StudySpeaker.MITRA,
-                        text = closing,
-                        responseKind = StudyResponseKind.LOCAL_GUIDANCE,
-                    )).takeLast(20),
+                    activeChallenge = null,
+                    practiceTopic = null,
                 )
+                appendMitraMessage(closing, StudyResponseKind.LOCAL_GUIDANCE)
                 speechOutput.speakGujarati(closing)
             }
         }
@@ -329,5 +531,10 @@ class StudyChatViewModel(
         speechInput.cancel()
         speechOutput.stop()
         super.onCleared()
+    }
+
+    private companion object {
+        const val MAX_CHALLENGE_ATTEMPTS = 2
+        const val MAX_MESSAGES = 30
     }
 }

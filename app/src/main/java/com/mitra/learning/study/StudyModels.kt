@@ -13,7 +13,7 @@ data class StudyQuestionRequest(
     val recentTurns: List<StudyChatTurn> = emptyList(),
 )
 
-enum class StudyResponseKind { TEXTBOOK, LOCAL_MATH, LOCAL_GUIDANCE }
+enum class StudyResponseKind { TEXTBOOK, LOCAL_MATH, LOCAL_GUIDANCE, VOICE_PRACTICE }
 
 data class StudyAnswer(
     val answerGujarati: String,
