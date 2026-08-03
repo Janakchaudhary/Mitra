@@ -1,6 +1,7 @@
 package com.mitra.learning.books.analysis
 
 import android.graphics.Bitmap
+import com.mitra.learning.ai.AiCapability
 import com.mitra.learning.ai.AiGateway
 import com.mitra.learning.ai.PracticeContext
 import com.mitra.learning.books.pdf.PdfPageRenderer
@@ -32,7 +33,17 @@ class BookPreparationService(
     private val questionBank: OfflineQuestionBank? = null,
     private val now: () -> Long = { System.currentTimeMillis() },
 ) {
+    companion object {
+        const val OFFLINE_TOC_UNAVAILABLE_MESSAGE =
+            "Offline Local cannot detect chapters from PDF images. Add chapter ranges manually, or select OpenAI/Cloudflare in Parent settings."
+        const val OFFLINE_CHAPTER_UNAVAILABLE_MESSAGE =
+            "Offline Local can use already prepared chapters, but it cannot prepare new PDF pages. Select OpenAI or Cloudflare to prepare this chapter."
+    }
+
     suspend fun detectChapters(bookId: String, tocPageIndices: List<Int>): Result<Pair<List<ChapterDraft>, String>> = runCatching {
+        require(aiGateway.supports(AiCapability.TABLE_OF_CONTENTS_IMAGE_ANALYSIS)) {
+            OFFLINE_TOC_UNAVAILABLE_MESSAGE
+        }
         val book = requireNotNull(bookRepository.getBook(bookId)) { "Book not found" }
         require(tocPageIndices.isNotEmpty()) { "Choose at least one contents page" }
         val pages = tocPageIndices.distinct().sorted().map { index ->
@@ -144,6 +155,11 @@ class BookPreparationService(
         val book = bookRepository.getBook(chapter.bookId)
             ?: return BookPreparationResult.Failure("Book not found")
 
+        if (!aiGateway.supports(AiCapability.CHAPTER_IMAGE_ANALYSIS)) {
+            return BookPreparationResult.Failure(OFFLINE_CHAPTER_UNAVAILABLE_MESSAGE)
+        }
+
+        val statusBeforePreparation = chapter.analysisStatus
         knowledgeRepository.setChapterStatus(chapterId, ChapterAnalysisStatus.PREPARING)
         return try {
             val allPages = mutableListOf<PageKnowledgeEntity>()
@@ -245,7 +261,14 @@ class BookPreparationService(
             refreshBookStatus(book.id)
             BookPreparationResult.Success(sourceLabel)
         } catch (t: Throwable) {
-            knowledgeRepository.setChapterStatus(chapter.id, ChapterAnalysisStatus.FAILED)
+            // A failed re-prepare must not destroy the usable READY state or its cached knowledge.
+            // New/unprepared chapters still surface FAILED so the parent can retry.
+            val failureStatus = if (statusBeforePreparation == ChapterAnalysisStatus.READY) {
+                ChapterAnalysisStatus.READY
+            } else {
+                ChapterAnalysisStatus.FAILED
+            }
+            knowledgeRepository.setChapterStatus(chapter.id, failureStatus)
             refreshBookStatus(book.id)
             BookPreparationResult.Failure(t.message ?: "Chapter preparation failed")
         }

@@ -1,5 +1,7 @@
 package com.mitra.learning.ai.settings
 
+import com.mitra.learning.ai.AiCapability
+
 enum class AiProviderType {
     MOCK,
     OPENAI,
@@ -25,4 +27,15 @@ data class AiProviderConfig(
             AiProviderType.OPENAI, AiProviderType.MOCK -> DEFAULT_OPENAI_MODEL
         }
     }
+}
+
+fun AiProviderConfig.supports(capability: AiCapability): Boolean = when (provider) {
+    AiProviderType.OFFLINE_LOCAL -> capability !in setOf(
+        AiCapability.TABLE_OF_CONTENTS_IMAGE_ANALYSIS,
+        AiCapability.CHAPTER_IMAGE_ANALYSIS,
+    )
+    AiProviderType.MOCK,
+    AiProviderType.OPENAI,
+    AiProviderType.CLOUDFLARE,
+    -> true
 }

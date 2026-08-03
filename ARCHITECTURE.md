@@ -106,3 +106,9 @@ It excludes API credentials, parent PIN, app signing key, raw audio, and in-memo
 The local model is copied to `files/local_ai/mitra-local.litertlm`; it is deliberately excluded from backups and APK packaging. `LiteRtLocalModel` serializes access with a mutex, keeps one engine warm, reloads when the imported file changes, tries GPU first, and falls back to CPU. New PDF image analysis remains a cloud/manual workflow until a supported local multimodal preparation pipeline is implemented.
 
 Study Talk provider errors are child-safe: cloud parsing/network failures fall back to `OfflineStudyAnswerer`, and technical error text is not displayed when prepared local sources can answer.
+
+# Milestone 17 Addendum — Provider capability guards
+
+PDF preparation is now capability-gated before any page bitmap is rendered or any chapter status is changed. Offline Local advertises Study Talk and practice generation, but not contents-page or chapter image analysis. The parent UI observes the selected provider, disables unsupported actions, and keeps manual chapter entry available.
+
+If a provider rejects preparation, the chapter remains unchanged. If re-preparing an existing `READY` chapter fails later, Mitra restores `READY` so cached page knowledge, concepts, and offline questions remain usable. New chapters still move to `FAILED` after a genuine preparation failure.

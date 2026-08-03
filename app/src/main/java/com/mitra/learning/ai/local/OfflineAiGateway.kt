@@ -1,5 +1,6 @@
 package com.mitra.learning.ai.local
 
+import com.mitra.learning.ai.AiCapability
 import com.mitra.learning.ai.AiGateway
 import com.mitra.learning.ai.MockAiGateway
 import com.mitra.learning.ai.PracticeContext
@@ -28,6 +29,15 @@ class OfflineAiGateway(
     private val fallback: OfflineStudyAnswerer = OfflineStudyAnswerer(),
     private val mock: MockAiGateway = MockAiGateway(),
 ) : AiGateway {
+    override suspend fun supports(capability: AiCapability): Boolean = when (capability) {
+        AiCapability.TABLE_OF_CONTENTS_IMAGE_ANALYSIS,
+        AiCapability.CHAPTER_IMAGE_ANALYSIS,
+        -> false
+        AiCapability.PRACTICE_GENERATION,
+        AiCapability.STUDY_CHAT,
+        -> true
+    }
+
     override suspend fun analyzeTableOfContents(request: TocAnalysisRequest): TocAnalysisResult {
         error("Offline Local cannot read new PDF page images yet. Use Cloudflare/OpenAI for preparation, or add chapter ranges manually.")
     }

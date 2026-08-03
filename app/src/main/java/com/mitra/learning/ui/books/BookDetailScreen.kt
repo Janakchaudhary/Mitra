@@ -43,6 +43,7 @@ fun BookDetailScreen(
     preparingChapterId: String?,
     conceptsByChapter: Map<String, List<ConceptEntity>>,
     offlineQuestionCounts: Map<String, Int>,
+    chapterPreparationSupported: Boolean,
     message: String?,
     onOpenPdf: () -> Unit,
     onSetupChapters: () -> Unit,
@@ -90,6 +91,13 @@ fun BookDetailScreen(
                     HorizontalDivider()
                     Text("Chapters", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
                     Text("Prepare one chapter at a time. Prepared data is cached locally.")
+                    if (!chapterPreparationSupported) {
+                        Text(
+                            "Offline Local can study prepared chapters, but cannot analyze new PDF pages. Select OpenAI or Cloudflare in Parent settings to prepare or re-prepare chapters.",
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                 }
                 items(chapters, key = { it.id }) { chapter ->
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
@@ -124,7 +132,9 @@ fun BookDetailScreen(
                             }
                             Button(
                                 onClick = { onPrepareChapter(chapter.id) },
-                                enabled = preparingChapterId == null && chapter.analysisStatus != ChapterAnalysisStatus.PREPARING,
+                                enabled = chapterPreparationSupported &&
+                                    preparingChapterId == null &&
+                                    chapter.analysisStatus != ChapterAnalysisStatus.PREPARING,
                             ) {
                                 Text(if (preparingChapterId == chapter.id) "Preparing…" else if (chapter.analysisStatus == ChapterAnalysisStatus.READY) "Prepare again" else "Prepare")
                             }

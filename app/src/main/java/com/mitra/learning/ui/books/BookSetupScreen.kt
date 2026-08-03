@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun BookSetupScreen(
     state: BookSetupUiState,
+    tocDetectionSupported: Boolean,
     onPreviousPage: () -> Unit,
     onNextPage: () -> Unit,
     onToggleTocPage: () -> Unit,
@@ -67,6 +68,13 @@ fun BookSetupScreen(
             item {
                 Text("1. Find the contents / index page", style = MaterialTheme.typography.titleLarge)
                 Text("Use Previous/Next, mark one or more contents pages, then detect chapters. You can also skip detection and add chapters manually.")
+                if (!tocDetectionSupported) {
+                    Text(
+                        "Offline Local cannot read contents-page images. Add chapter titles and page ranges manually, or select OpenAI/Cloudflare in Parent settings.",
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
             item {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
@@ -97,7 +105,7 @@ fun BookSetupScreen(
                     }
                     Button(
                         onClick = onDetect,
-                        enabled = state.selectedTocPages.isNotEmpty() && !state.detecting,
+                        enabled = tocDetectionSupported && state.selectedTocPages.isNotEmpty() && !state.detecting,
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(if (state.detecting) "Detecting…" else "Detect chapter structure") }
                 }

@@ -6,6 +6,7 @@ import com.mitra.learning.ai.openai.OpenAiHttp
 import com.mitra.learning.ai.local.OfflineAiGateway
 import com.mitra.learning.ai.settings.AiProviderType
 import com.mitra.learning.ai.settings.AiSettingsRepository
+import com.mitra.learning.ai.settings.supports
 import com.mitra.learning.books.analysis.ChapterAnalysisRequest
 import com.mitra.learning.books.analysis.ChapterAnalysisResult
 import com.mitra.learning.books.analysis.TocAnalysisRequest
@@ -26,6 +27,9 @@ class ConfigurableAiGateway(
     private val openAiHttp: OpenAiHttp = OpenAiHttp(),
     private val offline: OfflineAiGateway,
 ) : AiGateway {
+
+    override suspend fun supports(capability: AiCapability): Boolean =
+        settingsRepository.getConfig().supports(capability)
 
     override suspend fun analyzeTableOfContents(request: TocAnalysisRequest): TocAnalysisResult =
         currentGateway().analyzeTableOfContents(request)

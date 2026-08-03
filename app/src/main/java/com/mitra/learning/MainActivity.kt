@@ -27,6 +27,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.mitra.learning.ai.AiCapability
+import com.mitra.learning.ai.settings.AiProviderConfig
+import com.mitra.learning.ai.settings.supports
 import com.mitra.learning.core.AppContainer
 import com.mitra.learning.ui.books.AddBookScreen
 import com.mitra.learning.ui.books.AddBookViewModel
@@ -532,12 +535,16 @@ private fun MitraNav(
                 val conceptsByChapter by vm.conceptsByChapter.collectAsStateWithLifecycle()
                 val offlineQuestionCounts by vm.offlineQuestionCounts.collectAsStateWithLifecycle()
                 val message by vm.message.collectAsStateWithLifecycle()
+                val aiConfig by container.aiSettingsRepository.config.collectAsStateWithLifecycle(
+                    initialValue = AiProviderConfig(),
+                )
                 BookDetailScreen(
                     book = book,
                     chapters = chapters,
                     preparingChapterId = preparingChapterId,
                     conceptsByChapter = conceptsByChapter,
                     offlineQuestionCounts = offlineQuestionCounts,
+                    chapterPreparationSupported = aiConfig.supports(AiCapability.CHAPTER_IMAGE_ANALYSIS),
                     message = message,
                     onOpenPdf = { nav.navigate(Routes.pdf(bookId)) },
                     onSetupChapters = { nav.navigate(Routes.setupBook(bookId)) },
@@ -568,8 +575,12 @@ private fun MitraNav(
                     }
                 )
                 val state by vm.state.collectAsStateWithLifecycle()
+                val aiConfig by container.aiSettingsRepository.config.collectAsStateWithLifecycle(
+                    initialValue = AiProviderConfig(),
+                )
                 BookSetupScreen(
                     state = state,
+                    tocDetectionSupported = aiConfig.supports(AiCapability.TABLE_OF_CONTENTS_IMAGE_ANALYSIS),
                     onPreviousPage = vm::previousPage,
                     onNextPage = vm::nextPage,
                     onToggleTocPage = vm::toggleCurrentTocPage,

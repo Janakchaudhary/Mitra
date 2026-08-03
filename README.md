@@ -1,4 +1,5 @@
-## Milestone 16 — Resilient Study Talk and Offline Local AI
+## Milestone 17 — Safe Offline Local Book Workflow
+Milestone 17 adds explicit provider capabilities around PDF preparation. When Offline Local is selected, Mitra keeps prepared-book Study Talk and practice available, but blocks contents-page detection and new chapter image analysis before rendering or changing chapter status. Manual chapter ranges remain available. A failed re-prepare also keeps an existing READY chapter usable.
 
 - Cloudflare chat accepts more Workers AI response envelopes and falls back to locally prepared textbook extraction instead of exposing parser errors to the child.
 - A third **Offline Local** provider works without an API; a parent can optionally import a compatible `.litertlm` model for more natural on-device replies.
@@ -7,7 +8,7 @@
 
 # Mitra Android
 
-**Current milestone: 16 (v0.16.0)** — resilient Cloudflare Study Talk, optional on-device LiteRT-LM, grounded offline textbook answers, guided maths, spaced review, offline question banks, and bounded hands-free conversation.
+**Current milestone: 17 (v0.17.0)** — resilient Cloudflare Study Talk, optional on-device LiteRT-LM, grounded offline textbook answers, guided maths, spaced review, offline question banks, and bounded hands-free conversation.
 
 મિત્ર is a local-first Android learning companion for one Standard 2 Gujarati-medium child.
 
@@ -98,7 +99,7 @@ Not retained by default:
 
 API credentials and the parent PIN are excluded from exported backups. A parent-entered cloud API token inside a private mobile app remains a personal-development compromise and must never be committed to source control.
 
-See [`MILESTONE16.md`](MILESTONE16.md) for Cloudflare resilience, Offline Local setup, and the carry-field correction; earlier milestone documents remain in the repository.
+See [`MILESTONE17.md`](MILESTONE17.md) for provider capability guards and READY-state protection. [`MILESTONE16.md`](MILESTONE16.md) documents Cloudflare resilience, Offline Local setup, and the carry-field correction; earlier milestone documents remain in the repository.
 
 
 ## Milestone 13
