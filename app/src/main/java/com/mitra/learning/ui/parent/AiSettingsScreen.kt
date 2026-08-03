@@ -68,7 +68,7 @@ fun AiSettingsScreen(
     ) {
         Text("AI provider", style = MaterialTheme.typography.headlineLarge)
         Text(
-            "OpenAI is the default. Cloudflare is the free cloud option. Offline Local uses prepared textbook text entirely on this phone and can optionally use a parent-imported LiteRT-LM model.",
+            "OpenAI is the default. Cloudflare is the free cloud option. Offline Local can detect chapters, prepare textbook pages, chat and practise entirely on this phone using PDF text extraction, Gujarati/English OCR and an optional parent-imported LiteRT-LM model.",
             style = MaterialTheme.typography.bodyMedium,
         )
 
@@ -175,11 +175,11 @@ fun AiSettingsScreen(
 
             AiProviderType.OFFLINE_LOCAL -> {
                 Text(
-                    "Offline Local answers maths locally and searches chapters that were already prepared. It never sends the child's question or textbook content to the internet.",
+                    "Offline Local prepares new PDFs on this phone. It extracts selectable PDF text first, uses Gujarati/English OCR for scanned pages, and never sends the child's question or textbook content to the internet.",
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text(
-                    "Without a model, Mitra uses grounded sentence extraction. For more natural conversation, import a compatible .litertlm model. Useful models are usually 0.5–3 GB and work best on a modern phone with at least 6–8 GB RAM.",
+                    "Without a model, Mitra still prepares books using rule-based chapter detection, extracted page text and basic learning goals. Import a compatible .litertlm model for better Gujarati summaries, concepts and conversation. Local model speed and memory use depend on the selected model and phone.",
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Button(
@@ -196,7 +196,7 @@ fun AiSettingsScreen(
                     }
                 }
                 Text(
-                    "New scanned PDF pages still need OpenAI/Cloudflare once for preparation, or chapter ranges can be entered manually. After preparation, textbook chat and saved question banks work offline.",
+                    "Scanned Gujarati or English pages are processed with bundled on-device OCR. Picture-only pages are kept in the chapter and marked as having little readable text instead of failing the complete book.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }

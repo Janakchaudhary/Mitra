@@ -29,6 +29,7 @@ import androidx.navigation.navArgument
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.mitra.learning.ai.AiCapability
 import com.mitra.learning.ai.settings.AiProviderConfig
+import com.mitra.learning.ai.settings.AiProviderType
 import com.mitra.learning.ai.settings.supports
 import com.mitra.learning.core.AppContainer
 import com.mitra.learning.ui.books.AddBookScreen
@@ -532,6 +533,7 @@ private fun MitraNav(
                 val book by vm.book.collectAsStateWithLifecycle()
                 val chapters by vm.chapters.collectAsStateWithLifecycle()
                 val preparingChapterId by vm.preparingChapterId.collectAsStateWithLifecycle()
+                val preparingAll by vm.preparingAll.collectAsStateWithLifecycle()
                 val conceptsByChapter by vm.conceptsByChapter.collectAsStateWithLifecycle()
                 val offlineQuestionCounts by vm.offlineQuestionCounts.collectAsStateWithLifecycle()
                 val message by vm.message.collectAsStateWithLifecycle()
@@ -542,13 +544,17 @@ private fun MitraNav(
                     book = book,
                     chapters = chapters,
                     preparingChapterId = preparingChapterId,
+                    preparingAll = preparingAll,
                     conceptsByChapter = conceptsByChapter,
                     offlineQuestionCounts = offlineQuestionCounts,
-                    chapterPreparationSupported = aiConfig.supports(AiCapability.CHAPTER_IMAGE_ANALYSIS),
+                    chapterPreparationSupported = aiConfig.supports(AiCapability.CHAPTER_IMAGE_ANALYSIS) ||
+                        aiConfig.supports(AiCapability.CHAPTER_TEXT_ANALYSIS),
+                    offlinePreparation = aiConfig.provider == AiProviderType.OFFLINE_LOCAL,
                     message = message,
                     onOpenPdf = { nav.navigate(Routes.pdf(bookId)) },
                     onSetupChapters = { nav.navigate(Routes.setupBook(bookId)) },
                     onPrepareChapter = vm::prepareChapter,
+                    onPrepareAllChapters = vm::prepareAllChapters,
                     onConceptEnabled = vm::setConceptEnabled,
                     onDelete = { vm.delete { nav.popBackStack() } },
                     onBack = { nav.popBackStack() },
@@ -580,7 +586,9 @@ private fun MitraNav(
                 )
                 BookSetupScreen(
                     state = state,
-                    tocDetectionSupported = aiConfig.supports(AiCapability.TABLE_OF_CONTENTS_IMAGE_ANALYSIS),
+                    tocDetectionSupported = aiConfig.supports(AiCapability.TABLE_OF_CONTENTS_IMAGE_ANALYSIS) ||
+                        aiConfig.supports(AiCapability.TABLE_OF_CONTENTS_TEXT_ANALYSIS),
+                    offlineDetection = aiConfig.provider == AiProviderType.OFFLINE_LOCAL,
                     onPreviousPage = vm::previousPage,
                     onNextPage = vm::nextPage,
                     onToggleTocPage = vm::toggleCurrentTocPage,

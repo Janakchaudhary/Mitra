@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 fun BookSetupScreen(
     state: BookSetupUiState,
     tocDetectionSupported: Boolean,
+    offlineDetection: Boolean,
     onPreviousPage: () -> Unit,
     onNextPage: () -> Unit,
     onToggleTocPage: () -> Unit,
@@ -68,9 +69,15 @@ fun BookSetupScreen(
             item {
                 Text("1. Find the contents / index page", style = MaterialTheme.typography.titleLarge)
                 Text("Use Previous/Next, mark one or more contents pages, then detect chapters. You can also skip detection and add chapters manually.")
+                if (offlineDetection) {
+                    Text(
+                        "Offline Local extracts embedded PDF text and uses Gujarati/English OCR for scanned contents pages. Detection can take longer on scanned PDFs.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
                 if (!tocDetectionSupported) {
                     Text(
-                        "Offline Local cannot read contents-page images. Add chapter titles and page ranges manually, or select OpenAI/Cloudflare in Parent settings.",
+                        "The selected AI provider cannot detect chapter structure. Add chapters manually or change the provider in Parent settings.",
                         color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -107,7 +114,7 @@ fun BookSetupScreen(
                         onClick = onDetect,
                         enabled = tocDetectionSupported && state.selectedTocPages.isNotEmpty() && !state.detecting,
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text(if (state.detecting) "Detecting…" else "Detect chapter structure") }
+                    ) { Text(if (state.detecting) "Reading contents…" else if (offlineDetection) "Detect chapters offline" else "Detect chapter structure") }
                 }
             }
             item { HorizontalDivider() }

@@ -30,9 +30,11 @@ data class AiProviderConfig(
 }
 
 fun AiProviderConfig.supports(capability: AiCapability): Boolean = when (provider) {
-    AiProviderType.OFFLINE_LOCAL -> capability !in setOf(
-        AiCapability.TABLE_OF_CONTENTS_IMAGE_ANALYSIS,
-        AiCapability.CHAPTER_IMAGE_ANALYSIS,
+    AiProviderType.OFFLINE_LOCAL -> capability in setOf(
+        AiCapability.TABLE_OF_CONTENTS_TEXT_ANALYSIS,
+        AiCapability.CHAPTER_TEXT_ANALYSIS,
+        AiCapability.PRACTICE_GENERATION,
+        AiCapability.STUDY_CHAT,
     )
     AiProviderType.MOCK,
     AiProviderType.OPENAI,

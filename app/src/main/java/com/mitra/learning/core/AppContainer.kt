@@ -9,6 +9,8 @@ import com.mitra.learning.ai.local.OfflineAiGateway
 import com.mitra.learning.ai.settings.AiSettingsRepository
 import com.mitra.learning.books.analysis.BookPreparationService
 import com.mitra.learning.books.pdf.AndroidPdfPageRenderer
+import com.mitra.learning.books.text.AndroidOfflinePageTextExtractor
+import com.mitra.learning.books.text.TesseractOcrEngine
 import com.mitra.learning.data.db.MitraDatabase
 import com.mitra.learning.data.backup.MitraBackupService
 import com.mitra.learning.data.repository.BookKnowledgeRepository
@@ -45,6 +47,12 @@ class AppContainer(context: Context) {
 
     val database: MitraDatabase = MitraDatabase.create(appContext)
     val pdfRenderer = AndroidPdfPageRenderer()
+    val tesseractOcrEngine = TesseractOcrEngine(appContext)
+    val offlinePageTextExtractor = AndroidOfflinePageTextExtractor(
+        context = appContext,
+        renderer = pdfRenderer,
+        ocr = tesseractOcrEngine,
+    )
 
     val bookKnowledgeRepository: BookKnowledgeRepository = LocalBookKnowledgeRepository(
         chapterDao = database.chapterDao(),
@@ -97,6 +105,7 @@ class AppContainer(context: Context) {
         bookDao = database.bookDao(),
         pdfRenderer = pdfRenderer,
         aiGateway = aiGateway,
+        pageTextExtractor = offlinePageTextExtractor,
         questionBank = offlineQuestionBank,
     )
 

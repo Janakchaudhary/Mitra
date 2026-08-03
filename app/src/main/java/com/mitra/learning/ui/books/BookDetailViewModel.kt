@@ -33,6 +33,9 @@ class BookDetailViewModel(
     private val _preparingChapterId = MutableStateFlow<String?>(null)
     val preparingChapterId: StateFlow<String?> = _preparingChapterId.asStateFlow()
 
+    private val _preparingAll = MutableStateFlow(false)
+    val preparingAll: StateFlow<Boolean> = _preparingAll.asStateFlow()
+
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message.asStateFlow()
 
@@ -57,21 +60,60 @@ class BookDetailViewModel(
     }
 
     fun prepareChapter(chapterId: String) = viewModelScope.launch {
-        if (_preparingChapterId.value != null) return@launch
+        if (_preparingChapterId.value != null || _preparingAll.value) return@launch
+        prepareOne(chapterId)
+    }
+
+    fun prepareAllChapters() = viewModelScope.launch {
+        if (_preparingChapterId.value != null || _preparingAll.value) return@launch
+        val items = chapters.value
+        if (items.isEmpty()) {
+            _message.value = "Add or detect chapters first."
+            return@launch
+        }
+        _preparingAll.value = true
+        var prepared = 0
+        val failures = mutableListOf<String>()
+        try {
+            items.forEachIndexed { index, chapter ->
+                _preparingChapterId.value = chapter.id
+                _message.value = "Preparing chapter ${index + 1} of ${items.size}: ${chapter.titleGujarati}"
+                when (val result = preparationService.prepareChapter(chapter.id)) {
+                    is BookPreparationResult.Success -> prepared++
+                    is BookPreparationResult.Failure -> failures += "${chapter.titleGujarati}: ${result.message}"
+                }
+                runCatching { refreshChapterConcepts(chapter.id) }
+            }
+            _message.value = if (failures.isEmpty()) {
+                "Book prepared. $prepared chapters are ready."
+            } else {
+                "Prepared $prepared of ${items.size} chapters. ${failures.first()}"
+            }
+        } finally {
+            _preparingChapterId.value = null
+            _preparingAll.value = false
+        }
+    }
+
+    private suspend fun prepareOne(chapterId: String) {
         _preparingChapterId.value = chapterId
         _message.value = null
-        _message.value = when (val result = preparationService.prepareChapter(chapterId)) {
-            is BookPreparationResult.Success -> "Chapter prepared. ${result.sourceLabel}"
-            is BookPreparationResult.Failure -> "Could not prepare chapter: ${result.message}"
-        }
-        _preparingChapterId.value = null
-        val chapter = chapters.value.firstOrNull { it.id == chapterId }
-        if (chapter != null) {
-            val refreshed = knowledgeRepository.conceptsForChapter(chapterId)
-            _conceptsByChapter.value = _conceptsByChapter.value + (chapterId to refreshed)
-            _offlineQuestionCounts.value = _offlineQuestionCounts.value + refreshed.associate { concept ->
-                concept.id to (questionBank?.count(concept.id) ?: 0)
+        try {
+            _message.value = when (val result = preparationService.prepareChapter(chapterId)) {
+                is BookPreparationResult.Success -> "Chapter prepared. ${result.sourceLabel}"
+                is BookPreparationResult.Failure -> "Could not prepare chapter: ${result.message}"
             }
+            runCatching { refreshChapterConcepts(chapterId) }
+        } finally {
+            _preparingChapterId.value = null
+        }
+    }
+
+    private suspend fun refreshChapterConcepts(chapterId: String) {
+        val refreshed = knowledgeRepository.conceptsForChapter(chapterId)
+        _conceptsByChapter.value = _conceptsByChapter.value + (chapterId to refreshed)
+        _offlineQuestionCounts.value = _offlineQuestionCounts.value + refreshed.associate { concept ->
+            concept.id to (questionBank?.count(concept.id) ?: 0)
         }
     }
 

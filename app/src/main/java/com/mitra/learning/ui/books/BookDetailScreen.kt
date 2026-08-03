@@ -41,13 +41,16 @@ fun BookDetailScreen(
     book: BookEntity?,
     chapters: List<ChapterEntity>,
     preparingChapterId: String?,
+    preparingAll: Boolean,
     conceptsByChapter: Map<String, List<ConceptEntity>>,
     offlineQuestionCounts: Map<String, Int>,
     chapterPreparationSupported: Boolean,
+    offlinePreparation: Boolean,
     message: String?,
     onOpenPdf: () -> Unit,
     onSetupChapters: () -> Unit,
     onPrepareChapter: (String) -> Unit,
+    onPrepareAllChapters: () -> Unit,
     onConceptEnabled: (String, String, Boolean) -> Unit,
     onDelete: () -> Unit,
     onBack: () -> Unit,
@@ -79,7 +82,11 @@ fun BookDetailScreen(
                         Text("Pages: ${book.pageCount}")
                         Text("Preparation: ${book.analysisStatus.name.replace('_', ' ')}")
                         Button(onClick = onOpenPdf, modifier = Modifier.fillMaxWidth()) { Text("Open PDF") }
-                        Button(onClick = onSetupChapters, modifier = Modifier.fillMaxWidth()) {
+                        Button(
+                            onClick = onSetupChapters,
+                            enabled = !preparingAll && preparingChapterId == null,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
                             Text(if (chapters.isEmpty()) "Set up chapters" else "Review / edit chapters")
                         }
                         message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
@@ -90,13 +97,27 @@ fun BookDetailScreen(
                 item {
                     HorizontalDivider()
                     Text("Chapters", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
-                    Text("Prepare one chapter at a time. Prepared data is cached locally.")
+                    Text("Prepare one chapter at a time or prepare the complete book. Prepared data is cached locally.")
+                    if (offlinePreparation) {
+                        Text(
+                            "Offline Local keeps the PDF on this device. It extracts embedded text first and uses Gujarati/English OCR for scanned pages. Large scanned books can take longer.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
                     if (!chapterPreparationSupported) {
                         Text(
-                            "Offline Local can study prepared chapters, but cannot analyze new PDF pages. Select OpenAI or Cloudflare in Parent settings to prepare or re-prepare chapters.",
+                            "The selected AI provider cannot prepare this PDF. Change the provider in Parent settings.",
                             color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
                         )
+                    } else {
+                        Button(
+                            onClick = onPrepareAllChapters,
+                            enabled = !preparingAll && preparingChapterId == null,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(if (preparingAll) "Preparing complete book…" else "Prepare all chapters")
+                        }
                     }
                 }
                 items(chapters, key = { it.id }) { chapter ->
@@ -123,6 +144,7 @@ fun BookDetailScreen(
                                                 Switch(
                                                     checked = concept.practiceReady,
                                                     onCheckedChange = { onConceptEnabled(chapter.id, concept.id, it) },
+                                                    enabled = !preparingAll && preparingChapterId == null,
                                                 )
                                             }
                                         }
@@ -133,6 +155,7 @@ fun BookDetailScreen(
                             Button(
                                 onClick = { onPrepareChapter(chapter.id) },
                                 enabled = chapterPreparationSupported &&
+                                    !preparingAll &&
                                     preparingChapterId == null &&
                                     chapter.analysisStatus != ChapterAnalysisStatus.PREPARING,
                             ) {
@@ -144,7 +167,11 @@ fun BookDetailScreen(
                 }
             }
             item {
-                OutlinedButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp)) {
+                OutlinedButton(
+                    onClick = { confirmDelete = true },
+                    enabled = !preparingAll && preparingChapterId == null,
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 20.dp),
+                ) {
                     Text("Remove book")
                 }
             }

@@ -2,7 +2,9 @@ package com.mitra.learning.books.analysis
 
 data class RenderedBookPage(
     val pageNumber: Int,
-    val jpegBytes: ByteArray,
+    val jpegBytes: ByteArray = ByteArray(0),
+    val extractedText: String? = null,
+    val extractionMethod: String? = null,
 )
 
 data class ChapterDraft(

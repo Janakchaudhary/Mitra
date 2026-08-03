@@ -6,6 +6,9 @@ import com.mitra.learning.ai.AiCapability
 import com.mitra.learning.ai.AiGateway
 import com.mitra.learning.ai.PracticeContext
 import com.mitra.learning.books.pdf.PdfPageRenderer
+import com.mitra.learning.books.text.ExtractedBookPage
+import com.mitra.learning.books.text.OfflinePageTextExtractor
+import com.mitra.learning.books.text.TextExtractionMethod
 import com.mitra.learning.data.db.dao.BookDao
 import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.data.db.entity.BookAnalysisStatus
@@ -53,16 +56,16 @@ class BookPreparationCapabilityTest {
     )
 
     @Test
-    fun unsupportedOfflinePreparationDoesNotChangeReadyStatusOrRenderPdf() = runTest {
+    fun unsupportedProviderDoesNotChangeReadyStatusOrRenderPdf() = runTest {
         val knowledge = FakeKnowledgeRepository(readyChapter)
         val renderer = FailingRenderer()
-        val service = service(knowledge, renderer)
+        val service = service(knowledge, renderer, UnsupportedGateway)
 
         val result = service.prepareChapter(readyChapter.id)
 
         assertTrue(result is BookPreparationResult.Failure)
         assertEquals(
-            BookPreparationService.OFFLINE_CHAPTER_UNAVAILABLE_MESSAGE,
+            BookPreparationService.PREPARATION_UNAVAILABLE_MESSAGE,
             (result as BookPreparationResult.Failure).message,
         )
         assertTrue("No status write should happen for an unsupported provider", knowledge.statusUpdates.isEmpty())
@@ -70,19 +73,38 @@ class BookPreparationCapabilityTest {
     }
 
     @Test
-    fun unsupportedOfflineTocDetectionStopsBeforePdfRendering() = runTest {
+    fun unsupportedTocDetectionStopsBeforePdfRendering() = runTest {
         val knowledge = FakeKnowledgeRepository(readyChapter)
         val renderer = FailingRenderer()
-        val service = service(knowledge, renderer)
+        val service = service(knowledge, renderer, UnsupportedGateway)
 
         val result = service.detectChapters(book.id, listOf(0))
 
         assertTrue(result.isFailure)
         assertEquals(
-            BookPreparationService.OFFLINE_TOC_UNAVAILABLE_MESSAGE,
+            BookPreparationService.PREPARATION_UNAVAILABLE_MESSAGE,
             result.exceptionOrNull()?.message,
         )
         assertFalse(renderer.renderCalled)
+    }
+
+    @Test
+    fun offlineTextPreparationUsesExtractorWithoutRenderingPdf() = runTest {
+        val chapter = readyChapter.copy(startPage = 2, endPage = 2, analysisStatus = ChapterAnalysisStatus.NOT_PREPARED)
+        val knowledge = FakeKnowledgeRepository(chapter)
+        val renderer = FailingRenderer()
+        val extractor = FakeTextExtractor()
+        val service = service(knowledge, renderer, OfflineTextGateway, extractor)
+
+        val result = service.prepareChapter(chapter.id)
+
+        assertTrue(result is BookPreparationResult.Success)
+        assertEquals(listOf(1), extractor.requestedIndices)
+        assertFalse(renderer.renderCalled)
+        assertEquals(
+            listOf(ChapterAnalysisStatus.PREPARING, ChapterAnalysisStatus.READY),
+            knowledge.statusUpdates,
+        )
     }
 
     @Test
@@ -108,27 +130,69 @@ class BookPreparationCapabilityTest {
     private fun service(
         knowledge: FakeKnowledgeRepository,
         renderer: FailingRenderer,
-        gateway: AiGateway = OfflineImageUnsupportedGateway,
+        gateway: AiGateway = UnsupportedGateway,
+        extractor: OfflinePageTextExtractor? = null,
     ) = BookPreparationService(
         bookRepository = FakeBookRepository(book),
         knowledgeRepository = knowledge,
         bookDao = FakeBookDao(),
         pdfRenderer = renderer,
         aiGateway = gateway,
+        pageTextExtractor = extractor,
     )
 }
 
-private object OfflineImageUnsupportedGateway : AiGateway {
-    override suspend fun supports(capability: AiCapability): Boolean = capability !in setOf(
-        AiCapability.TABLE_OF_CONTENTS_IMAGE_ANALYSIS,
-        AiCapability.CHAPTER_IMAGE_ANALYSIS,
-    )
+private object UnsupportedGateway : AiGateway {
+    override suspend fun supports(capability: AiCapability): Boolean = false
 
     override suspend fun analyzeTableOfContents(request: TocAnalysisRequest): TocAnalysisResult =
         error("Must not be called")
 
     override suspend fun analyzeChapter(request: ChapterAnalysisRequest): ChapterAnalysisResult =
         error("Must not be called")
+
+    override suspend fun createPracticeQuestions(
+        concept: ConceptEntity,
+        count: Int,
+        context: PracticeContext?,
+    ): List<LearningQuestion> = emptyList()
+
+    override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String = ""
+}
+
+private object OfflineTextGateway : AiGateway {
+    override suspend fun supports(capability: AiCapability): Boolean = capability in setOf(
+        AiCapability.TABLE_OF_CONTENTS_TEXT_ANALYSIS,
+        AiCapability.CHAPTER_TEXT_ANALYSIS,
+    )
+
+    override suspend fun analyzeTableOfContents(request: TocAnalysisRequest): TocAnalysisResult =
+        TocAnalysisResult(
+            chapters = listOf(TocChapterSuggestion(1, "પાઠ ૧", startPage = 2)),
+            sourceLabel = "Offline test",
+        )
+
+    override suspend fun analyzeChapter(request: ChapterAnalysisRequest): ChapterAnalysisResult =
+        ChapterAnalysisResult(
+            pages = request.pages.map {
+                PageKnowledgeDraft(
+                    pageNumber = it.pageNumber,
+                    summaryGujarati = "સારાંશ",
+                    visibleTextGujarati = it.extractedText,
+                )
+            },
+            concepts = listOf(
+                ConceptDraft(
+                    titleGujarati = "વિચાર",
+                    descriptionGujarati = "વર્ણન",
+                    expectedLearningOutcome = "શીખવાનું પરિણામ",
+                    sourcePageStart = request.startPage,
+                    sourcePageEnd = request.endPage,
+                    practiceReady = true,
+                )
+            ),
+            sourceLabel = "Offline test",
+        )
 
     override suspend fun createPracticeQuestions(
         concept: ConceptEntity,
@@ -153,6 +217,21 @@ private object SupportedGateway : AiGateway {
     ): List<LearningQuestion> = emptyList()
 
     override fun feedbackGujarati(result: AttemptResult, expectedAnswer: Int?): String = ""
+}
+
+private class FakeTextExtractor : OfflinePageTextExtractor {
+    val requestedIndices = mutableListOf<Int>()
+
+    override suspend fun extract(path: String, pageIndices: List<Int>): List<ExtractedBookPage> {
+        requestedIndices += pageIndices
+        return pageIndices.map {
+            ExtractedBookPage(
+                pageNumber = it + 1,
+                text = "પાઠનો વાંચી શકાય એવો ગુજરાતી લખાણ",
+                method = TextExtractionMethod.TESSERACT_OCR,
+            )
+        }
+    }
 }
 
 private class FailingRenderer : PdfPageRenderer {

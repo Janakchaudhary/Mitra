@@ -5,6 +5,7 @@ import com.mitra.learning.ai.AiCapability
 import com.mitra.learning.ai.AiGateway
 import com.mitra.learning.ai.PracticeContext
 import com.mitra.learning.books.pdf.PdfPageRenderer
+import com.mitra.learning.books.text.OfflinePageTextExtractor
 import com.mitra.learning.data.db.dao.BookDao
 import com.mitra.learning.data.db.entity.BookAnalysisStatus
 import com.mitra.learning.data.db.entity.ChapterAnalysisStatus
@@ -30,26 +31,32 @@ class BookPreparationService(
     private val bookDao: BookDao,
     private val pdfRenderer: PdfPageRenderer,
     private val aiGateway: AiGateway,
+    private val pageTextExtractor: OfflinePageTextExtractor? = null,
     private val questionBank: OfflineQuestionBank? = null,
     private val now: () -> Long = { System.currentTimeMillis() },
 ) {
     companion object {
-        const val OFFLINE_TOC_UNAVAILABLE_MESSAGE =
-            "Offline Local cannot detect chapters from PDF images. Add chapter ranges manually, or select OpenAI/Cloudflare in Parent settings."
-        const val OFFLINE_CHAPTER_UNAVAILABLE_MESSAGE =
-            "Offline Local can use already prepared chapters, but it cannot prepare new PDF pages. Select OpenAI or Cloudflare to prepare this chapter."
+        const val PREPARATION_UNAVAILABLE_MESSAGE =
+            "The selected AI provider cannot prepare this PDF. Select Offline Local, OpenAI or Cloudflare in Parent settings."
+        const val OFFLINE_TEXT_EXTRACTOR_UNAVAILABLE_MESSAGE =
+            "Offline PDF text/OCR is not available in this build."
     }
 
     suspend fun detectChapters(bookId: String, tocPageIndices: List<Int>): Result<Pair<List<ChapterDraft>, String>> = runCatching {
-        require(aiGateway.supports(AiCapability.TABLE_OF_CONTENTS_IMAGE_ANALYSIS)) {
-            OFFLINE_TOC_UNAVAILABLE_MESSAGE
-        }
+        val imageAnalysis = aiGateway.supports(AiCapability.TABLE_OF_CONTENTS_IMAGE_ANALYSIS)
+        val textAnalysis = aiGateway.supports(AiCapability.TABLE_OF_CONTENTS_TEXT_ANALYSIS)
+        require(imageAnalysis || textAnalysis) { PREPARATION_UNAVAILABLE_MESSAGE }
         val book = requireNotNull(bookRepository.getBook(bookId)) { "Book not found" }
         require(tocPageIndices.isNotEmpty()) { "Choose at least one contents page" }
-        val pages = tocPageIndices.distinct().sorted().map { index ->
+        val indices = tocPageIndices.distinct().sorted().onEach { index ->
             require(index in 0 until book.pageCount) { "Page ${index + 1} is outside this PDF" }
-            renderInput(book.localPdfPath, index)
         }
+        val pages = prepareInputs(
+            path = book.localPdfPath,
+            pageIndices = indices,
+            imageAnalysis = imageAnalysis,
+            textAnalysis = textAnalysis,
+        )
         val result = aiGateway.analyzeTableOfContents(
             TocAnalysisRequest(
                 bookId = book.id,
@@ -155,8 +162,10 @@ class BookPreparationService(
         val book = bookRepository.getBook(chapter.bookId)
             ?: return BookPreparationResult.Failure("Book not found")
 
-        if (!aiGateway.supports(AiCapability.CHAPTER_IMAGE_ANALYSIS)) {
-            return BookPreparationResult.Failure(OFFLINE_CHAPTER_UNAVAILABLE_MESSAGE)
+        val imageAnalysis = aiGateway.supports(AiCapability.CHAPTER_IMAGE_ANALYSIS)
+        val textAnalysis = aiGateway.supports(AiCapability.CHAPTER_TEXT_ANALYSIS)
+        if (!imageAnalysis && !textAnalysis) {
+            return BookPreparationResult.Failure(PREPARATION_UNAVAILABLE_MESSAGE)
         }
 
         val statusBeforePreparation = chapter.analysisStatus
@@ -164,11 +173,17 @@ class BookPreparationService(
         return try {
             val allPages = mutableListOf<PageKnowledgeEntity>()
             val allConcepts = mutableListOf<ConceptEntity>()
-            var sourceLabel = "Unknown"
+            val sourceLabels = linkedSetOf<String>()
             val pageIndices = (chapter.startPage..chapter.endPage).map { it - 1 }
 
-            pageIndices.chunked(4).forEachIndexed { chunkIndex, chunk ->
-                val inputs = chunk.map { renderInput(book.localPdfPath, it) }
+            val chunkSize = 4
+            pageIndices.chunked(chunkSize).forEachIndexed { chunkIndex, chunk ->
+                val inputs = prepareInputs(
+                    path = book.localPdfPath,
+                    pageIndices = chunk,
+                    imageAnalysis = imageAnalysis,
+                    textAnalysis = textAnalysis,
+                )
                 val result = aiGateway.analyzeChapter(
                     ChapterAnalysisRequest(
                         bookId = book.id,
@@ -181,7 +196,7 @@ class BookPreparationService(
                         pages = inputs,
                     )
                 )
-                sourceLabel = result.sourceLabel
+                sourceLabels += result.sourceLabel
                 allPages += result.pages.map { page ->
                     PageKnowledgeEntity(
                         id = "${book.id}:${page.pageNumber}",
@@ -207,7 +222,7 @@ class BookPreparationService(
                         descriptionGujarati = concept.descriptionGujarati,
                         difficulty = concept.difficulty.coerceIn(1, 5),
                         expectedLearningOutcome = concept.expectedLearningOutcome,
-                        sortOrder = 10_000 + chapter.startPage * 10 + conceptIndex,
+                        sortOrder = 10_000 + chapter.startPage * 100 + chunkIndex * 10 + conceptIndex,
                         builtIn = false,
                         bookId = book.id,
                         chapterId = chapter.id,
@@ -233,7 +248,7 @@ class BookPreparationService(
                 }
             knowledgeRepository.replaceChapterConcepts(chapter.id, mergedConcepts)
 
-            // Prepare a reusable offline question bank while the parent is already online.
+            // Prepare a reusable question bank during the same local or remote preparation pass.
             val groundedText = allPages.sortedBy { it.pageNumber }.joinToString("\n\n") { page ->
                 buildString {
                     append("Page ${page.pageNumber}: ${page.summaryGujarati}")
@@ -259,7 +274,7 @@ class BookPreparationService(
 
             knowledgeRepository.setChapterStatus(chapter.id, ChapterAnalysisStatus.READY)
             refreshBookStatus(book.id)
-            BookPreparationResult.Success(sourceLabel)
+            BookPreparationResult.Success(sourceLabels.joinToString(" + ").ifBlank { "Prepared locally" })
         } catch (t: Throwable) {
             // A failed re-prepare must not destroy the usable READY state or its cached knowledge.
             // New/unprepared chapters still surface FAILED so the parent can retry.
@@ -284,6 +299,31 @@ class BookPreparationService(
             else -> BookAnalysisStatus.PARTIAL
         }
         bookDao.update(book.copy(analysisStatus = status))
+    }
+
+    private suspend fun prepareInputs(
+        path: String,
+        pageIndices: List<Int>,
+        imageAnalysis: Boolean,
+        textAnalysis: Boolean,
+    ): List<RenderedBookPage> {
+        // Remote vision providers keep their existing image path. Offline Local uses text only,
+        // avoiding JPEG encoding and passing all private page content through the on-device path.
+        if (imageAnalysis) return pageIndices.map { renderInput(path, it) }
+        require(textAnalysis) { PREPARATION_UNAVAILABLE_MESSAGE }
+        val extractor = requireNotNull(pageTextExtractor) { OFFLINE_TEXT_EXTRACTOR_UNAVAILABLE_MESSAGE }
+        val extractedByPage = extractor.extract(path, pageIndices).associateBy { it.pageNumber }
+        return pageIndices.map { pageIndex ->
+            val pageNumber = pageIndex + 1
+            val page = requireNotNull(extractedByPage[pageNumber]) {
+                "Offline extraction did not return PDF page $pageNumber."
+            }
+            RenderedBookPage(
+                pageNumber = page.pageNumber,
+                extractedText = page.text,
+                extractionMethod = page.method.name,
+            )
+        }
     }
 
     private suspend fun renderInput(path: String, pageIndex: Int): RenderedBookPage = withContext(Dispatchers.Default) {

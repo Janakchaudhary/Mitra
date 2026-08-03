@@ -26,12 +26,12 @@ The application should help the child put the phone down rather than maximize sc
 2. App copies it to `files/books/{bookId}/source.pdf` and calculates SHA-256.
 3. Parent selects contents pages or creates chapters manually.
 4. AI chapter suggestions remain editable before persistence.
-5. Parent prepares one chapter at a time.
-6. Pages are rendered in bounded batches and sent to `AiGateway.analyzeChapter`.
+5. Parent prepares one chapter or all saved chapters sequentially.
+6. Remote vision providers receive bounded JPEG batches; Offline Local receives embedded PDF text or Gujarati/English OCR text.
 7. Structured page knowledge and concepts are stored in Room.
 8. Parent can enable/disable extracted concepts.
 9. `BookPreparationService` generates a reusable offline question bank and stores it under `files/question_bank`.
-10. Re-preparing a chapter invalidates stale page knowledge/concepts/question-bank files.
+10. Re-preparing a chapter replaces stale page knowledge/concepts/question-bank files only after successful analysis; failed re-preparation preserves an existing READY state.
 
 ## Learning lifecycle
 
@@ -103,12 +103,31 @@ It excludes API credentials, parent PIN, app signing key, raw audio, and in-memo
 
 `AiGateway` now has three parent-selectable production paths: OpenAI, Cloudflare Workers AI, and Offline Local. Offline Local never receives arbitrary internet access. It retrieves only prepared `PageKnowledgeEntity` text and either returns a deterministic extractive answer or asks a parent-imported LiteRT-LM model to phrase a short grounded Gujarati response.
 
-The local model is copied to `files/local_ai/mitra-local.litertlm`; it is deliberately excluded from backups and APK packaging. `LiteRtLocalModel` serializes access with a mutex, keeps one engine warm, reloads when the imported file changes, tries GPU first, and falls back to CPU. New PDF image analysis remains a cloud/manual workflow until a supported local multimodal preparation pipeline is implemented.
+The local model is copied to `files/local_ai/mitra-local.litertlm`; it is deliberately excluded from backups and APK packaging. `LiteRtLocalModel` serializes access with a mutex, keeps one engine warm, reloads when the imported file changes, tries GPU first, and falls back to CPU. At Milestone 16, new PDF analysis remained a cloud/manual workflow. Milestone 18 supersedes that limitation with local PDF text extraction and OCR; the local model itself remains text-only rather than multimodal.
 
 Study Talk provider errors are child-safe: cloud parsing/network failures fall back to `OfflineStudyAnswerer`, and technical error text is not displayed when prepared local sources can answer.
 
 # Milestone 17 Addendum — Provider capability guards
 
-PDF preparation is now capability-gated before any page bitmap is rendered or any chapter status is changed. Offline Local advertises Study Talk and practice generation, but not contents-page or chapter image analysis. The parent UI observes the selected provider, disables unsupported actions, and keeps manual chapter entry available.
+At Milestone 17, PDF preparation became capability-gated before any page bitmap was rendered or any chapter status changed. Offline Local advertised Study Talk and practice generation but not contents-page or chapter image analysis. Milestone 18 retains those image guards while adding separate on-device text-analysis capabilities.
 
 If a provider rejects preparation, the chapter remains unchanged. If re-preparing an existing `READY` chapter fails later, Mitra restores `READY` so cached page knowledge, concepts, and offline questions remain usable. New chapters still move to `FAILED` after a genuine preparation failure.
+
+# Milestone 18 Addendum — On-device PDF text and OCR preparation
+
+Offline Local now advertises text-based contents analysis and chapter analysis. It still does not accept page images directly. `BookPreparationService` selects the provider path before processing pages:
+
+- image-capable remote/mock provider → bounded JPEG rendering → existing vision gateway
+- Offline Local → embedded PDF text extraction → OCR only when text is unusable → text gateway
+
+`AndroidOfflinePageTextExtractor` loads the app-private PDF with PDFBox and reads only the requested pages. Each page passes a minimum useful-text check. A page that fails that check is rendered at a bounded width and passed to `TesseractOcrEngine`. Tesseract is serialized behind a mutex and kept warm; Gujarati and English language data are copied from APK assets to an app-private versioned directory on first use.
+
+Offline chapter preparation then follows:
+
+`PDF page → embedded text or Gujarati/English OCR → 4-page text batch → OfflineAiGateway → Room page knowledge/concepts → offline question bank`
+
+When a compatible `.litertlm` file exists, `OfflineAiGateway` asks it for strict JSON and validates every returned page number and concept range. Missing or malformed model output falls back page-by-page to deterministic extraction. Without a model, the deterministic path still stores readable page text, short summaries, exercises, and conservative concepts. This fallback does not claim semantic understanding beyond the extracted text.
+
+The parent can prepare one chapter or all saved chapters. Full-book preparation remains sequential to bound memory and native-model pressure. Existing `READY` chapters retain their ready state and cached data after a failed re-prepare.
+
+The Room schema remains version 5 because the new extraction method is transient request metadata; persisted page-knowledge and concept entities are unchanged.

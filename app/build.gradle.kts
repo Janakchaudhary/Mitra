@@ -34,8 +34,8 @@ android {
         applicationId = "com.mitra.learning"
         minSdk = 26
         targetSdk = 35
-        versionCode = 32
-        versionName = "0.17.0"
+        versionCode = 33
+        versionName = "0.18.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -85,6 +85,9 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // LiteRT-LM and Tesseract both ship the shared C++ runtime for some ABIs.
+        // Keep one identical runtime during APK packaging instead of failing on duplicates.
+        jniLibs.pickFirsts += "**/libc++_shared.so"
     }
 }
 
@@ -134,6 +137,11 @@ dependencies {
     // are intentionally aligned to Kotlin 2.3.21. Do not suppress metadata
     // checks: a real compiler/library mismatch can otherwise fail at runtime.
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.14.0")
+
+    // Fully offline book preparation: PDF text extraction first, then Gujarati/English OCR
+    // for scanned pages. Gujarati and English traineddata are bundled in assets/tessdata.
+    implementation("com.tom-roush:pdfbox-android:2.0.27.0")
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.1")

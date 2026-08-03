@@ -13,6 +13,8 @@ import com.mitra.learning.study.StudyQuestionRequest
 enum class AiCapability {
     TABLE_OF_CONTENTS_IMAGE_ANALYSIS,
     CHAPTER_IMAGE_ANALYSIS,
+    TABLE_OF_CONTENTS_TEXT_ANALYSIS,
+    CHAPTER_TEXT_ANALYSIS,
     PRACTICE_GENERATION,
     STUDY_CHAT,
 }
