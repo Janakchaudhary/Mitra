@@ -105,3 +105,8 @@ Not retained by default:
 Offline preparation does not upload textbook pages or OCR text. API credentials and the parent PIN are excluded from exported backups. The imported local model is also excluded from normal backups.
 
 See [`MILESTONE18.md`](MILESTONE18.md) for the implementation details, [`ARCHITECTURE.md`](ARCHITECTURE.md) for runtime boundaries, and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the offline PDF/OCR components.
+
+
+## 0.18.1 OCR compilation fix
+
+Corrected the Tesseract4Android `TessBaseAPI` import to `com.googlecode.tesseract.android.TessBaseAPI`.
