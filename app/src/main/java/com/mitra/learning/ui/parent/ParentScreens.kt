@@ -14,6 +14,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material.icons.filled.PlayCircle
+import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -32,6 +34,8 @@ fun ParentPinScreen(
     state: ParentPinUiState,
     onPinChange: (String) -> Unit,
     onUnlock: () -> Unit,
+    onDeviceUnlock: () -> Unit,
+    deviceUnlockAvailable: Boolean,
     onBack: () -> Unit,
 ) {
     Column(
@@ -51,8 +55,15 @@ fun ParentPinScreen(
         )
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Spacer(Modifier.height(16.dp))
+        Text("છેલ્લો PIN અંક દાખલ થતાં Parent area આપમેળે ખુલશે.", style = MaterialTheme.typography.bodySmall)
         Button(onClick = onUnlock, enabled = !state.checking, modifier = Modifier.fillMaxWidth()) {
-            Text(if (state.checking) "Checking…" else "Unlock")
+            Text(if (state.checking) "Checking…" else "Unlock with parent PIN")
+        }
+        if (deviceUnlockAvailable) {
+            OutlinedButton(onClick = onDeviceUnlock, enabled = !state.checking, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Fingerprint, contentDescription = null)
+                Text("  Fingerprint / phone lock")
+            }
         }
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
     }
@@ -65,6 +76,7 @@ fun ParentHomeScreen(
     onSettings: () -> Unit,
     onAiSettings: () -> Unit,
     onPractice: () -> Unit,
+    onQuizBuilder: () -> Unit,
     onChildMode: () -> Unit,
 ) {
     Column(
@@ -72,7 +84,7 @@ fun ParentHomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Parent dashboard", style = MaterialTheme.typography.headlineLarge)
-        Text("Milestone 12 — guided maths, review, backup and Study Talk")
+        Text("Mitra 20 — voice tutor, 20/25-mark tests, visual lessons and offline books")
         Button(onClick = onBooks, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null)
             Text("  My books")
@@ -84,6 +96,10 @@ fun ParentHomeScreen(
         Button(onClick = onPractice, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.PlayCircle, contentDescription = null)
             Text("  Choose a practice skill")
+        }
+        Button(onClick = onQuizBuilder, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Assignment, contentDescription = null)
+            Text("  Build a 20/25-mark child test")
         }
         OutlinedButton(onClick = onSettings, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Tune, contentDescription = null)

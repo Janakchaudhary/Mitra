@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import com.mitra.learning.ai.AiCapability
 import com.mitra.learning.ai.AiGateway
 import com.mitra.learning.ai.PracticeContext
+import com.mitra.learning.ai.local.parseOfflineTocLine
 import com.mitra.learning.books.pdf.PdfPageRenderer
 import com.mitra.learning.books.text.OfflinePageTextExtractor
 import com.mitra.learning.data.db.dao.BookDao
@@ -189,13 +190,19 @@ class BookPreparationService(
     }
 
     suspend fun prepareChapter(chapterId: String): BookPreparationResult {
-        val chapter = knowledgeRepository.getChapter(chapterId)
+        val originalChapter = knowledgeRepository.getChapter(chapterId)
             ?: return BookPreparationResult.Failure("Chapter not found")
-        val book = bookRepository.getBook(chapter.bookId)
+        val book = bookRepository.getBook(originalChapter.bookId)
             ?: return BookPreparationResult.Failure("Book not found")
 
         val imageAnalysis = aiGateway.supports(AiCapability.CHAPTER_IMAGE_ANALYSIS)
         val textAnalysis = aiGateway.supports(AiCapability.CHAPTER_TEXT_ANALYSIS)
+        // Range repair uses the always-local PDF/OCR extractor and is independent of the
+        // selected answer provider, so cloud and offline preparation receive the same pages.
+        val repairedChapters = autoRepairGenericChapterRanges(book.id, book.localPdfPath, book.pageCount)
+        val chapter = repairedChapters.firstOrNull { it.id == chapterId }
+            ?: knowledgeRepository.getChapter(chapterId)
+            ?: originalChapter
         if (!imageAnalysis && !textAnalysis) {
             return BookPreparationResult.Failure(PREPARATION_UNAVAILABLE_MESSAGE)
         }
@@ -288,11 +295,11 @@ class BookPreparationService(
                     page.exercisesJson?.takeIf { it.isNotBlank() }?.let { append("\nExercises: $it") }
                 }
             }.take(16_000)
-            mergedConcepts.filter { it.practiceReady }.take(8).forEach { concept ->
+            mergedConcepts.filter { it.practiceReady }.take(12).forEach { concept ->
                 runCatching {
                     aiGateway.createPracticeQuestions(
                         concept = concept,
-                        count = 8,
+                        count = 20,
                         context = PracticeContext(
                             bookTitle = book.title,
                             chapterTitleGujarati = chapter.titleGujarati,
@@ -319,6 +326,75 @@ class BookPreparationService(
             refreshBookStatus(book.id)
             BookPreparationResult.Failure(t.message ?: "Chapter preparation failed")
         }
+    }
+
+    /**
+     * Repairs the common scanned-textbook mistake where printed lesson pages (1, 16, 32...)
+     * were saved as physical PDF pages. A strong contents page (at least three entries) is
+     * required, so ordinary manually entered chapter ranges are never guessed over.
+     */
+    private suspend fun autoRepairGenericChapterRanges(
+        bookId: String,
+        pdfPath: String,
+        pageCount: Int,
+    ): List<ChapterEntity> {
+        val extractor = pageTextExtractor ?: return emptyList()
+        val existing = knowledgeRepository.chaptersForBook(bookId).sortedBy { it.startPage }
+        if (existing.isEmpty()) return emptyList()
+        val first = existing.first()
+        val genericTitles = existing.count { chapter ->
+            chapter.titleGujarati.trim().matches(Regex("""(?:પાઠ|અધ્યાય|chapter|lesson)\s*[-:.]?\s*\p{N}+""", RegexOption.IGNORE_CASE))
+        }
+        if (first.startPage > 2 || genericTitles == 0 || genericTitles * 2 < existing.size) return emptyList()
+
+        val scanIndices = (0 until minOf(pageCount, 20)).toList()
+        val pages = runCatching { extractor.extract(pdfPath, scanIndices) }.getOrNull() ?: return emptyList()
+        val tocCandidate = pages.map { page ->
+            val suggestions = page.text.lineSequence()
+                .mapNotNull { line -> parseOfflineTocLine(line, pageCount) }
+                .distinctBy { it.startPage }
+                .sortedBy { it.startPage }
+                .toList()
+            page to suggestions
+        }.filter { (_, suggestions) -> suggestions.size >= 3 }
+            .maxByOrNull { (_, suggestions) -> suggestions.size }
+            ?: return emptyList()
+
+        val tocPageNumber = tocCandidate.first.pageNumber
+        val printed = tocCandidate.second
+        val firstPrintedPage = printed.minOf { it.startPage }
+        val offset = (tocPageNumber + 1) - firstPrintedPage
+        if (offset <= 0) return emptyList()
+        val physicalSuggestions = printed.map { suggestion ->
+            suggestion.copy(startPage = (suggestion.startPage + offset).coerceIn(1, pageCount))
+        }.distinctBy { it.startPage }.sortedBy { it.startPage }
+        val ranges = ChapterRangeResolver.fromStarts(physicalSuggestions, pageCount)
+        if (ranges.size < 3 || ranges.first().startPage <= tocPageNumber) return emptyList()
+
+        val updated = existing.mapIndexed { index, chapter ->
+            val byNumber = ranges.firstOrNull { it.chapterNumber != null && it.chapterNumber == chapter.chapterNumber }
+            val range = byNumber ?: ranges.getOrNull(index) ?: return@mapIndexed chapter
+            val changed = chapter.startPage != range.startPage || chapter.endPage != range.endPage ||
+                chapter.titleGujarati.matches(Regex("""(?:પાઠ|અધ્યાય)\s*[-:.]?\s*\p{N}+"""))
+            if (!changed) chapter else {
+                knowledgeRepository.replacePageKnowledge(chapter.id, emptyList())
+                knowledgeRepository.conceptsForChapter(chapter.id).forEach { concept -> questionBank?.deleteForConcept(concept.id) }
+                knowledgeRepository.replaceChapterConcepts(chapter.id, emptyList())
+                chapter.copy(
+                    titleGujarati = range.titleGujarati,
+                    titleEnglish = range.titleEnglish,
+                    startPage = range.startPage,
+                    endPage = range.endPage,
+                    analysisStatus = ChapterAnalysisStatus.NOT_PREPARED,
+                )
+            }
+        }
+        if (updated != existing) {
+            knowledgeRepository.upsertChapters(updated)
+            bookRepository.getBook(bookId)?.let { bookDao.update(it.copy(analysisStatus = BookAnalysisStatus.PARTIAL)) }
+            return updated
+        }
+        return emptyList()
     }
 
     private suspend fun refreshBookStatus(bookId: String) {

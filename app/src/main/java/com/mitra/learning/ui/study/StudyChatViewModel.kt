@@ -49,6 +49,8 @@ data class StudyChatUiState(
     val challengeAttempts: Int = 0,
     val correctCount: Int = 0,
     val correctStreak: Int = 0,
+    val practiceAnswered: Int = 0,
+    val practiceTarget: Int = 20,
     val remainingSeconds: Int? = null,
     val timeLimitReached: Boolean = false,
     val error: String? = null,
@@ -185,22 +187,33 @@ class StudyChatViewModel(
             return
         }
 
+        practiceService.detectTopic(question)?.let { topic ->
+            if (looksLikePracticeRequest(question)) {
+                beginPractice(topic, childRequest = question, questionCount = _state.value.practiceTarget)
+                return
+            }
+        }
+
         _state.value.activeChallenge?.let { challenge ->
-            answerChallenge(challenge, question)
+            if (looksLikeChildQuestion(question)) {
+                askStudyQuestion(question, resumeChallenge = challenge)
+            } else {
+                answerChallenge(challenge, question)
+            }
             return
         }
 
         practiceService.detectTopic(question)?.let { topic ->
-            beginPractice(topic, childRequest = question)
+            beginPractice(topic, childRequest = question, questionCount = _state.value.practiceTarget)
             return
         }
 
         askStudyQuestion(question)
     }
 
-    fun startPractice(topic: MitraPracticeTopic) {
+    fun startPractice(topic: MitraPracticeTopic, questionCount: Int = 20) {
         if (_state.value.loading || _state.value.timeLimitReached) return
-        beginPractice(topic, childRequest = null)
+        beginPractice(topic, childRequest = null, questionCount = questionCount)
     }
 
     fun stopPractice(speakClosing: Boolean = true) {
@@ -210,6 +223,7 @@ class StudyChatViewModel(
             practiceTopic = null,
             challengeAttempts = 0,
             correctStreak = 0,
+            practiceAnswered = 0,
             waitingForNextTurn = false,
         )
         if (wasActive && speakClosing) {
@@ -219,7 +233,7 @@ class StudyChatViewModel(
         }
     }
 
-    private fun beginPractice(topic: MitraPracticeTopic, childRequest: String?) {
+    private fun beginPractice(topic: MitraPracticeTopic, childRequest: String?, questionCount: Int = 20) {
         viewModelScope.launch {
             childRequest?.let { appendChildMessage(it) }
             _state.value = _state.value.copy(
@@ -230,7 +244,10 @@ class StudyChatViewModel(
                 error = null,
                 practiceTopic = topic,
                 challengeAttempts = 0,
+                correctCount = 0,
                 correctStreak = 0,
+                practiceAnswered = 0,
+                practiceTarget = questionCount.coerceIn(5, 25),
             )
             runCatching { practiceService.nextChallenge(topic) }
                 .onSuccess { challenge ->
@@ -305,34 +322,58 @@ class StudyChatViewModel(
             } else {
                 "${evaluation.feedbackGujarati} ${practiceService.revealedCorrection(challenge)}"
             }
-            val selectedTopic = _state.value.practiceTopic ?: challenge.topic
-            val next = runCatching {
-                practiceService.nextChallenge(selectedTopic, previousChallengeId = challenge.id)
-            }.getOrNull()
+            val newAnswered = _state.value.practiceAnswered + 1
+            val newCorrect = _state.value.correctCount + if (evaluation.correct) 1 else 0
+            val newStreak = if (evaluation.correct) _state.value.correctStreak + 1 else 0
 
-            if (next == null || next.id == "book-unavailable") {
-                val closing = "$feedback\n\nઆ રાઉન્ડ પૂરો થયો. હવે બીજો વિષય પસંદ કરો અથવા પુસ્તકનો સવાલ પૂછો."
+            if (newAnswered >= _state.value.practiceTarget) {
+                val closing = "$feedback\n\nઆજની ${_state.value.practiceTarget} પ્રશ્નોની રમત પૂરી! તમે $newCorrect સાચા જવાબ આપ્યા. બહુ સરસ મહેનત."
                 _state.value = _state.value.copy(
                     loading = false,
                     activeChallenge = null,
                     practiceTopic = null,
                     challengeAttempts = 0,
-                    correctCount = _state.value.correctCount + if (evaluation.correct) 1 else 0,
-                    correctStreak = if (evaluation.correct) _state.value.correctStreak + 1 else 0,
+                    correctCount = newCorrect,
+                    correctStreak = newStreak,
+                    practiceAnswered = newAnswered,
+                    waitingForNextTurn = false,
                 )
                 appendMitraMessage(closing, StudyResponseKind.VOICE_PRACTICE, challenge.sourceLabels)
                 speechOutput.speakGujarati(closing)
                 return@launch
             }
 
-            val nextText = "$feedback\n\nઆગળનો પ્રશ્ન: ${next.promptGujarati}"
-            val nextSpokenText = "$feedback. આગળનો પ્રશ્ન. ${next.spokenPrompt}"
+            val selectedTopic = _state.value.practiceTopic ?: challenge.topic
+            val next = runCatching {
+                practiceService.nextChallenge(selectedTopic, previousChallengeId = challenge.id)
+            }.getOrNull()
+
+            if (next == null || next.id == "book-unavailable") {
+                val closing = "$feedback\n\nઆ રાઉન્ડ અહીં પૂરો થયો. તમે $newAnswered માંથી $newCorrect સાચા જવાબ આપ્યા."
+                _state.value = _state.value.copy(
+                    loading = false,
+                    activeChallenge = null,
+                    practiceTopic = null,
+                    challengeAttempts = 0,
+                    correctCount = newCorrect,
+                    correctStreak = newStreak,
+                    practiceAnswered = newAnswered,
+                )
+                appendMitraMessage(closing, StudyResponseKind.VOICE_PRACTICE, challenge.sourceLabels)
+                speechOutput.speakGujarati(closing)
+                return@launch
+            }
+
+            val nextNumber = newAnswered + 1
+            val nextText = "$feedback\n\nપ્રશ્ન $nextNumber/${_state.value.practiceTarget}: ${next.promptGujarati}"
+            val nextSpokenText = "$feedback. પ્રશ્ન $nextNumber. ${next.spokenPrompt}"
             _state.value = _state.value.copy(
                 loading = false,
                 activeChallenge = next,
                 challengeAttempts = 0,
-                correctCount = _state.value.correctCount + if (evaluation.correct) 1 else 0,
-                correctStreak = if (evaluation.correct) _state.value.correctStreak + 1 else 0,
+                correctCount = newCorrect,
+                correctStreak = newStreak,
+                practiceAnswered = newAnswered,
                 waitingForNextTurn = _state.value.handsFreeEnabled,
             )
             appendMitraMessage(
@@ -344,7 +385,7 @@ class StudyChatViewModel(
         }
     }
 
-    private fun askStudyQuestion(question: String) {
+    private fun askStudyQuestion(question: String, resumeChallenge: MitraVoiceChallenge? = null) {
         val priorMessages = _state.value.messages
         viewModelScope.launch {
             appendChildMessage(question)
@@ -384,19 +425,23 @@ class StudyChatViewModel(
                         append(it.trim())
                     }
                 }
+                val reply = if (resumeChallenge != null) {
+                    "$combined\n\nહવે આપણી રમત ચાલુ રાખીએ. ${resumeChallenge.promptGujarati}"
+                } else combined
                 val continueHandsFree = _state.value.handsFreeEnabled && !answer.endConversation
                 _state.value = _state.value.copy(
                     loading = false,
+                    activeChallenge = resumeChallenge ?: _state.value.activeChallenge,
                     waitingForNextTurn = continueHandsFree,
                 )
                 appendMitraMessage(
-                    text = combined,
+                    text = reply,
                     kind = answer.responseKind,
-                    sources = answer.sourceLabels,
+                    sources = (answer.sourceLabels + resumeChallenge?.sourceLabels.orEmpty()).distinct(),
                 )
                 autoListenAfterSpeech = continueHandsFree
                 speechStartedForAutoTurn = false
-                speechOutput.speakGujarati(combined)
+                speechOutput.speakGujarati(reply)
             }.onFailure { error ->
                 autoListenAfterSpeech = false
                 speechStartedForAutoTurn = false
@@ -449,6 +494,20 @@ class StudyChatViewModel(
         return if (vagueFollowUp && !previousChildQuestion.isNullOrBlank()) {
             "$previousChildQuestion $question"
         } else question
+    }
+
+    private fun looksLikePracticeRequest(value: String): Boolean {
+        val text = value.lowercase()
+        return listOf("પૂછ", "શરૂ", "રમત", "quiz", "practice", "ask me").any(text::contains)
+    }
+
+    private fun looksLikeChildQuestion(value: String): Boolean {
+        val text = value.lowercase().trim()
+        if ('?' in text || '？' in text) return true
+        return listOf(
+            "શું", "કેમ", "ક્યાં", "કોણ", "ક્યારે", "અર્થ", "મતલબ", "સમજાવ",
+            "what", "why", "where", "who", "when", "meaning", "explain",
+        ).any { marker -> text.contains(marker) }
     }
 
     fun setHandsFree(enabled: Boolean) {

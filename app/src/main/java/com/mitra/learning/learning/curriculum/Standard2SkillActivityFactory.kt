@@ -16,7 +16,7 @@ object Standard2SkillActivityFactory {
         seed: Long = System.nanoTime(),
         excludedFingerprints: Set<String> = emptySet(),
     ): List<LearningQuestion> {
-        val requested = count.coerceIn(1, 8)
+        val requested = count.coerceIn(1, 25)
         val random = Random(seed xor concept.id.hashCode().toLong())
         val source = BuiltInCurriculum.tableNumberFor(concept.id)?.let { tableQuestions(it, random) }
             ?: when (concept.id) {

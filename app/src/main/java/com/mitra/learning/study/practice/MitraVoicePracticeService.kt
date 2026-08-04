@@ -180,7 +180,7 @@ class MitraVoicePracticeService(
                 val generated = runCatching {
                     aiGateway.createPracticeQuestions(
                         concept = concept,
-                        count = 6,
+                        count = 20,
                         context = PracticeContext(
                             bookTitle = book?.title,
                             chapterTitleGujarati = chapter.titleGujarati,
@@ -196,7 +196,8 @@ class MitraVoicePracticeService(
                 }
             }
 
-            candidates.firstOrNull()?.let { question ->
+            if (candidates.isNotEmpty()) {
+                val question = candidates[Math.floorMod(sequence.getAndIncrement(), candidates.size)]
                 return question.toVoiceChallenge(sourceLabel)
             }
 

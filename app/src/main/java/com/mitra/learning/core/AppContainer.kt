@@ -24,6 +24,8 @@ import com.mitra.learning.data.repository.ProgressRepository
 import com.mitra.learning.data.reset.AppDataResetService
 import com.mitra.learning.learning.limits.LearningLimitService
 import com.mitra.learning.learning.offline.OfflineQuestionBank
+import com.mitra.learning.learning.assignment.ParentQuizRepository
+import com.mitra.learning.learning.assignment.ParentQuizService
 import com.mitra.learning.network.NetworkMonitor
 import com.mitra.learning.security.ParentAccessManager
 import com.mitra.learning.settings.LearningSettingsRepository
@@ -125,6 +127,9 @@ class AppContainer(context: Context) {
         questionBank = offlineQuestionBank,
         aiGateway = aiGateway,
     )
+
+    val parentQuizRepository = ParentQuizRepository(appContext)
+    val parentQuizService = ParentQuizService(mitraVoicePracticeService, parentQuizRepository)
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 

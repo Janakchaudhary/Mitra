@@ -54,13 +54,44 @@ class StudyContextService(
     private fun score(text: String, tokens: Set<String>): Int {
         if (tokens.isEmpty()) return 0
         val haystack = normalize(text)
+        val words = haystack.trim().split(' ').filter(String::isNotBlank)
         return tokens.fold(0) { total, token ->
+            val stem = gujaratiStem(token)
             total + when {
-                haystack.contains(" $token ") -> 5
-                haystack.contains(token) -> 2
+                haystack.contains(" $token ") -> 8
+                stem.length >= 3 && words.any { gujaratiStem(it) == stem } -> 5
+                haystack.contains(token) -> 3
+                token.length >= 4 && words.any { word -> editDistanceAtMostOne(token, word) } -> 2
                 else -> 0
             }
         }
+    }
+
+    private fun gujaratiStem(value: String): String {
+        var result = value
+        listOf("માંથી", "વાળો", "વાળી", "વાળું", "નો", "ની", "નું", "ને", "માં", "થી").forEach { suffix ->
+            if (result.length > suffix.length + 2 && result.endsWith(suffix)) result = result.dropLast(suffix.length)
+        }
+        return result
+    }
+
+    private fun editDistanceAtMostOne(left: String, right: String): Boolean {
+        if (kotlin.math.abs(left.length - right.length) > 1) return false
+        if (left == right) return true
+        var i = 0
+        var j = 0
+        var edits = 0
+        while (i < left.length && j < right.length) {
+            if (left[i] == right[j]) { i += 1; j += 1; continue }
+            edits += 1
+            if (edits > 1) return false
+            when {
+                left.length > right.length -> i += 1
+                right.length > left.length -> j += 1
+                else -> { i += 1; j += 1 }
+            }
+        }
+        return edits + (left.length - i) + (right.length - j) <= 1
     }
 
     private fun tokens(value: String): Set<String> = normalize(value)
@@ -71,7 +102,7 @@ class StudyContextService(
 
     private fun normalize(value: String): String = " " + value
         .lowercase()
-        .replace(Regex("[^\\p{L}\\p{N}]+"), " ")
+        .replace(Regex("[^\\p{L}\\p{M}\\p{N}]+"), " ")
         .replace(Regex("\\s+"), " ")
         .trim() + " "
 

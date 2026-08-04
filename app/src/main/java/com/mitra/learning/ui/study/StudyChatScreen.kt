@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.StopCircle
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -65,7 +66,7 @@ fun StudyChatScreen(
     onStopVoice: () -> Unit,
     onMicDenied: () -> Unit,
     onHandsFreeChange: (Boolean) -> Unit,
-    onStartPractice: (MitraPracticeTopic) -> Unit,
+    onStartPractice: (MitraPracticeTopic, Int) -> Unit,
     onStopPractice: () -> Unit,
     onReplay: () -> Unit,
     onBack: () -> Unit,
@@ -173,9 +174,10 @@ fun StudyChatScreen(
 @Composable
 private fun PracticeTopicBar(
     state: StudyChatUiState,
-    onStartPractice: (MitraPracticeTopic) -> Unit,
+    onStartPractice: (MitraPracticeTopic, Int) -> Unit,
     onStopPractice: () -> Unit,
 ) {
+    var selectedLength by remember { mutableStateOf(20) }
     Surface(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
         shape = RoundedCornerShape(20.dp),
@@ -191,7 +193,7 @@ private fun PracticeTopicBar(
                     Text("મિત્ર મને પ્રશ્ન પૂછે", style = MaterialTheme.typography.titleMedium)
                     if (state.practiceTopic != null) {
                         Text(
-                            "સાચા જવાબ: ${state.correctCount} • સતત: ${state.correctStreak}",
+                            "પ્રશ્ન ${state.practiceAnswered.coerceAtMost(state.practiceTarget)}/${state.practiceTarget} • સાચા ${state.correctCount}",
                             style = MaterialTheme.typography.labelSmall,
                         )
                     }
@@ -202,13 +204,28 @@ private fun PracticeTopicBar(
                     }
                 }
             }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("રમતની લંબાઈ:", style = MaterialTheme.typography.labelMedium)
+                listOf(20, 25).forEach { length ->
+                    FilterChip(
+                        selected = selectedLength == length,
+                        onClick = { selectedLength = length },
+                        label = { Text("$length પ્રશ્ન") },
+                        enabled = state.activeChallenge == null && !state.loading,
+                    )
+                }
+            }
             LazyRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp),
             ) {
                 items(MitraPracticeTopic.entries, key = { it.name }) { topic ->
                     FilledTonalButton(
-                        onClick = { onStartPractice(topic) },
+                        onClick = { onStartPractice(topic, selectedLength) },
                         enabled = !state.loading && !state.timeLimitReached,
                     ) {
                         Text("${topic.emoji} ${topic.titleGujarati}")

@@ -38,17 +38,17 @@ class DefaultLearningEngine(
 ) : LearningEngine {
 
     override suspend fun startSession(questionCount: Int): SessionPlan? =
-        startSingleConceptSession(questionCount.coerceIn(1, 8))
+        startSingleConceptSession(questionCount.coerceIn(1, 25))
 
     override suspend fun startConceptSession(conceptId: String, questionCount: Int): SessionPlan? {
         repository.seedBuiltInCurriculumIfNeeded()
         val concept = repository.getConcepts().firstOrNull { it.id == conceptId && it.practiceReady } ?: return null
         val recent = repository.recentQuestionFingerprints(60).toSet()
-        val requested = questionCount.coerceIn(1, 8)
+        val requested = questionCount.coerceIn(1, 25)
         val bank = if (!concept.builtIn) questionBank?.load(concept.id, requested, recent).orEmpty() else emptyList()
         val generated = if (bank.size >= requested) emptyList() else aiGateway.createPracticeQuestions(
             concept = concept,
-            count = (requested * 2).coerceIn(requested, 8),
+            count = (requested * 2).coerceIn(requested, 25),
             context = buildPracticeContext(concept, recent),
         ).map { it.copy(conceptId = it.conceptId ?: concept.id) }
         if (!concept.builtIn && generated.isNotEmpty()) questionBank?.save(concept.id, generated)
@@ -83,26 +83,30 @@ class DefaultLearningEngine(
             BuiltInCurriculum.GUJ_SPELLING,
             BuiltInCurriculum.ENG_SENTENCE_COMPLETION,
         )
-        val target = questionCount.coerceIn(1, 8)
+        val target = questionCount.coerceIn(1, 25)
         val questions = mutableListOf<LearningQuestion>()
-        requestedIds.forEachIndexed { index, id ->
-            if (questions.size >= target) return@forEachIndexed
-            val concept = conceptsById[id] ?: return@forEachIndexed
-            val generated = Standard2SkillActivityFactory.create(
-                concept = concept,
-                count = 1,
-                seed = now() + index * 9_973L,
-                excludedFingerprints = recent,
-            ).ifEmpty {
-                Standard2SkillActivityFactory.create(concept, 1, now() + index * 19_997L)
-            }
-            generated.firstOrNull()?.let { question ->
-                val tagged = question.copy(conceptId = concept.id)
-                if (tagged.fingerprint !in questions.map { it.fingerprint }.toSet()) {
-                    questions += tagged
-                    recent += tagged.fingerprint
+        var attempt = 0
+        while (questions.size < target && attempt < target * 6) {
+            val id = requestedIds[attempt % requestedIds.size]
+            val concept = conceptsById[id]
+            if (concept != null) {
+                val generated = Standard2SkillActivityFactory.create(
+                    concept = concept,
+                    count = 1,
+                    seed = now() + attempt * 9_973L,
+                    excludedFingerprints = recent,
+                ).ifEmpty {
+                    Standard2SkillActivityFactory.create(concept, 1, now() + attempt * 19_997L)
+                }
+                generated.firstOrNull()?.let { question ->
+                    val tagged = question.copy(conceptId = concept.id)
+                    if (questions.none { it.fingerprint == tagged.fingerprint }) {
+                        questions += tagged
+                        recent += tagged.fingerprint
+                    }
                 }
             }
+            attempt += 1
         }
         if (questions.isEmpty()) return null
 
@@ -129,7 +133,7 @@ class DefaultLearningEngine(
                 return ActivityPlanPolicy.apply(bankQuestions).take(questionCount)
             }
 
-            val generationCount = (questionCount * 2).coerceIn(questionCount, 8)
+            val generationCount = (questionCount * 2).coerceIn(questionCount, 25)
             val generated = aiGateway.createPracticeQuestions(
                 concept = selected,
                 count = generationCount,

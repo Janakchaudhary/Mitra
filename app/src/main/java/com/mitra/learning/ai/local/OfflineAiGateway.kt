@@ -96,7 +96,7 @@ class OfflineAiGateway(
         context: PracticeContext,
         groundedText: String,
     ): List<LearningQuestion> {
-        val requested = count.coerceIn(1, 8)
+        val requested = count.coerceIn(1, 25)
         val prompt = """
             Book: ${context.bookTitle.orEmpty()}
             Chapter: ${context.chapterTitleGujarati.orEmpty()}

@@ -26,7 +26,30 @@ class ParentPinViewModel(
     val state: StateFlow<ParentPinUiState> = _state.asStateFlow()
 
     fun updatePin(value: String) {
-        _state.value = _state.value.copy(pin = value.filter(Char::isDigit).take(6), error = null)
+        val clean = value.filter(Char::isDigit).take(6)
+        _state.value = _state.value.copy(pin = clean, error = null)
+        if (clean.length in 4..6) tryAutoUnlock(clean)
+    }
+
+    private fun tryAutoUnlock(pin: String) {
+        if (_state.value.checking || _state.value.unlocked) return
+        viewModelScope.launch {
+            val expectedLength = repository.expectedLength()
+            if (expectedLength != null && pin.length != expectedLength) return@launch
+            _state.value = _state.value.copy(checking = true, error = null)
+            val ok = repository.verify(pin)
+            if (ok) accessManager.unlock(settingsRepository.get().parentAccessMinutes)
+            _state.value = _state.value.copy(
+                checking = false,
+                unlocked = ok,
+                error = if (!ok && pin.length == 6) "Incorrect PIN" else null,
+            )
+        }
+    }
+
+    fun unlockWithDeviceCredential() = viewModelScope.launch {
+        accessManager.unlock(settingsRepository.get().parentAccessMinutes)
+        _state.value = _state.value.copy(unlocked = true, checking = false, error = null)
     }
 
     fun unlock() = viewModelScope.launch {

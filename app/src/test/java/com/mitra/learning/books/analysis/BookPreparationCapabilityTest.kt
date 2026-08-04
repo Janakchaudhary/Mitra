@@ -89,6 +89,20 @@ class BookPreparationCapabilityTest {
     }
 
     @Test
+    fun printedLessonPageOneAfterContentsMapsToPhysicalPdfPageThirteen() = runTest {
+        val knowledge = FakeKnowledgeRepository(readyChapter)
+        val renderer = FailingRenderer()
+        val extractor = FakeTextExtractor()
+        val service = service(knowledge, renderer, OfflineTextGateway, extractor)
+
+        val result = service.detectChapters(book.id, listOf(11)).getOrThrow()
+
+        assertEquals(13, result.first.single().startPage)
+        assertEquals(listOf(11), extractor.requestedIndices)
+        assertFalse(renderer.renderCalled)
+    }
+
+    @Test
     fun offlineTextPreparationUsesExtractorWithoutRenderingPdf() = runTest {
         val chapter = readyChapter.copy(startPage = 2, endPage = 2, analysisStatus = ChapterAnalysisStatus.NOT_PREPARED)
         val knowledge = FakeKnowledgeRepository(chapter)

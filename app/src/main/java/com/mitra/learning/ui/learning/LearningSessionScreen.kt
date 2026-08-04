@@ -188,8 +188,11 @@ private fun SessionContent(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 88.dp),
+                .then(
+                    if (current?.arithmeticWork == null) Modifier.verticalScroll(rememberScrollState())
+                    else Modifier
+                )
+                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 76.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             Row(
@@ -290,7 +293,13 @@ private fun SessionContent(
                 }
 
                 current.arithmeticWork?.let { work ->
-                    RoughWorkBoard(questionId = current.id, work = work, enabled = !state.awaitingNext && !state.loading)
+                    RoughWorkBoard(
+                        questionId = current.id,
+                        work = work,
+                        answer = state.answer,
+                        onAnswerChange = onAnswerChange,
+                        enabled = !state.awaitingNext && !state.loading,
+                    )
                 }
 
                 val showVoice = current.type != ActivityType.SPELLING && (
@@ -315,7 +324,7 @@ private fun SessionContent(
                         Text("તમે સમજાવ્યું: “${state.answer}”", style = MaterialTheme.typography.bodyMedium)
                     }
 
-                    else -> OutlinedTextField(
+                    else -> if (current.arithmeticWork == null) OutlinedTextField(
                         value = state.answer,
                         onValueChange = onAnswerChange,
                         label = {
@@ -430,9 +439,15 @@ private fun SessionContent(
 }
 
 @Composable
-private fun RoughWorkBoard(questionId: String, work: ArithmeticWork, enabled: Boolean) {
+private fun RoughWorkBoard(
+    questionId: String,
+    work: ArithmeticWork,
+    answer: String,
+    onAnswerChange: (String) -> Unit,
+    enabled: Boolean,
+) {
     val strokes = remember(questionId) { mutableStateListOf<List<Offset>>() }
-    var expanded by remember(questionId) { mutableStateOf(true) }
+    var showDrawing by remember(questionId) { mutableStateOf(false) }
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val inkColor = MaterialTheme.colorScheme.primary
 
@@ -441,7 +456,7 @@ private fun RoughWorkBoard(questionId: String, work: ArithmeticWork, enabled: Bo
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
-        Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Column(Modifier.fillMaxWidth().padding(9.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -449,37 +464,37 @@ private fun RoughWorkBoard(questionId: String, work: ArithmeticWork, enabled: Bo
             ) {
                 Column(Modifier.weight(1f)) {
                     Text("✍️ રફ કામ", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text(
-                        "ડાબે દશક, જમણે એકમ. ગણતરી એકમથી શરૂ કરો.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    Text("ખાનામાં સીધો જવાબ લખો; કેરિ/ઉધાર દશકની ઉપર છે.", style = MaterialTheme.typography.bodySmall)
                 }
-                IconButton(
-                    onClick = { if (strokes.isNotEmpty()) strokes.removeAt(strokes.lastIndex) },
-                    enabled = enabled && strokes.isNotEmpty(),
-                ) {
-                    Icon(Icons.Default.Undo, contentDescription = "છેલ્લી લીટી દૂર કરો")
-                }
-                IconButton(onClick = { strokes.clear() }, enabled = enabled && strokes.isNotEmpty()) {
-                    Icon(Icons.Default.DeleteSweep, contentDescription = "રફ કામ સાફ કરો")
-                }
-                IconButton(onClick = { expanded = !expanded }) {
-                    Icon(
-                        if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = if (expanded) "રફ કામ નાનું કરો" else "રફ કામ ખોલો",
-                    )
+                FilledTonalButton(onClick = { showDrawing = !showDrawing }) {
+                    Icon(if (showDrawing) Icons.Default.ExpandLess else Icons.Default.ExpandMore, null)
+                    Text(if (showDrawing) " પેડ બંધ" else " રફ પેડ")
                 }
             }
 
-            AnimatedVisibility(visible = expanded) {
-                Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    GuidedColumnLayout(work)
-                    GuidedStepEntry(questionId = questionId, work = work, enabled = enabled)
+            GuidedStepEntry(
+                questionId = questionId,
+                work = work,
+                answer = answer,
+                onAnswerChange = onAnswerChange,
+                enabled = enabled,
+            )
 
+            AnimatedVisibility(visible = showDrawing) {
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        IconButton(
+                            onClick = { if (strokes.isNotEmpty()) strokes.removeAt(strokes.lastIndex) },
+                            enabled = enabled && strokes.isNotEmpty(),
+                        ) { Icon(Icons.Default.Undo, contentDescription = "છેલ્લી લીટી દૂર કરો") }
+                        IconButton(onClick = { strokes.clear() }, enabled = enabled && strokes.isNotEmpty()) {
+                            Icon(Icons.Default.DeleteSweep, contentDescription = "રફ કામ સાફ કરો")
+                        }
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(160.dp)
+                            .height(112.dp)
                             .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(14.dp))
                             .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp)),
                     ) {
@@ -491,9 +506,7 @@ private fun RoughWorkBoard(questionId: String, work: ArithmeticWork, enabled: Bo
                                     detectDragGestures(
                                         onDragStart = { offset -> strokes.add(listOf(offset)) },
                                         onDrag = { change, _ ->
-                                            if (strokes.isNotEmpty()) {
-                                                strokes[strokes.lastIndex] = strokes.last() + change.position
-                                            }
+                                            if (strokes.isNotEmpty()) strokes[strokes.lastIndex] = strokes.last() + change.position
                                         },
                                     )
                                 }
@@ -510,9 +523,8 @@ private fun RoughWorkBoard(questionId: String, work: ArithmeticWork, enabled: Bo
                                 y += grid
                             }
                             strokes.forEach { points ->
-                                if (points.size == 1) {
-                                    drawCircle(inkColor, radius = 2.5.dp.toPx(), center = points.first())
-                                } else if (points.size > 1) {
+                                if (points.size == 1) drawCircle(inkColor, radius = 2.5.dp.toPx(), center = points.first())
+                                else if (points.size > 1) {
                                     val path = Path().apply {
                                         moveTo(points.first().x, points.first().y)
                                         points.drop(1).forEach { lineTo(it.x, it.y) }
@@ -522,12 +534,7 @@ private fun RoughWorkBoard(questionId: String, work: ArithmeticWork, enabled: Bo
                             }
                         }
                         if (strokes.isEmpty()) {
-                            Text(
-                                "અહીં આંગળીથી લખો…",
-                                modifier = Modifier.align(Alignment.Center),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                style = MaterialTheme.typography.bodySmall,
-                            )
+                            Text("અહીં આંગળીથી લખો…", Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -540,68 +547,69 @@ private fun RoughWorkBoard(questionId: String, work: ArithmeticWork, enabled: Bo
 private fun GuidedStepEntry(
     questionId: String,
     work: ArithmeticWork,
+    answer: String,
+    onAnswerChange: (String) -> Unit,
     enabled: Boolean,
 ) {
     val expected = remember(questionId) { GuidedMathCoach.expected(work) } ?: return
-    var ones by remember(questionId) { mutableStateOf("") }
+    var ones by remember(questionId) { mutableStateOf(answer.takeLast(1)) }
     var regroup by remember(questionId) { mutableStateOf("") }
-    var tens by remember(questionId) { mutableStateOf("") }
+    var tens by remember(questionId) { mutableStateOf(answer.dropLast(1).takeLast(1)) }
     var message by remember(questionId) { mutableStateOf<String?>(null) }
     var success by remember(questionId) { mutableStateOf(false) }
     val showRegroup = work.regrouping || expected.regroup > 0
+    val topTens = (work.top / 10) % 10
+    val topOnes = work.top % 10
+    val bottomTens = (work.bottom / 10) % 10
+    val bottomOnes = work.bottom % 10
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text("પગલાંના ખાના", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-        Text("પહેલા એકમ, પછી કેરિ/ઉધાર, પછી દશક", style = MaterialTheme.typography.bodySmall)
+    fun publish(tensValue: String, onesValue: String) {
+        val one = GujaratiNumberNormalizer.parseInt(onesValue)
+        val ten = GujaratiNumberNormalizer.parseInt(tensValue)
+        onAnswerChange(if (one == null) "" else (((ten ?: 0) * 10) + one).toString())
+    }
 
-        // Vertical place-value entry: the carry/borrow box sits directly above the tens box.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.Bottom,
-        ) {
-            Spacer(Modifier.size(30.dp, 1.dp))
-            Column(
-                modifier = Modifier.size(70.dp, if (showRegroup) 132.dp else 68.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom,
-            ) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("એકમથી શરૂ કરો", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.Bottom) {
+            Box(Modifier.size(30.dp, 50.dp), contentAlignment = Alignment.BottomCenter) { Text(work.operator, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 if (showRegroup) {
                     GuidedDigitField(
                         value = regroup,
                         label = expected.regroupLabelGujarati,
                         enabled = enabled,
                         onValueChange = { regroup = it; message = null; success = false },
-                        modifier = Modifier.size(70.dp, 62.dp),
+                        modifier = Modifier.size(66.dp, 56.dp),
                     )
-                    Spacer(Modifier.height(4.dp))
-                }
+                } else Spacer(Modifier.height(56.dp))
+                Text("દશક", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                CompactMathCell(topTens.toString())
+                CompactMathCell(bottomTens.toString())
+                Text("━━━━", fontFamily = FontFamily.Monospace)
                 GuidedDigitField(
                     value = tens,
-                    label = "દશક",
+                    label = "જવાબ",
                     enabled = enabled,
-                    onValueChange = { tens = it; message = null; success = false },
-                    modifier = Modifier.size(70.dp, 66.dp),
+                    onValueChange = { value -> tens = value.takeLast(1); publish(tens, ones); message = null; success = false },
+                    modifier = Modifier.size(66.dp, 60.dp),
                 )
             }
-            Column(
-                modifier = Modifier.size(70.dp, if (showRegroup) 132.dp else 68.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Bottom,
-            ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Spacer(Modifier.height(56.dp))
+                Text("એકમ", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                CompactMathCell(topOnes.toString())
+                CompactMathCell(bottomOnes.toString())
+                Text("━━━━", fontFamily = FontFamily.Monospace)
                 GuidedDigitField(
                     value = ones,
-                    label = "એકમ",
+                    label = "જવાબ",
                     enabled = enabled,
-                    onValueChange = { ones = it; message = null; success = false },
-                    modifier = Modifier.size(70.dp, 66.dp),
+                    onValueChange = { value -> ones = value.takeLast(1); publish(tens, ones); message = null; success = false },
+                    modifier = Modifier.size(66.dp, 60.dp),
                 )
             }
         }
-
         FilledTonalButton(
             onClick = {
                 val result = GuidedMathCoach.check(
@@ -613,7 +621,7 @@ private fun GuidedStepEntry(
                 message = result.messageGujarati
                 success = result.correct
             },
-            enabled = enabled,
+            enabled = enabled && ones.isNotBlank(),
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
         ) { Text("પગલાં ચકાસો") }
@@ -623,10 +631,20 @@ private fun GuidedStepEntry(
                 shape = RoundedCornerShape(11.dp),
                 color = if (success) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer,
             ) {
-                Text(it, modifier = Modifier.padding(8.dp), style = MaterialTheme.typography.bodySmall)
+                Text(it, Modifier.padding(7.dp), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
+}
+
+@Composable
+private fun CompactMathCell(text: String) {
+    Surface(
+        modifier = Modifier.size(66.dp, 38.dp),
+        shape = RoundedCornerShape(9.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    ) { Box(contentAlignment = Alignment.Center) { Text(text, style = MaterialTheme.typography.titleMedium, fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold) } }
 }
 
 @Composable
@@ -650,81 +668,6 @@ private fun GuidedDigitField(
         modifier = modifier,
         shape = RoundedCornerShape(12.dp),
     )
-}
-
-@Composable
-private fun GuidedColumnLayout(work: ArithmeticWork) {
-    val topTens = (work.top / 10) % 10
-    val topOnes = work.top % 10
-    val bottomTens = (work.bottom / 10) % 10
-    val bottomOnes = work.bottom % 10
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(3.dp),
-    ) {
-        MathAlignedRow(operator = "", tens = "દશક", ones = "એકમ", labelRow = true)
-        if (work.regrouping) {
-            MathAlignedRow(operator = "", tens = "કેરિ/ઉધાર", ones = "", small = true)
-        }
-        MathAlignedRow(operator = "", tens = topTens.toString(), ones = topOnes.toString())
-        MathAlignedRow(operator = work.operator, tens = bottomTens.toString(), ones = bottomOnes.toString())
-        Text("────────", fontFamily = FontFamily.Monospace, style = MaterialTheme.typography.titleMedium)
-        MathAlignedRow(operator = "", tens = "?", ones = "?")
-    }
-}
-
-@Composable
-private fun MathAlignedRow(
-    operator: String,
-    tens: String,
-    ones: String,
-    small: Boolean = false,
-    labelRow: Boolean = false,
-) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(modifier = Modifier.size(30.dp, 48.dp), contentAlignment = Alignment.Center) {
-            if (operator.isNotBlank()) {
-                Text(operator, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            }
-        }
-        if (labelRow) {
-            PlaceValueLabel(tens)
-            PlaceValueLabel(ones)
-        } else {
-            MathCell(tens, small = small)
-            MathCell(ones, small = small)
-        }
-    }
-}
-
-@Composable
-private fun PlaceValueLabel(text: String) {
-    Box(modifier = Modifier.size(52.dp, 30.dp), contentAlignment = Alignment.Center) {
-        Text(text, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-    }
-}
-
-@Composable
-private fun MathCell(text: String, small: Boolean = false) {
-    Surface(
-        modifier = Modifier.size(52.dp, if (small) 38.dp else 48.dp),
-        shape = RoundedCornerShape(10.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text,
-                style = if (small) MaterialTheme.typography.labelSmall else MaterialTheme.typography.titleLarge,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = if (small) FontWeight.Normal else FontWeight.Bold,
-            )
-        }
-    }
 }
 
 @Composable

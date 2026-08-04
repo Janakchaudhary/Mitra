@@ -1,28 +1,19 @@
 package com.mitra.learning.ui.activity
 
-import androidx.compose.animation.AnimatedContent
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -30,502 +21,247 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import com.mitra.learning.study.practice.SpokenAnswerNormalizer
 import com.mitra.learning.ui.animation.AnimatedLearningBackground
 import com.mitra.learning.ui.animation.AnimatedMitraMascot
 import com.mitra.learning.ui.animation.MascotMood
 import com.mitra.learning.ui.animation.SuccessBurst
-import kotlin.random.Random
+import com.mitra.learning.voice.SpeechInput
+import com.mitra.learning.voice.SpeechInputState
+import com.mitra.learning.voice.SpeechOutput
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
-private data class LearnColor(
-    val gujarati: String,
-    val english: String,
-    val color: Color,
+private data class LearnColor(val gujarati: String, val english: String, val color: Color)
+private data class ColorObject(val emoji: String, val gujarati: String, val english: String)
+private enum class ColorTask { PICK, SAY_GUJARATI, SAY_ENGLISH, SPELL }
+private const val TOTAL_COLOR_ROUNDS = 20
+
+private val learnColors = listOf(
+    LearnColor("લાલ", "red", Color(0xFFE74C3C)),
+    LearnColor("વાદળી", "blue", Color(0xFF3F7FDB)),
+    LearnColor("લીલો", "green", Color(0xFF4FAE58)),
+    LearnColor("પીળો", "yellow", Color(0xFFF2C94C)),
+    LearnColor("નારંગી", "orange", Color(0xFFF2994A)),
+    LearnColor("જાંબલી", "purple", Color(0xFF8E5CC7)),
+    LearnColor("ગુલાબી", "pink", Color(0xFFF279A9)),
+    LearnColor("ભૂરો", "brown", Color(0xFF8D6748)),
+)
+private val colorObjects = listOf(
+    ColorObject("🎈", "ફુગ્ગો", "balloon"), ColorObject("🍎", "સફરજન", "apple"),
+    ColorObject("🪁", "પતંગ", "kite"), ColorObject("🐟", "માછલી", "fish"),
+    ColorObject("🌼", "ફૂલ", "flower"), ColorObject("🚗", "ગાડી", "car"),
 )
 
-private enum class PictureType { BALLOON, APPLE, KITE, FISH, FLOWER, CAR }
-
-private data class ColorPicture(
-    val gujarati: String,
-    val english: String,
-    val type: PictureType,
-)
-
-private data class ColorRound(
-    val picture: ColorPicture,
-    val target: LearnColor,
-)
-
-private val colors = listOf(
-    LearnColor("લાલ", "red", Color(0xFFE94B4B)),
-    LearnColor("વાદળી", "blue", Color(0xFF4D83E8)),
-    LearnColor("લીલો", "green", Color(0xFF55A95C)),
-    LearnColor("પીળો", "yellow", Color(0xFFF5C842)),
-    LearnColor("નારંગી", "orange", Color(0xFFF28C38)),
-    LearnColor("જાંબલી", "purple", Color(0xFF8E62C7)),
-    LearnColor("ગુલાબી", "pink", Color(0xFFF27AA8)),
-    LearnColor("ભૂરો", "brown", Color(0xFF9A6A45)),
-)
-
-private val pictures = listOf(
-    ColorPicture("ફુગ્ગો", "balloon", PictureType.BALLOON),
-    ColorPicture("સફરજન", "apple", PictureType.APPLE),
-    ColorPicture("પતંગ", "kite", PictureType.KITE),
-    ColorPicture("માછલી", "fish", PictureType.FISH),
-    ColorPicture("ફૂલ", "flower", PictureType.FLOWER),
-    ColorPicture("ગાડી", "car", PictureType.CAR),
-)
-
-private enum class ColorStep { PICK, GUJARATI, ENGLISH, SPELLING, DONE }
-
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun ColorLabScreen(onBack: () -> Unit) {
+fun ColorLabScreen(
+    speechInput: SpeechInput,
+    speechOutput: SpeechOutput,
+    onBack: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var round by remember { mutableIntStateOf(0) }
-    val currentRound = remember(round) { createColorRound(round) }
-    var filled by remember(round) { mutableStateOf<Color?>(null) }
-    var step by remember(round) { mutableStateOf(ColorStep.PICK) }
-    var spelling by remember(round) { mutableStateOf("") }
-    var message by remember(round) { mutableStateOf<String?>(null) }
+    val target = learnColors[round % learnColors.size]
+    val item = colorObjects[round % colorObjects.size]
+    var task by remember(round) { mutableStateOf(ColorTask.PICK) }
+    var picked by remember(round) { mutableStateOf<LearnColor?>(null) }
+    var answer by remember(round, task) { mutableStateOf("") }
+    var message by remember(round, task) { mutableStateOf<String?>(null) }
+    var correct by remember(round, task) { mutableStateOf(false) }
+    var listening by remember { mutableStateOf(false) }
+    var micGranted by remember {
+        mutableStateOf(ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED)
+    }
 
-    AnimatedLearningBackground(
-        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-    ) {
+    fun expected(): String = when (task) {
+        ColorTask.PICK -> target.gujarati
+        ColorTask.SAY_GUJARATI -> target.gujarati
+        ColorTask.SAY_ENGLISH, ColorTask.SPELL -> target.english
+    }
+
+    fun advance() {
+        when (task) {
+            ColorTask.PICK -> task = ColorTask.SAY_GUJARATI
+            ColorTask.SAY_GUJARATI -> task = ColorTask.SAY_ENGLISH
+            ColorTask.SAY_ENGLISH -> task = ColorTask.SPELL
+            ColorTask.SPELL -> round = (round + 1) % TOTAL_COLOR_ROUNDS
+        }
+    }
+
+    fun check(candidate: String) {
+        val actual = if (task == ColorTask.SPELL) {
+            SpokenAnswerNormalizer.spelling(candidate)
+        } else {
+            SpokenAnswerNormalizer.text(candidate).replace(" ", "")
+        }
+        val exp = SpokenAnswerNormalizer.text(expected()).replace(" ", "")
+        correct = actual == exp
+        message = if (correct) {
+            listOf("વાહ! રંગ બરાબર ઓળખ્યો.", "શાબાશ! ગુજરાતી અને English બંને સરસ.", "Perfect colour answer!")[(round + task.ordinal) % 3]
+        } else {
+            when (task) {
+                ColorTask.SAY_GUJARATI -> "નમૂનાને જુઓ. આ રંગનું નામ '${target.gujarati}' છે. ફરી બોલો."
+                ColorTask.SAY_ENGLISH -> "English માં આ રંગ '${target.english}' કહેવાય. ફરી બોલો."
+                ColorTask.SPELL -> "ધીમે અક્ષર-અક્ષર બોલો: ${target.english.toCharArray().joinToString(" ") { it.uppercase() }}"
+                ColorTask.PICK -> "નમૂના જેવો જ રંગ પસંદ કરો."
+            }
+        }
+        if (correct) scope.launch {
+            speechOutput.speak(message.orEmpty(), "gu-IN")
+            delay(1_350)
+            correct = false
+            answer = ""
+            message = null
+            advance()
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        micGranted = granted
+        if (granted) scope.launch { speechInput.startListening(if (task == ColorTask.SAY_GUJARATI) "gu-IN" else "en-IN") }
+        else message = "માઇક્રોફોનની પરવાનગી આપો અથવા જવાબ લખો."
+    }
+
+    LaunchedEffect(speechInput) {
+        speechInput.state.collect { state ->
+            when (state) {
+                SpeechInputState.Idle -> listening = false
+                SpeechInputState.Listening -> listening = true
+                is SpeechInputState.Partial -> { listening = true; answer = state.text }
+                is SpeechInputState.Result -> { listening = false; answer = state.text; check(state.text) }
+                is SpeechInputState.Error -> { listening = false; message = state.messageGujarati }
+            }
+        }
+    }
+    DisposableEffect(Unit) { onDispose { speechInput.cancel(); speechOutput.stop() } }
+
+    AnimatedLearningBackground(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(
-            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "પાછા")
-                }
+                IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "પાછા") }
                 AnimatedMitraMascot(
-                    mood = if (step == ColorStep.DONE) MascotMood.CELEBRATING else MascotMood.IDLE,
-                    size = 50.dp,
+                    mood = if (correct) MascotMood.CELEBRATING else if (listening) MascotMood.LISTENING else MascotMood.ENCOURAGING,
+                    size = 52.dp,
                 )
-                Column(Modifier.padding(start = 8.dp).weight(1f)) {
-                    Text("રંગોની રમત", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("ચિત્ર ભરો • ગુજરાતી • English • spelling", style = MaterialTheme.typography.bodySmall)
+                Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                    Text("રંગોની મજા", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("રંગ પસંદ કરો • બોલો • English • spelling", style = MaterialTheme.typography.bodySmall)
                 }
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                ) {
-                    Text(
-                        "${round % pictures.size + 1}/${pictures.size}",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelLarge,
-                    )
+                Surface(shape = RoundedCornerShape(30.dp), color = MaterialTheme.colorScheme.secondaryContainer) {
+                    Text("${round + 1}/$TOTAL_COLOR_ROUNDS", Modifier.padding(horizontal = 10.dp, vertical = 6.dp))
                 }
             }
-
-            LinearProgressIndicator(
-                progress = { (step.ordinal + 1).toFloat() / ColorStep.entries.size.toFloat() },
-                modifier = Modifier.fillMaxWidth(),
-            )
+            LinearProgressIndicator(progress = { (round + 1) / TOTAL_COLOR_ROUNDS.toFloat() }, modifier = Modifier.fillMaxWidth())
 
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(9.dp),
-                ) {
-                    AnimatedContent(
-                        targetState = step,
-                        transitionSpec = {
-                            (fadeIn() + scaleIn(initialScale = 0.94f)) togetherWith
-                                (fadeOut() + scaleOut(targetScale = 0.96f))
+                Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(item.emoji, style = MaterialTheme.typography.displayLarge)
+                    Text("${item.gujarati} • ${item.english}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("રંગનો નમૂનો")
+                        Box(Modifier.size(42.dp).background(target.color, CircleShape).border(2.dp, MaterialTheme.colorScheme.outline, CircleShape))
+                    }
+                    Text(
+                        when (task) {
+                            ColorTask.PICK -> "નમૂના જેવો રંગ પસંદ કરો."
+                            ColorTask.SAY_GUJARATI -> "આ રંગનું ગુજરાતી નામ બોલો."
+                            ColorTask.SAY_ENGLISH -> "Now say the colour in English."
+                            ColorTask.SPELL -> "Spell ${target.english.uppercase()} letter by letter."
                         },
-                        label = "color-step-title",
-                    ) { shownStep ->
-                        Text(
-                            when (shownStep) {
-                                ColorStep.PICK -> "${currentRound.picture.gujarati}ને બતાવેલા રંગથી ભરો."
-                                ColorStep.GUJARATI -> "આ રંગ ગુજરાતીમાં કયો છે?"
-                                ColorStep.ENGLISH -> "આ રંગનું English name શું છે?"
-                                ColorStep.SPELLING -> "હવે ${currentRound.target.english} ની spelling લખો."
-                                ColorStep.DONE -> "🌟 ${currentRound.picture.gujarati} અને રંગ બંને શીખ્યા!"
-                            },
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+
+                    if (task == ColorTask.PICK) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(9.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                            val options = (listOf(target) + learnColors.filterNot { it == target }
+                                .shuffled(kotlin.random.Random(round)).take(5))
+                                .shuffled(kotlin.random.Random(round + 71))
+                            options.forEach { option ->
+                                Box(
+                                    modifier = Modifier.size(54.dp).background(option.color, CircleShape)
+                                        .border(if (picked == option) 4.dp else 2.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                        .clickable {
+                                            picked = option
+                                            check(option.gujarati)
+                                        },
+                                )
+                            }
+                        }
+                    } else {
+                        OutlinedTextField(
+                            value = answer,
+                            onValueChange = { answer = it; message = null; correct = false },
+                            label = { Text("જવાબ બોલો અથવા લખો") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilledTonalButton(
+                                onClick = {
+                                    if (!micGranted) permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                    else scope.launch { if (listening) speechInput.stopListening() else speechInput.startListening(if (task == ColorTask.SAY_GUJARATI) "gu-IN" else "en-IN") }
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) { Icon(Icons.Default.Mic, null); Text(if (listening) " Stop" else " બોલો") }
+                            Button(onClick = { check(answer) }, enabled = answer.isNotBlank(), modifier = Modifier.weight(1f)) { Text("ચકાસો") }
+                        }
+                        AssistChip(
+                            onClick = { scope.launch { speechOutput.speak(if (task == ColorTask.SAY_GUJARATI) target.gujarati else target.english, if (task == ColorTask.SAY_GUJARATI) "gu-IN" else "en-IN") } },
+                            label = { Text("સાચું ઉચ્ચારણ સાંભળો") },
+                            leadingIcon = { Icon(Icons.Default.VolumeUp, null) },
                         )
                     }
 
-                    if (step == ColorStep.PICK) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Text("રંગનો નમૂનો:", style = MaterialTheme.typography.labelLarge)
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .background(currentRound.target.color, CircleShape)
-                                    .border(2.dp, MaterialTheme.colorScheme.outline, CircleShape),
-                            )
-                        }
-                    }
-                    PictureDrawing(
-                        picture = currentRound.picture,
-                        fill = filled,
-                    )
-                    Text(
-                        "${currentRound.picture.gujarati} • ${currentRound.picture.english}",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-
-                    AnimatedContent(
-                        targetState = step,
-                        transitionSpec = { (fadeIn() + scaleIn(initialScale = 0.95f)) togetherWith fadeOut() },
-                        label = "color-step-controls",
-                    ) { shownStep ->
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            when (shownStep) {
-                                ColorStep.PICK -> ColorPalette { selected ->
-                                    if (selected == currentRound.target) {
-                                        filled = selected.color
-                                        message = "સાચો રંગ પસંદ કર્યો! 👏"
-                                        step = ColorStep.GUJARATI
-                                    } else {
-                                        message = "ફરી જુઓ — ઉપરના નમૂના જેવો રંગ શોધો."
-                                    }
-                                }
-
-                                ColorStep.GUJARATI -> ChoiceGrid(
-                                    options = colorOptions(currentRound.target, gujarati = true, seed = round + 11),
-                                    onChoice = { answer ->
-                                        if (answer == currentRound.target.gujarati) {
-                                            message = "સાચું! ${currentRound.target.gujarati} 👏"
-                                            step = ColorStep.ENGLISH
-                                        } else {
-                                            message = "ચિત્રનો રંગ જુઓ અને ફરી પસંદ કરો."
-                                        }
-                                    },
-                                )
-
-                                ColorStep.ENGLISH -> ChoiceGrid(
-                                    options = colorOptions(currentRound.target, gujarati = false, seed = round + 31),
-                                    onChoice = { answer ->
-                                        if (answer.equals(currentRound.target.english, ignoreCase = true)) {
-                                            message = "Yes! ${currentRound.target.english}. હવે spelling!"
-                                            step = ColorStep.SPELLING
-                                        } else {
-                                            message = "Try again. રંગનું English name યાદ કરો."
-                                        }
-                                    },
-                                )
-
-                                ColorStep.SPELLING -> {
-                                    OutlinedTextField(
-                                        value = spelling,
-                                        onValueChange = { spelling = it.take(20) },
-                                        label = { Text("English spelling") },
-                                        singleLine = true,
-                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(16.dp),
-                                    )
-                                    Button(
-                                        onClick = {
-                                            if (spelling.trim().equals(currentRound.target.english, ignoreCase = true)) {
-                                                message = "Perfect spelling: ${currentRound.target.english} ⭐"
-                                                step = ColorStep.DONE
-                                            } else {
-                                                message = "લગભગ! શબ્દ ધીમે બોલો અને ફરી લખો."
-                                            }
-                                        },
-                                        enabled = spelling.isNotBlank(),
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(16.dp),
-                                    ) { Text("ચેક કરો") }
-                                }
-
-                                ColorStep.DONE -> Button(
-                                    onClick = { round += 1 },
-                                    shape = CircleShape,
-                                ) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "આગળનું ચિત્ર")
-                                }
-                            }
-                        }
-                    }
-
-                    AnimatedVisibility(
-                        visible = message != null,
-                        enter = fadeIn() + scaleIn(initialScale = 0.9f),
-                        exit = fadeOut(),
-                    ) {
-                        message?.let {
-                            Surface(
-                                shape = RoundedCornerShape(14.dp),
-                                color = MaterialTheme.colorScheme.secondaryContainer,
-                            ) {
-                                Text(
-                                    it,
-                                    modifier = Modifier.fillMaxWidth().padding(10.dp),
-                                    style = MaterialTheme.typography.titleSmall,
-                                )
-                            }
+                    AnimatedVisibility(message != null) {
+                        Surface(shape = RoundedCornerShape(14.dp), color = if (correct) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.tertiaryContainer) {
+                            Text(message.orEmpty(), Modifier.fillMaxWidth().padding(11.dp), fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }
             }
         }
-        SuccessBurst(
-            trigger = if (step == ColorStep.DONE) "color-$round" else null,
-            modifier = Modifier.fillMaxSize(),
-        )
-    }
-}
-
-private fun createColorRound(index: Int): ColorRound {
-    val picture = pictures[index % pictures.size]
-    val target = colors[(index * 3 + index / pictures.size + 1) % colors.size]
-    return ColorRound(picture = picture, target = target)
-}
-
-private fun colorOptions(target: LearnColor, gujarati: Boolean, seed: Int): List<String> {
-    val random = Random(seed)
-    val choices = colors
-        .filterNot { it == target }
-        .shuffled(random)
-        .take(3) + target
-    return choices.shuffled(random).map { if (gujarati) it.gujarati else it.english }
-}
-
-@Composable
-private fun PictureDrawing(
-    picture: ColorPicture,
-    fill: Color?,
-) {
-    val animatedFill by animateColorAsState(
-        targetValue = fill ?: Color.White,
-        animationSpec = tween(600, easing = FastOutSlowInEasing),
-        label = "picture-fill",
-    )
-    val motion = rememberInfiniteTransition(label = "picture-motion")
-    val offset by motion.animateFloat(
-        initialValue = -3f,
-        targetValue = 4f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1_700, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "picture-offset",
-    )
-    Canvas(
-        modifier = Modifier
-            .size(190.dp)
-            .graphicsLayer { translationY = offset },
-    ) {
-        drawColorPicture(
-            type = picture.type,
-            fill = animatedFill,
-            outline = Color(0xFF303030),
-        )
-    }
-}
-
-private fun DrawScope.drawColorPicture(type: PictureType, fill: Color, outline: Color) {
-    val stroke = 6f
-    when (type) {
-        PictureType.BALLOON -> {
-            val center = Offset(size.width / 2f, size.height * .40f)
-            val radius = size.minDimension * .28f
-            drawCircle(fill, radius, center)
-            drawCircle(outline, radius, center, style = Stroke(stroke))
-            drawCircle(Color.White.copy(alpha = .35f), radius * .22f, Offset(center.x - radius * .32f, center.y - radius * .34f))
-            val knotTop = center.y + radius
-            drawLine(outline, Offset(center.x, knotTop), Offset(center.x - 8f, knotTop + 18f), strokeWidth = stroke)
-            drawLine(outline, Offset(center.x, knotTop), Offset(center.x + 8f, knotTop + 18f), strokeWidth = stroke)
-            drawLine(Color(0xFF6B6B6B), Offset(center.x, knotTop + 18f), Offset(center.x + 18f, size.height - 5f), strokeWidth = 4f)
-        }
-
-        PictureType.APPLE -> {
-            drawOval(
-                color = fill,
-                topLeft = Offset(size.width * .22f, size.height * .25f),
-                size = Size(size.width * .56f, size.height * .52f),
-            )
-            drawOval(
-                color = outline,
-                topLeft = Offset(size.width * .22f, size.height * .25f),
-                size = Size(size.width * .56f, size.height * .52f),
-                style = Stroke(stroke),
-            )
-            drawLine(outline, Offset(size.width * .52f, size.height * .27f), Offset(size.width * .55f, size.height * .14f), strokeWidth = 8f)
-            drawOval(
-                color = Color(0xFF55A95C),
-                topLeft = Offset(size.width * .53f, size.height * .12f),
-                size = Size(size.width * .19f, size.height * .10f),
-            )
-        }
-
-        PictureType.KITE -> {
-            val path = Path().apply {
-                moveTo(size.width * .50f, size.height * .12f)
-                lineTo(size.width * .78f, size.height * .43f)
-                lineTo(size.width * .50f, size.height * .72f)
-                lineTo(size.width * .22f, size.height * .43f)
-                close()
-            }
-            drawPath(path, fill)
-            drawPath(path, outline, style = Stroke(stroke))
-            drawLine(outline, Offset(size.width * .50f, size.height * .12f), Offset(size.width * .50f, size.height * .72f), strokeWidth = 4f)
-            drawLine(outline, Offset(size.width * .22f, size.height * .43f), Offset(size.width * .78f, size.height * .43f), strokeWidth = 4f)
-            drawLine(outline, Offset(size.width * .50f, size.height * .72f), Offset(size.width * .60f, size.height * .94f), strokeWidth = 4f)
-        }
-
-        PictureType.FISH -> {
-            drawOval(
-                color = fill,
-                topLeft = Offset(size.width * .20f, size.height * .30f),
-                size = Size(size.width * .56f, size.height * .36f),
-            )
-            drawOval(
-                color = outline,
-                topLeft = Offset(size.width * .20f, size.height * .30f),
-                size = Size(size.width * .56f, size.height * .36f),
-                style = Stroke(stroke),
-            )
-            val tail = Path().apply {
-                moveTo(size.width * .22f, size.height * .48f)
-                lineTo(size.width * .05f, size.height * .28f)
-                lineTo(size.width * .05f, size.height * .68f)
-                close()
-            }
-            drawPath(tail, fill)
-            drawPath(tail, outline, style = Stroke(stroke))
-            drawCircle(outline, radius = 7f, center = Offset(size.width * .65f, size.height * .42f))
-        }
-
-        PictureType.FLOWER -> {
-            val center = Offset(size.width * .50f, size.height * .43f)
-            val petalRadius = size.width * .12f
-            listOf(
-                Offset(center.x, center.y - petalRadius * 1.45f),
-                Offset(center.x + petalRadius * 1.45f, center.y),
-                Offset(center.x, center.y + petalRadius * 1.45f),
-                Offset(center.x - petalRadius * 1.45f, center.y),
-            ).forEach { petal ->
-                drawCircle(fill, petalRadius, petal)
-                drawCircle(outline, petalRadius, petal, style = Stroke(stroke))
-            }
-            drawCircle(Color(0xFFF5C842), petalRadius, center)
-            drawCircle(outline, petalRadius, center, style = Stroke(stroke))
-            drawLine(Color(0xFF55A95C), Offset(center.x, center.y + petalRadius), Offset(center.x, size.height * .92f), strokeWidth = 9f)
-        }
-
-        PictureType.CAR -> {
-            drawRoundRect(
-                color = fill,
-                topLeft = Offset(size.width * .13f, size.height * .42f),
-                size = Size(size.width * .74f, size.height * .30f),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(18f, 18f),
-            )
-            drawRoundRect(
-                color = outline,
-                topLeft = Offset(size.width * .13f, size.height * .42f),
-                size = Size(size.width * .74f, size.height * .30f),
-                cornerRadius = androidx.compose.ui.geometry.CornerRadius(18f, 18f),
-                style = Stroke(stroke),
-            )
-            val roof = Path().apply {
-                moveTo(size.width * .32f, size.height * .42f)
-                lineTo(size.width * .43f, size.height * .25f)
-                lineTo(size.width * .68f, size.height * .25f)
-                lineTo(size.width * .77f, size.height * .42f)
-                close()
-            }
-            drawPath(roof, fill)
-            drawPath(roof, outline, style = Stroke(stroke))
-            drawCircle(outline, radius = size.width * .085f, center = Offset(size.width * .32f, size.height * .74f))
-            drawCircle(outline, radius = size.width * .085f, center = Offset(size.width * .70f, size.height * .74f))
-            drawCircle(Color.White, radius = size.width * .035f, center = Offset(size.width * .32f, size.height * .74f))
-            drawCircle(Color.White, radius = size.width * .035f, center = Offset(size.width * .70f, size.height * .74f))
-        }
-    }
-}
-
-@Composable
-private fun ColorPalette(onSelected: (LearnColor) -> Unit) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        colors.chunked(4).forEach { row ->
-            Row(
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                row.forEach { item ->
-                    Box(
-                        modifier = Modifier
-                            .size(52.dp)
-                            .background(item.color, CircleShape)
-                            .border(3.dp, Color.White, CircleShape)
-                            .clickable { onSelected(item) },
-                    )
-                }
-            }
-        }
-        Text("સૂચના પ્રમાણે સાચો રંગ પસંદ કરો", style = MaterialTheme.typography.bodySmall)
-    }
-}
-
-@Composable
-private fun ChoiceGrid(options: List<String>, onChoice: (String) -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-        options.distinct().chunked(2).forEach { pair ->
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(7.dp)) {
-                pair.forEach { option ->
-                    OutlinedButton(
-                        onClick = { onChoice(option) },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(14.dp),
-                    ) { Text(option) }
-                }
-                if (pair.size == 1) Spacer(Modifier.weight(1f))
-            }
-        }
+        SuccessBurst(trigger = correct, modifier = Modifier.fillMaxSize())
     }
 }

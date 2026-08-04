@@ -157,7 +157,7 @@ class CloudflareAiGateway(
     ): List<LearningQuestion> {
         require(concept.practiceReady) { "This concept is not ready for child practice yet." }
         val grounded = context?.groundedBookText.orEmpty().take(12_000)
-        val targetCount = count.coerceIn(1, 8)
+        val targetCount = count.coerceIn(1, 25)
         val recentToAvoid = context?.recentQuestionFingerprints.orEmpty().take(20).joinToString("\n").take(3_000)
         val prompt = """
             Create exactly $targetCount short learning activities for one Standard 2 Gujarati-medium child.

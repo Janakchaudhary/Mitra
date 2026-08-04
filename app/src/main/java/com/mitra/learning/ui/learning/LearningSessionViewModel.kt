@@ -65,6 +65,8 @@ class LearningSessionViewModel(
     private val requestedConceptId: String? = null,
 ) : ViewModel() {
     private var countdownJob: Job? = null
+    private var pendingAutoAdvanceQuestionId: String? = null
+    private var autoAdvanceSpeechStarted = false
     private val _state = MutableStateFlow(
         LearningSessionUiState(speechInputAvailable = speechInput.isAvailable)
     )
@@ -171,6 +173,8 @@ class LearningSessionViewModel(
     }
 
     fun next() {
+        pendingAutoAdvanceQuestionId = null
+        autoAdvanceSpeechStarted = false
         val current = _state.value
         if (!current.awaitingNext || current.loading) return
 
@@ -244,6 +248,8 @@ class LearningSessionViewModel(
 
     fun stop(onStopped: () -> Unit) {
         countdownJob?.cancel()
+        pendingAutoAdvanceQuestionId = null
+        autoAdvanceSpeechStarted = false
         speechInput.cancel()
         speechOutput.stop()
         val id = _state.value.sessionId
@@ -284,9 +290,12 @@ class LearningSessionViewModel(
                 )
             }.onSuccess { feedback ->
                 val shouldRetry = feedback.retrySuggested && current.retryCount < 1
-                val finalMessage = if (!shouldRetry && feedback.result == AttemptResult.INCORRECT && feedback.expectedAnswer != null) {
+                val baseMessage = if (!shouldRetry && feedback.result == AttemptResult.INCORRECT && feedback.expectedAnswer != null) {
                     "${feedback.messageGujarati} સાચો જવાબ ${feedback.expectedAnswer} છે; હવે આગળના પ્રશ્નમાં આ પગલું યાદ રાખીએ."
                 } else feedback.messageGujarati
+                val finalMessage = if (feedback.result == AttemptResult.CORRECT) {
+                    dynamicPraise(current.questionIndex, baseMessage)
+                } else baseMessage
                 _state.update {
                     it.copy(
                         loading = false,
@@ -299,6 +308,10 @@ class LearningSessionViewModel(
                         hintsUsed = if (shouldRetry) (it.hintsUsed + 1).coerceAtMost(3) else it.hintsUsed,
                         mistakeCode = feedback.mistakeCode,
                     )
+                }
+                if (!shouldRetry && feedback.result == AttemptResult.CORRECT) {
+                    pendingAutoAdvanceQuestionId = question.id
+                    autoAdvanceSpeechStarted = false
                 }
                 speak(finalMessage)
             }.onFailure { failure ->
@@ -416,11 +429,30 @@ class LearningSessionViewModel(
             speechOutput.state.collect { outputState ->
                 when (outputState) {
                     SpeechOutputState.Initializing -> Unit
-                    SpeechOutputState.Ready -> _state.update { it.copy(ttsSpeaking = false, ttsAvailable = true) }
-                    SpeechOutputState.Speaking -> _state.update { it.copy(ttsSpeaking = true, ttsAvailable = true) }
-                    SpeechOutputState.Unavailable -> _state.update { it.copy(ttsSpeaking = false, ttsAvailable = false) }
-                    is SpeechOutputState.Error -> _state.update {
-                        it.copy(ttsSpeaking = false, voiceMessage = outputState.messageGujarati)
+                    SpeechOutputState.Ready -> {
+                        _state.update { it.copy(ttsSpeaking = false, ttsAvailable = true) }
+                        val pendingId = pendingAutoAdvanceQuestionId
+                        if (pendingId != null && autoAdvanceSpeechStarted) {
+                            pendingAutoAdvanceQuestionId = null
+                            autoAdvanceSpeechStarted = false
+                            delay(450L)
+                            val current = _state.value
+                            if (current.currentQuestion?.id == pendingId && current.awaitingNext && current.lastResult == AttemptResult.CORRECT) {
+                                next()
+                            }
+                        }
+                    }
+                    SpeechOutputState.Speaking -> {
+                        if (pendingAutoAdvanceQuestionId != null) autoAdvanceSpeechStarted = true
+                        _state.update { it.copy(ttsSpeaking = true, ttsAvailable = true) }
+                    }
+                    SpeechOutputState.Unavailable -> {
+                        _state.update { it.copy(ttsSpeaking = false, ttsAvailable = false) }
+                        autoAdvanceWithoutSpeech()
+                    }
+                    is SpeechOutputState.Error -> {
+                        _state.update { it.copy(ttsSpeaking = false, voiceMessage = outputState.messageGujarati) }
+                        autoAdvanceWithoutSpeech()
                     }
                 }
             }
@@ -447,12 +479,40 @@ class LearningSessionViewModel(
                 answer = text.take(160),
                 listening = false,
                 partialTranscript = "",
-                pendingVoiceConfirmation = activity?.evaluationMode != EvaluationMode.PARTICIPATION,
-                voiceMessage = if (activity?.evaluationMode != EvaluationMode.PARTICIPATION)
-                    "મેં સાંભળ્યું: $text • સાચું હોય તો ‘જવાબ ચકાસો’ દબાવો."
-                else "મેં સાંભળ્યું: $text",
+                pendingVoiceConfirmation = false,
+                voiceMessage = "મેં સાંભળ્યું: $text • જવાબ ચકાસું છું…",
             )
         }
+        if (activity?.evaluationMode == EvaluationMode.PARTICIPATION) {
+            completeParticipation()
+        } else {
+            submitAnswer(text)
+        }
+    }
+
+
+    private fun autoAdvanceWithoutSpeech() {
+        val pendingId = pendingAutoAdvanceQuestionId ?: return
+        pendingAutoAdvanceQuestionId = null
+        autoAdvanceSpeechStarted = false
+        viewModelScope.launch {
+            delay(1_200L)
+            val current = _state.value
+            if (current.currentQuestion?.id == pendingId && current.awaitingNext && current.lastResult == AttemptResult.CORRECT) {
+                next()
+            }
+        }
+    }
+
+    private fun dynamicPraise(questionIndex: Int, base: String): String {
+        val praise = listOf(
+            "વાહ, એકદમ સાચું!",
+            "શાબાશ, ખૂબ સરસ વિચાર્યું!",
+            "બહુ સરસ, તમારો જવાબ બરાબર છે!",
+            "જોરદાર! આવું જ ધ્યાન રાખો!",
+            "Perfect! મિત્રને તમારો જવાબ બહુ ગમ્યો!",
+        )[questionIndex % 5]
+        return "$praise $base".trim()
     }
 
     private fun speakActivity(question: LearningQuestion) {

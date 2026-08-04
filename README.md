@@ -1,132 +1,92 @@
 # Mitra Android
 
-## Milestone 19 — “મિત્રને પૂછીએ” voice tutor
+## Milestone 20 — Smart Tutor
 
-**Current version: 0.19.1 (`versionCode 36`)**
+**Current version: 0.20.0 (`versionCode 38`)**
 
-મિત્ર is a local-first Android learning companion for one Standard 2 Gujarati-medium child. Milestone 19 adds a two-way voice tutor that answers prepared-book questions and runs spoken practice with adaptive feedback. Milestone 18 offline PDF/OCR preparation remains included.
+Mitra is a local-first Android learning companion for one Standard 2 Gujarati-medium child. It combines prepared-textbook Q&A, voice practice, guided maths, language games, parent-created tests and animated visual teaching without requiring a backend.
 
-### 0.19.1 voice reliability patch
+## Main child experience
 
-- Uses the normal Android speech recognizer first instead of forcing an on-device Gujarati model.
-- Stops the continuous “અવાજ સમજવામાં સમસ્યા આવી” restart loop.
-- Automatically retries only one temporary BUSY/CLIENT failure.
-- Shows specific guidance for missing Gujarati/English speech languages and modern Android error codes.
+### “મિત્રને પૂછીએ”
 
+- The child can ask questions from any locally prepared book.
+- Mitra can ask tables, before/after number, spelling, mixed or prepared-book questions.
+- Conversation can start from either side: the child may ask freely, or Mitra may start a 20/25-question game.
+- During a Mitra-led quiz the child can ask a textbook question; Mitra answers it and resumes the current challenge.
+- Correct answers receive varied spoken appreciation and move automatically to the next question.
+- A wrong answer gets one useful hint; the second wrong attempt explains the correct method and continues.
+- Gujarati recognition uses `gu-IN`; English spelling/sentence activities use `en-IN`.
+- Voice and typing are always available as alternatives.
 
+### Learning games
 
-## What “મિત્રને પૂછીએ” now does
+- **રંગોની મજા:** pick a colour, say its Gujarati name, say its English name and spell it.
+- **English Sentence Builder:** look at a picture/emoji, speak or type a full sentence, and use optional grammar/word help.
+- **કૌશલ્ય રમત:** 20-question Standard 2 mixed skill sessions, with support for 25-question generation.
+- **Guided arithmetic:** ones/tens result fields appear in the sum itself; carry/borrow is above the tens column. The optional finger-writing pad is collapsed to keep the arithmetic page compact.
+- **પડછાયો visual lesson:** six narrated animated steps show how light, object position and distance change a shadow.
 
-- Answers child questions from locally prepared textbook pages.
-- Answers ઘડિયા/પહાડા, પહેલાંની સંખ્યા, પછીની સંખ્યા, arithmetic, and common English spelling requests locally.
-- Offers one-tap voice practice for prepared-book questions, tables, number neighbors, spelling, or mixed practice.
-- Speaks each question, switches speech recognition to Gujarati or English as needed, and evaluates the child’s spoken reply.
-- Gives varied praise for correct answers and tracks the current correct streak.
-- Gives one guided retry after a wrong answer; after the second attempt it explains the correct method and continues with a new question.
-- Prefers Android on-device speech recognition and requests offline recognition where the device supports it.
-- Does not store raw microphone audio or free-form voice transcripts after the screen closes.
+## Parent area
 
-## What Offline Local now does
+- Parent PIN with automatic verification after the last stored PIN digit.
+- Android phone-lock/device-credential confirmation as an alternative where available.
+- Parent Test Builder for 20- or 25-mark tests from:
+  - any selected built-in Standard 2 skill (addition, subtraction, tables, Gujarati or English)
+  - prepared books
+  - tables
+  - before/after numbers
+  - English spelling
+  - mixed practice
+- Every child-test question carries one mark and accepts voice or typed answers.
+- Book import, chapter setup, preparation, progress, exact-skill practice, backup/restore, AI settings and learning-time limits remain available.
 
-- Reads selectable text directly from a PDF on the phone.
-- Falls back to bundled Gujarati + English OCR for scanned/image-only pages.
-- Detects chapters from parent-selected contents/index pages.
-- Prepares one chapter or every saved chapter in sequence.
-- Uses a parent-imported `.litertlm` model to produce higher-quality Gujarati summaries and concepts.
-- Uses a conservative rule-based fallback when no compatible local model is installed, so page knowledge can still be created.
-- Stores prepared page text, summaries, concepts, and question banks locally.
-- Keeps existing `READY` content usable when a re-prepare fails.
+## Offline book preparation
 
-The local language model remains text-only. Page images are converted to text by the on-device PDF/OCR pipeline before being sent to LiteRT-LM.
+1. Parent imports a private PDF.
+2. Mitra reads embedded PDF text first and uses bundled Gujarati/English OCR for scanned pages.
+3. Parent detects or manually sets chapter ranges.
+4. Printed textbook page numbers are mapped to physical PDF pages when front matter is present.
+5. Before preparing a generic stale range, Mitra can scan early contents pages and repair chapter boundaries locally.
+6. Four pages are processed at a time to bound memory.
+7. An optional imported `.litertlm` model structures page summaries/concepts; a deterministic local fallback still works without it.
+8. Prepared page text, concepts and reusable question banks are stored locally.
 
-## Current capabilities
+Prepared-book answering filters out unrelated pages and prefers exact/stem/OCR-near matches. It does not silently replace missing textbook evidence with web answers.
 
-- Parent PIN and separate child/parent areas.
-- Private PDF import, duplicate detection, chapter setup, parent-reviewed preparation, and local PDF viewing.
-- OpenAI, Cloudflare Workers AI, and Offline Local providers.
-- Built-in Standard 2 maths, Gujarati, English, spelling, and tables without remote AI.
-- Question fingerprints and recent-history suppression to reduce repetition.
-- Two-digit addition/subtraction with carrying and borrowing.
-- Finger-writing rough work and aligned place-value fields.
-- Local mistake classification and step-specific Gujarati hints.
-- Spaced review scheduling.
-- Offline book-derived activity banks.
-- Parent-selected practice for an exact built-in or prepared-book concept.
-- Parent progress dashboard, weekly report, backup, and restore.
-- Configurable daily/session limits and automatic parent relocking.
-- Bounded turn-based voice conversation with spoken quizzes and adaptive correction.
+## Child-mode containment
 
-## Offline book preparation flow
-
-1. Parent imports a PDF.
-2. Parent opens **Set up chapters** and marks one or more contents/index pages.
-3. Offline Local first tries embedded PDF text. Scanned pages are rendered and recognized with Gujarati/English OCR.
-4. Mitra detects likely chapter titles and start pages. The parent reviews and corrects them before saving.
-5. Parent presses **Prepare** for one chapter or **Prepare all chapters**.
-6. Pages are processed in bounded batches. Embedded text is preferred; OCR runs only where needed.
-7. An imported LiteRT-LM model converts the extracted text into structured page summaries and concepts. Without a model, a local deterministic fallback creates conservative page knowledge and concepts.
-8. Prepared data and reusable questions are stored locally for Study Talk and practice.
-
-Printed page numbers in a textbook can differ from PDF page numbers because of cover/front-matter pages. The parent should review detected ranges before saving.
-
-## Study Talk
-
-The child can use a bounded, turn-based conversation:
-
-1. child speaks
-2. Mitra processes the utterance
-3. Mitra speaks its reply
-4. listening begins again when hands-free mode is enabled
-
-Study Talk has two grounded paths:
-
-- **Local Standard 2 maths:** deterministic support for addition, subtraction, carrying, borrowing, multiplication, tables 1–20, before/after, comparison, Gujarati digits, and common Gujarati number words.
-- **Prepared textbook grounding:** questions retrieve relevant locally prepared pages. Offline Local answers through the imported LiteRT-LM model or a deterministic extractive fallback. Missing textbook evidence is not replaced with web answers.
+Mitra requests Android lock-task/screen-pinning when child mode opens and releases it after parent authentication. On a normal phone Android may still allow the owner to exit screen pinning using the system gesture and device credential. Fully enforced kiosk behavior requires device-owner provisioning.
 
 ## Build with GitHub Actions
 
-Complete the one-time signing setup in [`SIGNING_SETUP.md`](SIGNING_SETUP.md), push to `main`, and run **Android build**.
-
-The workflow runs:
-
-```bash
-gradle testDebugUnitTest
-gradle lintDebug
-gradle assembleDebug
-```
-
-Download the signed `mitra-update-apk` artifact. A higher `versionCode` signed with the same key can update the installed app without uninstalling it.
+Complete the one-time signing setup in [`SIGNING_SETUP.md`](SIGNING_SETUP.md), push to `main`, and run **Android build**. The workflow runs unit tests, lint and `assembleDebug`, then publishes the signed update APK.
 
 ## Upgrade
 
-- `versionCode = 36`
-- `versionName = 0.19.1`
+- `versionCode = 38`
+- `versionName = 0.20.0`
 - Room schema version `5`
-- No database migration is required from Milestone 17.
-- Existing books, prepared data, progress, review schedules, credentials, and sessions are preserved.
-- The APK is larger because Gujarati and English OCR language data are bundled.
+- No database migration is required from Milestone 19.
+- Existing PDFs, prepared knowledge, question banks, progress, review schedules, credentials and settings are preserved.
 
 ## Privacy boundary
 
 Stored locally:
 
-- PDFs and extracted/prepared page knowledge
+- imported PDFs and prepared page knowledge
 - curriculum and offline question banks
-- mastery, attempts, sessions, and settings
+- mastery, attempts, sessions and settings
 - optional parent-imported LiteRT-LM model
+- active parent-created test
 
 Not retained by default:
 
 - raw microphone audio
 - rough-work strokes
-- free-form Study Talk history
-- location, contacts, school, or advertising identifiers
+- temporary Study Talk turns after the screen closes
+- location, contacts, school or advertising identifiers
 
-Offline preparation does not upload textbook pages or OCR text. API credentials and the parent PIN are excluded from exported backups. The imported local model is also excluded from normal backups.
+API credentials and the parent PIN are excluded from backups. The local model is also excluded from normal backups.
 
-See [`MILESTONE19.md`](MILESTONE19.md) for the voice tutor implementation, [`MILESTONE18.md`](MILESTONE18.md) for offline preparation, [`ARCHITECTURE.md`](ARCHITECTURE.md) for runtime boundaries, and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for the offline PDF/OCR components.
-
-
-## 0.18.1 OCR compilation fix
-
-Corrected the Tesseract4Android `TessBaseAPI` import to `com.googlecode.tesseract.android.TessBaseAPI`.
+See [`MILESTONE20.md`](MILESTONE20.md), [`ARCHITECTURE.md`](ARCHITECTURE.md), [`SIGNING_SETUP.md`](SIGNING_SETUP.md) and [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

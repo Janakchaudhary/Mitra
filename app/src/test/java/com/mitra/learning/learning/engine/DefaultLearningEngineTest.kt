@@ -112,6 +112,18 @@ class DefaultLearningEngineTest {
     }
 
     @Test
+    fun skillSessionCanCreateTwentyQuestionQuiz() = runTest {
+        val repo = FakeLearningRepository()
+        val engine = DefaultLearningEngine(repo, MockAiGateway(), now = { 172800000L })
+
+        val plan = requireNotNull(engine.startSkillSession(questionCount = 20))
+
+        assertEquals(20, plan.questions.size)
+        assertEquals(20, plan.questions.map { it.fingerprint }.distinct().size)
+        assertTrue(plan.questions.any { it.arithmeticWork?.regrouping == true })
+    }
+
+    @Test
     fun remoteBookFailureFallsBackToBuiltInCurriculum() = runTest {
         val repo = FakeLearningRepository()
         repo.concepts += BuiltInCurriculum.concepts.first().copy(

@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.School
+import androidx.compose.material.icons.filled.AssignmentTurnedIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -58,6 +59,7 @@ fun ChildHomeScreen(
     onTalk: () -> Unit,
     onActivities: () -> Unit,
     onBooks: () -> Unit,
+    onParentQuiz: () -> Unit,
     onParent: () -> Unit,
 ) {
     AnimatedLearningBackground(
@@ -138,6 +140,15 @@ fun ChildHomeScreen(
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 enabled = state.canPlay && !state.loading,
                 onClick = onPlay,
+            )
+            ChildActionCard(
+                emoji = "📝",
+                title = "Parentની કસોટી",
+                subtitle = "20/25 પ્રશ્ન • દરેક પ્રશ્ન 1 ગુણ • voice અથવા typing",
+                icon = Icons.Default.AssignmentTurnedIn,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                enabled = state.canPlay && !state.loading,
+                onClick = onParentQuiz,
             )
             ChildActionCard(
                 emoji = "🧠",

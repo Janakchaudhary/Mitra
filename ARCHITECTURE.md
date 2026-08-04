@@ -147,3 +147,17 @@ Speech input is language-aware per challenge. Gujarati uses `gu-IN`, while Engli
 ## Mitra 0.19.1 voice recognition reliability
 
 `AndroidSpeechInput` now prefers `SpeechRecognizer.createSpeechRecognizer()` so Android can choose an installed offline pack or a remote recognition service. It uses `createOnDeviceSpeechRecognizer()` only when no normal recognizer is available. The Study Talk view model allows at most one automatic retry for transient BUSY/CLIENT failures; all other errors stop hands-free mode and wait for a deliberate microphone tap. This prevents recognizer request storms and preserves typed input as a fallback.
+
+# Milestone 20 Addendum — Smart tutor, tests and visual teaching
+
+Study Talk now has one shared state machine for child-led grounded questions and Mitra-led challenges. An active challenge is temporarily retained when the child asks an explanatory/textbook question, then restored after the answer. Challenge length is explicit (20 or 25), and all evaluation remains local through `MitraPracticeEvaluator`.
+
+Parent-created tests are persisted as one app-private, Base64-safe text plan outside Room so no schema migration is needed. `ParentQuizService` builds questions either from the same grounded/offline practice service used by Study Talk or from a parent-selected built-in Standard 2 skill through `Standard2SkillActivityFactory`. `ChildQuizViewModel` awards one mark per question, allows one retry, speaks correction/praise and advances automatically.
+
+The general learning engine defaults to 20 questions and accepts up to 25. Arithmetic rough work keeps ephemeral drawing strokes only in Compose state. Place-value answer and carry/borrow inputs are rendered in the actual column layout rather than in a detached result field.
+
+`ShadowLessonScreen` is a deterministic Canvas/TTS lesson, not generated child content. Its six steps are bounded and repeatable. Colour and sentence activities similarly use local allow-listed learning data and do not persist free-form speech.
+
+Child home requests lock-task mode. On ordinary consumer devices this is screen pinning; policy-enforced lock task requires device-owner provisioning. Parent PIN or Android device-credential confirmation exits the app-level gate and releases lock task.
+
+Room remains schema 5. The only new persisted file is the parent quiz plan under app-private storage.

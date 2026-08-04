@@ -27,7 +27,7 @@ class LearningSessionVoiceTest {
     val mainDispatcherRule = MainDispatcherRule()
 
     @Test
-    fun `session speaks first question and confirms recognized answer before submit`() = runTest {
+    fun `recognized voice answer is checked and advances automatically after praise`() = runTest {
         val engine = FakeLearningEngine()
         val input = FakeSpeechInput()
         val output = FakeSpeechOutput()
@@ -39,18 +39,10 @@ class LearningSessionVoiceTest {
         input.emit(SpeechInputState.Result("૫"))
         advanceUntilIdle()
 
-        assertEquals(null, engine.lastSubmittedAnswer)
-        assertTrue(vm.state.value.pendingVoiceConfirmation)
-        assertEquals("૫", vm.state.value.answer)
-
-        vm.submit()
-        advanceUntilIdle()
-
         assertEquals("૫", engine.lastSubmittedAnswer)
-        assertTrue(vm.state.value.awaitingNext)
         assertEquals(AttemptResult.CORRECT, vm.state.value.lastResult)
-        // Tutor feedback may include friendly Gujarati around the keyword (for example, "હા! સાચું.").
-        assertTrue(output.spoken.any { it.contains("સાચું") })
+        assertTrue(vm.state.value.completed)
+        assertTrue(output.spoken.any { it.contains("સાચું") || it.contains("શાબાશ") })
     }
 
     @Test

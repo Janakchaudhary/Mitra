@@ -1,9 +1,15 @@
 package com.mitra.learning
 
 import android.os.Bundle
+import android.app.Activity
+import android.app.ActivityManager
+import android.app.KeyguardManager
+import android.content.Context
 import android.net.Uri
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -45,6 +51,11 @@ import com.mitra.learning.ui.books.PdfViewerViewModel
 import com.mitra.learning.ui.activity.ActivityHubScreen
 import com.mitra.learning.ui.activity.ColorLabScreen
 import com.mitra.learning.ui.activity.SentenceBuilderScreen
+import com.mitra.learning.ui.activity.ShadowLessonScreen
+import com.mitra.learning.ui.assignment.ParentQuizBuilderScreen
+import com.mitra.learning.ui.assignment.ParentQuizBuilderViewModel
+import com.mitra.learning.ui.assignment.ChildQuizScreen
+import com.mitra.learning.ui.assignment.ChildQuizViewModel
 import com.mitra.learning.ui.child.ChildBookListScreen
 import com.mitra.learning.ui.child.ChildHomeScreen
 import com.mitra.learning.ui.child.ChildHomeViewModel
@@ -118,18 +129,21 @@ private object Routes {
     const val Setup = "setup"
     const val Child = "child"
     const val ChildBooks = "child/books"
+    const val ChildQuiz = "child/parent-quiz"
     const val Learning = "child/learning"
     const val LearningSkills = "child/learning-skills"
     const val StudyChat = "child/study-chat"
     const val Activities = "child/activities"
     const val ColorLab = "child/activities/colors"
     const val SentenceBuilder = "child/activities/sentences"
+    const val ShadowLesson = "child/activities/shadow"
     const val ParentPin = "parent-pin"
     const val Parent = "parent"
     const val AiSettings = "parent/ai-settings"
     const val Settings = "parent/settings"
     const val Progress = "parent/progress"
     const val PracticePicker = "parent/practice"
+    const val ParentQuizBuilder = "parent/quiz-builder"
     const val LearningConcept = "child/learning-concept/{conceptId}"
     const val Books = "books"
     const val AddBook = "books/add"
@@ -177,6 +191,8 @@ private fun MitraNav(
         }
 
         composable(Routes.Child) {
+            val context = LocalContext.current
+            LaunchedEffect(Unit) { startChildLockTask(context) }
             val vm: ChildHomeViewModel = viewModel(
                 factory = simpleViewModelFactory {
                     ChildHomeViewModel(container.learningLimitService, container.networkMonitor)
@@ -191,6 +207,7 @@ private fun MitraNav(
                 onTalk = { if (state.canPlay) nav.navigate(Routes.StudyChat) },
                 onActivities = { if (state.canPlay) nav.navigate(Routes.Activities) },
                 onBooks = { nav.navigate(Routes.ChildBooks) },
+                onParentQuiz = { nav.navigate(Routes.ChildQuiz) },
                 onParent = { nav.navigate(Routes.ParentPin) },
             )
         }
@@ -281,7 +298,7 @@ private fun MitraNav(
                 onStopVoice = vm::stopVoice,
                 onMicDenied = vm::microphoneDenied,
                 onHandsFreeChange = vm::setHandsFree,
-                onStartPractice = vm::startPractice,
+                onStartPractice = { topic, count -> vm.startPractice(topic, count) },
                 onStopPractice = { vm.stopPractice() },
                 onReplay = vm::replayLastAnswer,
                 onBack = { nav.popBackStack() },
@@ -292,16 +309,21 @@ private fun MitraNav(
             ActivityHubScreen(
                 onColorLab = { nav.navigate(Routes.ColorLab) },
                 onSentenceBuilder = { nav.navigate(Routes.SentenceBuilder) },
+                onShadowLesson = { nav.navigate(Routes.ShadowLesson) },
                 onBack = { nav.popBackStack() },
             )
         }
 
         composable(Routes.ColorLab) {
-            ColorLabScreen(onBack = { nav.popBackStack() })
+            ColorLabScreen(container.speechInput, container.speechOutput, onBack = { nav.popBackStack() })
         }
 
         composable(Routes.SentenceBuilder) {
-            SentenceBuilderScreen(onBack = { nav.popBackStack() })
+            SentenceBuilderScreen(container.speechInput, container.speechOutput, onBack = { nav.popBackStack() })
+        }
+
+        composable(Routes.ShadowLesson) {
+            ShadowLessonScreen(container.speechOutput, onBack = { nav.popBackStack() })
         }
 
         composable(Routes.ChildBooks) {
@@ -316,7 +338,32 @@ private fun MitraNav(
             )
         }
 
+        composable(Routes.ChildQuiz) {
+            val vm: ChildQuizViewModel = viewModel(
+                key = "child-parent-quiz",
+                factory = simpleViewModelFactory {
+                    ChildQuizViewModel(
+                        repository = container.parentQuizRepository,
+                        speechInput = container.speechInput,
+                        speechOutput = container.speechOutput,
+                    )
+                }
+            )
+            val state by vm.state.collectAsStateWithLifecycle()
+            ChildQuizScreen(
+                state = state,
+                onAnswer = vm::updateAnswer,
+                onSubmit = vm::submit,
+                onStartVoice = vm::startVoice,
+                onStopVoice = vm::stopVoice,
+                onReplay = vm::replayQuestion,
+                onBack = { nav.popBackStack() },
+            )
+        }
+
         composable(Routes.ParentPin) {
+            val context = LocalContext.current
+            val keyguard = remember(context) { context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager }
             val vm: ParentPinViewModel = viewModel(
                 factory = simpleViewModelFactory {
                     ParentPinViewModel(
@@ -327,12 +374,28 @@ private fun MitraNav(
                 }
             )
             val state by vm.state.collectAsStateWithLifecycle()
+            val credentialLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+                if (result.resultCode == Activity.RESULT_OK) vm.unlockWithDeviceCredential()
+            }
             LaunchedEffect(state.unlocked) {
                 if (state.unlocked) {
+                    stopChildLockTask(context)
                     nav.navigate(Routes.Parent) { popUpTo(Routes.ParentPin) { inclusive = true } }
                 }
             }
-            ParentPinScreen(state, vm::updatePin, vm::unlock) { nav.popBackStack() }
+            ParentPinScreen(
+                state = state,
+                onPinChange = vm::updatePin,
+                onUnlock = vm::unlock,
+                onDeviceUnlock = {
+                    keyguard.createConfirmDeviceCredentialIntent(
+                        "Open Mitra Parent area",
+                        "Use fingerprint, face or the phone screen-lock credential.",
+                    )?.let(credentialLauncher::launch)
+                },
+                deviceUnlockAvailable = keyguard.isDeviceSecure,
+                onBack = { nav.popBackStack() },
+            )
         }
 
         composable(Routes.Parent) {
@@ -343,6 +406,7 @@ private fun MitraNav(
                     onSettings = { nav.navigate(Routes.Settings) },
                     onAiSettings = { nav.navigate(Routes.AiSettings) },
                     onPractice = { nav.navigate(Routes.PracticePicker) },
+                    onQuizBuilder = { nav.navigate(Routes.ParentQuizBuilder) },
                     onChildMode = {
                         container.parentAccessManager.lock()
                         nav.navigate(Routes.Child) { popUpTo(Routes.Child) { inclusive = true } }
@@ -378,6 +442,30 @@ private fun MitraNav(
                     onResetProgress = vm::resetProgress,
                     onResetBookAnalysis = vm::resetBookAnalysis,
                     onResetEverything = vm::resetEverything,
+                    onBack = { nav.popBackStack() },
+                )
+            }
+        }
+
+        composable(Routes.ParentQuizBuilder) {
+            ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                val vm: ParentQuizBuilderViewModel = viewModel(
+                    factory = simpleViewModelFactory {
+                        ParentQuizBuilderViewModel(
+                            service = container.parentQuizService,
+                            repository = container.parentQuizRepository,
+                        )
+                    }
+                )
+                val state by vm.state.collectAsStateWithLifecycle()
+                ParentQuizBuilderScreen(
+                    state = state,
+                    onTitle = vm::setTitle,
+                    onTopic = vm::setTopic,
+                    onCount = vm::setQuestionCount,
+                    onSkill = vm::setSkillConcept,
+                    onCreate = vm::create,
+                    onClear = vm::clear,
                     onBack = { nav.popBackStack() },
                 )
             }
@@ -623,6 +711,20 @@ private fun MitraNav(
             PdfViewerScreen(state, vm::previous, vm::next) { nav.popBackStack() }
         }
     }
+}
+
+private fun startChildLockTask(context: Context) {
+    val activity = context as? Activity ?: return
+    val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    if (activityManager.lockTaskModeState != ActivityManager.LOCK_TASK_MODE_NONE) return
+    runCatching { activity.startLockTask() }
+}
+
+private fun stopChildLockTask(context: Context) {
+    val activity = context as? Activity ?: return
+    val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    if (activityManager.lockTaskModeState == ActivityManager.LOCK_TASK_MODE_NONE) return
+    runCatching { activity.stopLockTask() }
 }
 
 @Composable

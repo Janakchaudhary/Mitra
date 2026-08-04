@@ -6,11 +6,11 @@ import com.mitra.learning.learning.model.SessionPlan
 import com.mitra.learning.learning.model.SessionSummary
 
 interface LearningEngine {
-    suspend fun startSession(questionCount: Int = 6): SessionPlan?
+    suspend fun startSession(questionCount: Int = 20): SessionPlan?
 
-    suspend fun startSkillSession(questionCount: Int = 6): SessionPlan? = startSession(questionCount)
+    suspend fun startSkillSession(questionCount: Int = 20): SessionPlan? = startSession(questionCount)
 
-    suspend fun startConceptSession(conceptId: String, questionCount: Int = 6): SessionPlan? = startSession(questionCount)
+    suspend fun startConceptSession(conceptId: String, questionCount: Int = 20): SessionPlan? = startSession(questionCount)
 
     suspend fun submitAnswer(
         sessionId: String,

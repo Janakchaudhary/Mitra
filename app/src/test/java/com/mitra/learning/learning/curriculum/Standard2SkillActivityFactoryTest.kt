@@ -84,6 +84,14 @@ class Standard2SkillActivityFactoryTest {
     }
 
     @Test
+    fun twentyQuestionSkillSetIsUnique() {
+        val concept = requireNotNull(BuiltInCurriculum.concepts.find { it.id == BuiltInCurriculum.ADD_WITH_CARRY })
+        val activities = Standard2SkillActivityFactory.create(concept, 20, seed = 2020L)
+        assertEquals(20, activities.size)
+        assertEquals(20, activities.map { it.fingerprint }.distinct().size)
+    }
+
+    @Test
     fun twoDigitSkillProducesTwoDigitArithmetic() {
         val concept = requireNotNull(BuiltInCurriculum.concepts.find { it.id == BuiltInCurriculum.ADD_2D_2D_NO_CARRY })
         val activities = Standard2SkillActivityFactory.create(concept, 5)

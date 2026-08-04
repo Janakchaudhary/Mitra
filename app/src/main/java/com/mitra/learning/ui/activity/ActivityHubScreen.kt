@@ -17,6 +17,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ColorLens
 import androidx.compose.material.icons.filled.Extension
+import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -39,6 +40,7 @@ import com.mitra.learning.ui.animation.MascotMood
 fun ActivityHubScreen(
     onColorLab: () -> Unit,
     onSentenceBuilder: () -> Unit,
+    onShadowLesson: () -> Unit,
     onBack: () -> Unit,
 ) {
     AnimatedLearningBackground(
@@ -71,6 +73,14 @@ fun ActivityHubScreen(
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 icon = { Icon(Icons.Default.Extension, contentDescription = null) },
                 onClick = onSentenceBuilder,
+            )
+            ActivityCard(
+                emoji = "☀️",
+                title = "દૃશ્યથી શીખીએ — પડછાયો",
+                subtitle = "સૂર્ય, વસ્તુ અને પડછાયાની દિશા animation અને voice થી સમજો",
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                icon = { Icon(Icons.Default.WbSunny, contentDescription = null) },
+                onClick = onShadowLesson,
             )
         }
     }
