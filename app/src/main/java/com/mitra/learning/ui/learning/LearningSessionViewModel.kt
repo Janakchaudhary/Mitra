@@ -65,6 +65,7 @@ class LearningSessionViewModel(
     private val requestedConceptId: String? = null,
 ) : ViewModel() {
     private var countdownJob: Job? = null
+    private var autoAdvanceFallbackJob: Job? = null
     private var pendingAutoAdvanceQuestionId: String? = null
     private var autoAdvanceSpeechStarted = false
     private val _state = MutableStateFlow(
@@ -173,6 +174,8 @@ class LearningSessionViewModel(
     }
 
     fun next() {
+        autoAdvanceFallbackJob?.cancel()
+        autoAdvanceFallbackJob = null
         pendingAutoAdvanceQuestionId = null
         autoAdvanceSpeechStarted = false
         val current = _state.value
@@ -248,6 +251,8 @@ class LearningSessionViewModel(
 
     fun stop(onStopped: () -> Unit) {
         countdownJob?.cancel()
+        autoAdvanceFallbackJob?.cancel()
+        autoAdvanceFallbackJob = null
         pendingAutoAdvanceQuestionId = null
         autoAdvanceSpeechStarted = false
         speechInput.cancel()
@@ -312,6 +317,7 @@ class LearningSessionViewModel(
                 if (!shouldRetry && feedback.result == AttemptResult.CORRECT) {
                     pendingAutoAdvanceQuestionId = question.id
                     autoAdvanceSpeechStarted = false
+                    scheduleAutoAdvanceFallback(question.id, finalMessage)
                 }
                 speak(finalMessage)
             }.onFailure { failure ->
@@ -433,6 +439,8 @@ class LearningSessionViewModel(
                         _state.update { it.copy(ttsSpeaking = false, ttsAvailable = true) }
                         val pendingId = pendingAutoAdvanceQuestionId
                         if (pendingId != null && autoAdvanceSpeechStarted) {
+                            autoAdvanceFallbackJob?.cancel()
+                            autoAdvanceFallbackJob = null
                             pendingAutoAdvanceQuestionId = null
                             autoAdvanceSpeechStarted = false
                             delay(450L)
@@ -493,12 +501,40 @@ class LearningSessionViewModel(
 
     private fun autoAdvanceWithoutSpeech() {
         val pendingId = pendingAutoAdvanceQuestionId ?: return
+        autoAdvanceFallbackJob?.cancel()
+        autoAdvanceFallbackJob = null
         pendingAutoAdvanceQuestionId = null
         autoAdvanceSpeechStarted = false
         viewModelScope.launch {
             delay(1_200L)
             val current = _state.value
             if (current.currentQuestion?.id == pendingId && current.awaitingNext && current.lastResult == AttemptResult.CORRECT) {
+                next()
+            }
+        }
+    }
+
+    /**
+     * Android TTS normally reports Speaking -> Ready, but StateFlow may conflate those two
+     * short-lived updates (and some vendor TTS engines omit onStart/onDone callbacks). Keep a
+     * conservative fallback so a correct voice answer never leaves the child stuck forever.
+     * The normal Ready callback still advances earlier and cancels this job.
+     */
+    private fun scheduleAutoAdvanceFallback(questionId: String, spokenMessage: String) {
+        autoAdvanceFallbackJob?.cancel()
+        val estimatedSpeechMillis = (spokenMessage.length * 75L).coerceIn(1_800L, 8_000L)
+        autoAdvanceFallbackJob = viewModelScope.launch {
+            delay(estimatedSpeechMillis + 450L)
+            val current = _state.value
+            if (
+                pendingAutoAdvanceQuestionId == questionId &&
+                current.currentQuestion?.id == questionId &&
+                current.awaitingNext &&
+                current.lastResult == AttemptResult.CORRECT
+            ) {
+                pendingAutoAdvanceQuestionId = null
+                autoAdvanceSpeechStarted = false
+                autoAdvanceFallbackJob = null
                 next()
             }
         }

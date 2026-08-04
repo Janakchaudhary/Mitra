@@ -340,12 +340,15 @@ class BookPreparationService(
     ): List<ChapterEntity> {
         val extractor = pageTextExtractor ?: return emptyList()
         val existing = knowledgeRepository.chaptersForBook(bookId).sortedBy { it.startPage }
-        if (existing.isEmpty()) return emptyList()
+        // Range repair is only safe when a real chapter list already exists. A single manually
+        // entered chapter such as "પાઠ ૧, page 2" must be prepared exactly as entered and must
+        // not trigger a speculative scan of the first twenty PDF pages.
+        if (existing.size < 3) return emptyList()
         val first = existing.first()
         val genericTitles = existing.count { chapter ->
             chapter.titleGujarati.trim().matches(Regex("""(?:પાઠ|અધ્યાય|chapter|lesson)\s*[-:.]?\s*\p{N}+""", RegexOption.IGNORE_CASE))
         }
-        if (first.startPage > 2 || genericTitles == 0 || genericTitles * 2 < existing.size) return emptyList()
+        if (first.startPage > 2 || genericTitles < 3 || genericTitles * 2 < existing.size) return emptyList()
 
         val scanIndices = (0 until minOf(pageCount, 20)).toList()
         val pages = runCatching { extractor.extract(pdfPath, scanIndices) }.getOrNull() ?: return emptyList()
