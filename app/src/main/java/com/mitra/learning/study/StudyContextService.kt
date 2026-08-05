@@ -17,7 +17,21 @@ class StudyContextService(
             .associateBy { it.id }
         val tokens = tokens(question)
 
-        return pageKnowledgeDao.getAll()
+        // Query a bounded candidate set instead of loading every prepared page from every book.
+        // Exact vocabulary/phrase hits are fetched first; Gujarati stemming and OCR-tolerant
+        // ranking are then applied only to those candidates in memory.
+        val candidatePages = if (tokens.isEmpty()) {
+            emptyList()
+        } else {
+            tokens
+                .sortedByDescending(String::length)
+                .take(5)
+                .flatMap { token -> pageKnowledgeDao.searchCandidates(token, 60) }
+                .distinctBy { it.id }
+                .take(180)
+        }
+
+        return candidatePages
             .mapNotNull { page ->
                 val book = books[page.bookId] ?: return@mapNotNull null
                 val chapter = chapters[page.chapterId] ?: return@mapNotNull null

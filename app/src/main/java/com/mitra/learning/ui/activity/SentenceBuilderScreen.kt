@@ -52,6 +52,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.mitra.learning.study.practice.SpokenAnswerNormalizer
+import com.mitra.learning.learning.evaluation.EnglishSentenceEvaluator
 import com.mitra.learning.ui.animation.AnimatedLearningBackground
 import com.mitra.learning.ui.animation.AnimatedMitraMascot
 import com.mitra.learning.ui.animation.MascotMood
@@ -119,14 +120,17 @@ fun SentenceBuilderScreen(
     fun check(candidate: String) {
         val expected = SpokenAnswerNormalizer.text(puzzle.sentence)
         val actual = SpokenAnswerNormalizer.text(candidate)
-        correct = actual == expected
+        val evaluation = EnglishSentenceEvaluator.evaluate(expected, actual)
+        correct = evaluation.correct
         message = if (correct) {
             listOf("શાબાશ! સુંદર sentence.", "Perfect! બહુ સરસ બોલ્યા.", "વાહ! Grammar અને શબ્દક્રમ બંને સાચા.")[(index + actual.length) % 3]
         } else {
-            val expectedWords = puzzle.words
-            val actualWords = candidate.trim().split(Regex("\\s+")).filter(String::isNotBlank)
-            val firstWrong = expectedWords.indices.firstOrNull { expectedWords.getOrNull(it)?.lowercase() != actualWords.getOrNull(it)?.trim('.', ',')?.lowercase() }
-            if (firstWrong == null) "અંતનો full stop છોડીને sentence ફરી બોલો." else "શબ્દ ${firstWrong + 1} પાસે ફરી વિચારો. Help words જોઈ શકો."
+            val missing = evaluation.missingWords.take(3)
+            if (missing.isEmpty()) {
+                "Sentence લગભગ સાચું છે. શબ્દક્રમ ફરી સાંભળો અને એક વાર વધુ બોલો."
+            } else {
+                "આ શબ્દો ઉમેરવાનો પ્રયત્ન કરો: ${missing.joinToString(", ")}. Help words જોઈ શકો."
+            }
         }
         if (correct) {
             scope.launch {

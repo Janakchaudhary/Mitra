@@ -14,6 +14,20 @@ interface PageKnowledgeDao {
     @Query("SELECT * FROM page_knowledge WHERE chapterId = :chapterId ORDER BY pageNumber")
     suspend fun forChapter(chapterId: String): List<PageKnowledgeEntity>
 
+    @Query(
+        """
+        SELECT * FROM page_knowledge
+        WHERE lower(summaryGujarati) LIKE '%' || lower(:term) || '%'
+           OR lower(COALESCE(visibleTextGujarati, '')) LIKE '%' || lower(:term) || '%'
+           OR lower(COALESCE(importantObjectsJson, '')) LIKE '%' || lower(:term) || '%'
+           OR lower(COALESCE(exercisesJson, '')) LIKE '%' || lower(:term) || '%'
+           OR lower(COALESCE(conceptsJson, '')) LIKE '%' || lower(:term) || '%'
+        ORDER BY analyzedAt DESC
+        LIMIT :limit
+        """
+    )
+    suspend fun searchCandidates(term: String, limit: Int = 80): List<PageKnowledgeEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<PageKnowledgeEntity>)
 

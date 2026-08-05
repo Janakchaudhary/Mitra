@@ -6,6 +6,7 @@ import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import java.io.File
+import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -20,6 +21,7 @@ class AndroidOfflinePageTextExtractor(
     private val ocr: TesseractOcrEngine,
 ) : OfflinePageTextExtractor {
     private val appContext = context.applicationContext
+    private val cacheRoot = File(appContext.cacheDir, "book_page_text_v1").apply { mkdirs() }
 
     init {
         PDFBoxResourceLoader.init(appContext)
@@ -29,39 +31,77 @@ class AndroidOfflinePageTextExtractor(
         val indices = pageIndices.distinct().sorted()
         if (indices.isEmpty()) return emptyList()
 
-        val embedded = extractEmbeddedText(path, indices)
+        val cached = indices.mapNotNull { index -> readCache(path, index)?.let { index to it } }.toMap()
+        val missing = indices.filterNot(cached::containsKey)
+        val embedded = if (missing.isEmpty()) emptyMap() else extractEmbeddedText(path, missing)
         return indices.map { index ->
-            val text = embedded[index].orEmpty().normalizeRecognizedText()
-            if (text.isUsefulBookText()) {
-                ExtractedBookPage(
-                    pageNumber = index + 1,
-                    text = text,
-                    method = TextExtractionMethod.EMBEDDED_PDF_TEXT,
-                )
-            } else {
-                val bitmap = renderer.render(path, index, OCR_RENDER_WIDTH_PX)
-                try {
-                    val recognized = ocr.recognize(bitmap)
-                    if (recognized.isUsefulBookText()) {
-                        ExtractedBookPage(
-                            pageNumber = index + 1,
-                            text = recognized,
-                            method = TextExtractionMethod.TESSERACT_OCR,
-                        )
-                    } else {
-                        // Picture-only and decorative pages are valid textbook pages. Keep the
-                        // page in the prepared chapter instead of failing the entire operation.
-                        ExtractedBookPage(
-                            pageNumber = index + 1,
-                            text = "",
-                            method = TextExtractionMethod.NO_READABLE_TEXT,
-                        )
+            cached[index] ?: run {
+                val text = embedded[index].orEmpty().normalizeRecognizedText()
+                val result = if (text.isUsefulBookText()) {
+                    ExtractedBookPage(
+                        pageNumber = index + 1,
+                        text = text,
+                        method = TextExtractionMethod.EMBEDDED_PDF_TEXT,
+                    )
+                } else {
+                    val bitmap = renderer.render(path, index, OCR_RENDER_WIDTH_PX)
+                    try {
+                        val recognized = ocr.recognize(bitmap)
+                        if (recognized.isUsefulBookText()) {
+                            ExtractedBookPage(
+                                pageNumber = index + 1,
+                                text = recognized,
+                                method = TextExtractionMethod.TESSERACT_OCR,
+                            )
+                        } else {
+                            ExtractedBookPage(
+                                pageNumber = index + 1,
+                                text = "",
+                                method = TextExtractionMethod.NO_READABLE_TEXT,
+                            )
+                        }
+                    } finally {
+                        bitmap.recycle()
                     }
-                } finally {
-                    bitmap.recycle()
                 }
+                writeCache(path, index, result)
+                result
             }
         }
+    }
+
+
+    private fun readCache(path: String, pageIndex: Int): ExtractedBookPage? = runCatching {
+        val file = cacheFile(path, pageIndex)
+        if (!file.exists()) return null
+        val lines = file.readLines()
+        if (lines.size < 2) return null
+        ExtractedBookPage(
+            pageNumber = pageIndex + 1,
+            method = TextExtractionMethod.valueOf(lines.first()),
+            text = lines.drop(1).joinToString("\n"),
+        )
+    }.getOrNull()
+
+    private fun writeCache(path: String, pageIndex: Int, page: ExtractedBookPage) {
+        runCatching {
+            val file = cacheFile(path, pageIndex)
+            val temporary = File(file.parentFile, file.name + ".tmp")
+            temporary.writeText(page.method.name + "\n" + page.text)
+            if (!temporary.renameTo(file)) {
+                file.writeText(temporary.readText())
+                temporary.delete()
+            }
+        }
+    }
+
+    private fun cacheFile(path: String, pageIndex: Int): File {
+        val source = File(path)
+        val identity = "$path|${source.length()}|${source.lastModified()}|$pageIndex"
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(identity.toByteArray())
+            .joinToString("") { "%02x".format(it) }
+        return File(cacheRoot, "$digest.txt")
     }
 
     private suspend fun extractEmbeddedText(

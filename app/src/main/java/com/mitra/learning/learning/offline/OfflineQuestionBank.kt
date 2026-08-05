@@ -25,6 +25,9 @@ import kotlinx.serialization.json.put
 class OfflineQuestionBank(context: Context) {
     private val root = File(context.filesDir, "question_bank").apply { mkdirs() }
     private val json = Json { ignoreUnknownKeys = true }
+    private val memoryCache = object : LinkedHashMap<String, List<LearningQuestion>>(24, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, List<LearningQuestion>>?): Boolean = size > 24
+    }
 
     fun save(conceptId: String, questions: List<LearningQuestion>) {
         if (questions.isEmpty()) return
@@ -35,6 +38,7 @@ class OfflineQuestionBank(context: Context) {
         file(conceptId).writeText(
             buildJsonArray { merged.forEach { add(it.toJson()) } }.toString()
         )
+        synchronized(memoryCache) { memoryCache[conceptId] = merged }
     }
 
     fun load(
@@ -53,21 +57,26 @@ class OfflineQuestionBank(context: Context) {
 
     fun deleteForConcept(conceptId: String) {
         file(conceptId).delete()
+        synchronized(memoryCache) { memoryCache.remove(conceptId) }
     }
 
     fun clear() {
         root.deleteRecursively()
         root.mkdirs()
+        synchronized(memoryCache) { memoryCache.clear() }
     }
 
     fun directory(): File = root
 
     private fun loadAll(conceptId: String): List<LearningQuestion> {
+        synchronized(memoryCache) { memoryCache[conceptId]?.let { return it } }
         val target = file(conceptId)
         if (!target.exists()) return emptyList()
-        return runCatching {
+        val loaded = runCatching {
             json.parseToJsonElement(target.readText()).jsonArray.mapNotNull { it.jsonObject.toQuestionOrNull() }
         }.getOrElse { emptyList() }
+        synchronized(memoryCache) { memoryCache[conceptId] = loaded }
+        return loaded
     }
 
     private fun file(conceptId: String): File = File(root, safeName(conceptId) + ".json")
