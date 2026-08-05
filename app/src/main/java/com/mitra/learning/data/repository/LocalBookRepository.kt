@@ -136,7 +136,7 @@ class LocalBookRepository(
         }
     }
 
-    private fun renderCover(pdfFile: File, directory: File): File? {
+    private suspend fun renderCover(pdfFile: File, directory: File): File? {
         val coverFile = File(directory, "cover.jpg")
         return runCatching {
             val bitmap = pdfRenderer.render(pdfFile.absolutePath, 0, 640)

@@ -34,8 +34,8 @@ android {
         applicationId = "com.mitra.learning"
         minSdk = 26
         targetSdk = 35
-        versionCode = 42
-        versionName = "0.22.0"
+        versionCode = 43
+        versionName = "0.22.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
