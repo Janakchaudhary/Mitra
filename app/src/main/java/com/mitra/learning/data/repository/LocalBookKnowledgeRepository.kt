@@ -48,7 +48,7 @@ class LocalBookKnowledgeRepository(
         pageKnowledgeFtsDao?.deleteForChapter(chapterId)
         pageKnowledgeDao.deleteForChapter(chapterId)
         pageKnowledgeDao.upsertAll(pages)
-        pageKnowledgeFtsDao?.upsertAll(pages.map(PageKnowledgeEntity::toFts))
+        pageKnowledgeFtsDao?.upsertAll(pages.map { page -> toFtsEntity(page) })
     }
 
     override suspend fun conceptsForChapter(chapterId: String): List<ConceptEntity> = conceptDao.forChapter(chapterId)
@@ -70,18 +70,18 @@ class LocalBookKnowledgeRepository(
         chapterDao.deleteForBook(bookId)
     }
 
-    private fun PageKnowledgeEntity.toFts(): PageKnowledgeFtsEntity = PageKnowledgeFtsEntity(
-        rowId = stableRowId(id),
-        pageKnowledgeId = id,
-        bookId = bookId,
-        chapterId = chapterId,
-        pageNumberText = pageNumber.toString(),
+    private fun toFtsEntity(page: PageKnowledgeEntity): PageKnowledgeFtsEntity = PageKnowledgeFtsEntity(
+        rowId = stableRowId(page.id),
+        pageKnowledgeId = page.id,
+        bookId = page.bookId,
+        chapterId = page.chapterId,
+        pageNumberText = page.pageNumber.toString(),
         content = listOfNotNull(
-            summaryGujarati,
-            visibleTextGujarati,
-            importantObjectsJson,
-            exercisesJson,
-            conceptsJson,
+            page.summaryGujarati,
+            page.visibleTextGujarati,
+            page.importantObjectsJson,
+            page.exercisesJson,
+            page.conceptsJson,
         ).joinToString("\n"),
     )
 
