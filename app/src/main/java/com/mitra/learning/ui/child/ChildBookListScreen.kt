@@ -63,11 +63,17 @@ fun ChildBookListScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { onOpenPdf(book.id) }
+                            .clickable(enabled = book.localPdfPath.isNotBlank()) { onOpenPdf(book.id) }
                             .padding(vertical = 16.dp),
                     ) {
                         Text(book.title, style = MaterialTheme.typography.titleLarge)
                         Text("${book.subject} • ${book.pageCount} pages")
+                        if (book.localPdfPath.isBlank()) {
+                            Text(
+                                "મિત્રને પૂછીએ અને quiz માટે તૈયાર પુસ્તક",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                     }
                 }
             }

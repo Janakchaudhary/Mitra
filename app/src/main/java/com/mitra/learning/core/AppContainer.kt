@@ -8,6 +8,7 @@ import com.mitra.learning.ai.local.LocalModelStore
 import com.mitra.learning.ai.local.OfflineAiGateway
 import com.mitra.learning.ai.settings.AiSettingsRepository
 import com.mitra.learning.books.analysis.BookPreparationService
+import com.mitra.learning.books.importing.PreparedBookImportService
 import com.mitra.learning.books.pdf.AndroidPdfPageRenderer
 import com.mitra.learning.books.text.AndroidOfflinePageTextExtractor
 import com.mitra.learning.books.text.TesseractOcrEngine
@@ -101,6 +102,11 @@ class AppContainer(context: Context) {
     val aiGateway: AiGateway = configurableAiGateway
 
     val offlineQuestionBank = OfflineQuestionBank(appContext)
+    val preparedBookImportService = PreparedBookImportService(
+        context = appContext,
+        database = database,
+        questionBank = offlineQuestionBank,
+    )
 
     val bookPreparationService = BookPreparationService(
         bookRepository = bookRepository,

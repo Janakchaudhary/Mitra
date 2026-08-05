@@ -87,9 +87,9 @@ fun ParentSettingsScreen(
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Learning limits", style = MaterialTheme.typography.titleLarge)
                     Text("Session length")
-                    OptionGrid(listOf(15, 20, 30), state.sessionMinutes, onSessionMinutes, suffix = "min")
+                    OptionGrid(listOf(20, 30, 45, 60), state.sessionMinutes, onSessionMinutes, suffix = "min")
                     Text("Daily learning allowance")
-                    OptionGrid(listOf(15, 30, 45, 60), state.dailyMinutes, onDailyMinutes, suffix = "min")
+                    OptionGrid(listOf(60, 90, 120, 180), state.dailyMinutes, onDailyMinutes, suffix = "min")
                     Text("Parent access relock")
                     OptionGrid(listOf(2, 5, 10, 15), state.parentAccessMinutes, onParentAccessMinutes, suffix = "min")
                     Text("Mitra voice", style = MaterialTheme.typography.titleMedium)

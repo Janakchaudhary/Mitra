@@ -142,12 +142,12 @@ class MitraBackupService(
         val root = Json.parseToJsonElement(this).let { it as? kotlinx.serialization.json.JsonObject }
             ?: error("Backup settings are invalid")
         return LearningSettings(
-            sessionMinutes = root["sessionMinutes"]?.jsonPrimitive?.intOrNull ?: 20,
-            dailyMinutes = root["dailyMinutes"]?.jsonPrimitive?.intOrNull ?: 30,
+            sessionMinutes = root["sessionMinutes"]?.jsonPrimitive?.intOrNull ?: 60,
+            dailyMinutes = root["dailyMinutes"]?.jsonPrimitive?.intOrNull ?: 180,
             parentAccessMinutes = root["parentAccessMinutes"]?.jsonPrimitive?.intOrNull ?: 5,
             voiceStyle = runCatching {
-                VoiceStyle.valueOf(root["voiceStyle"]?.jsonPrimitive?.content ?: VoiceStyle.WARM.name)
-            }.getOrDefault(VoiceStyle.WARM),
+                VoiceStyle.valueOf(root["voiceStyle"]?.jsonPrimitive?.content ?: VoiceStyle.CARTOON_ADVENTURE.name)
+            }.getOrDefault(VoiceStyle.CARTOON_ADVENTURE),
         ).normalized()
     }
 

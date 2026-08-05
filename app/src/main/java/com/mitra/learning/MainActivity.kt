@@ -4,13 +4,19 @@ import android.os.Bundle
 import android.app.Activity
 import android.app.ActivityManager
 import android.app.KeyguardManager
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
-import androidx.activity.ComponentActivity
+import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.enableEdgeToEdge
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +28,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -32,11 +39,14 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.fragment.app.FragmentActivity
 import com.mitra.learning.ai.AiCapability
 import com.mitra.learning.ai.settings.AiProviderConfig
 import com.mitra.learning.ai.settings.AiProviderType
 import com.mitra.learning.ai.settings.supports
+import com.mitra.learning.books.importing.ChatGptBookPreparationPrompt
 import com.mitra.learning.core.AppContainer
 import com.mitra.learning.ui.books.AddBookScreen
 import com.mitra.learning.ui.books.AddBookViewModel
@@ -79,7 +89,7 @@ import com.mitra.learning.ui.study.StudyChatScreen
 import com.mitra.learning.ui.study.StudyChatViewModel
 import com.mitra.learning.ui.theme.MitraTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         var appReady = false
         val splashScreen = installSplashScreen()
@@ -328,7 +338,9 @@ private fun MitraNav(
 
         composable(Routes.ChildBooks) {
             val vm: BookListViewModel = viewModel(
-                factory = simpleViewModelFactory { BookListViewModel(container.bookRepository) }
+                factory = simpleViewModelFactory {
+                    BookListViewModel(container.bookRepository, container.preparedBookImportService)
+                }
             )
             val books by vm.books.collectAsStateWithLifecycle()
             ChildBookListScreen(
@@ -363,7 +375,14 @@ private fun MitraNav(
 
         composable(Routes.ParentPin) {
             val context = LocalContext.current
+            val activity = context as? FragmentActivity
             val keyguard = remember(context) { context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager }
+            val biometricManager = remember(context) { BiometricManager.from(context) }
+            val biometricAvailable = remember(biometricManager) {
+                biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) ==
+                    BiometricManager.BIOMETRIC_SUCCESS
+            }
+            val deviceCredentialAvailable = keyguard.isDeviceSecure
             val vm: ParentPinViewModel = viewModel(
                 factory = simpleViewModelFactory {
                     ParentPinViewModel(
@@ -377,6 +396,68 @@ private fun MitraNav(
             val credentialLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
                 if (result.resultCode == Activity.RESULT_OK) vm.unlockWithDeviceCredential()
             }
+            val biometricPrompt = remember(activity, vm) {
+                activity?.let { host ->
+                    BiometricPrompt(
+                        host,
+                        ContextCompat.getMainExecutor(context),
+                        object : BiometricPrompt.AuthenticationCallback() {
+                            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                                vm.unlockWithDeviceCredential()
+                            }
+
+                            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                                if (errorCode != BiometricPrompt.ERROR_USER_CANCELED &&
+                                    errorCode != BiometricPrompt.ERROR_CANCELED &&
+                                    errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON
+                                ) {
+                                    vm.onDeviceUnlockError(errString.toString())
+                                }
+                            }
+                        },
+                    )
+                }
+            }
+            val promptInfo = remember(biometricAvailable, deviceCredentialAvailable) {
+                val authenticators = when {
+                    biometricAvailable && deviceCredentialAvailable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R ->
+                        BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                            BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                    biometricAvailable -> BiometricManager.Authenticators.BIOMETRIC_STRONG
+                    else -> BiometricManager.Authenticators.DEVICE_CREDENTIAL
+                }
+                BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Open Mitra Parent area")
+                    .setSubtitle(
+                        if (biometricAvailable) "Use fingerprint first" else "Use the phone screen lock"
+                    )
+                    .setAllowedAuthenticators(authenticators)
+                    .apply {
+                        // Android 9/10 cannot combine strong biometrics and device credentials
+                        // in one prompt. Fingerprint remains first; the Mitra PIN is still visible.
+                        if (biometricAvailable && deviceCredentialAvailable && Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                            setNegativeButtonText("Use Mitra parent PIN")
+                        }
+                    }
+                    .build()
+            }
+            var biometricPromptShown by rememberSaveable { mutableStateOf(false) }
+            fun launchParentDeviceUnlock() {
+                if (biometricAvailable && biometricPrompt != null) {
+                    biometricPrompt.authenticate(promptInfo)
+                } else {
+                    keyguard.createConfirmDeviceCredentialIntent(
+                        "Open Mitra Parent area",
+                        "Use the phone screen-lock credential.",
+                    )?.let(credentialLauncher::launch)
+                }
+            }
+            LaunchedEffect(biometricAvailable, state.unlocked) {
+                if (biometricAvailable && !state.unlocked && !biometricPromptShown && biometricPrompt != null) {
+                    biometricPromptShown = true
+                    biometricPrompt.authenticate(promptInfo)
+                }
+            }
             LaunchedEffect(state.unlocked) {
                 if (state.unlocked) {
                     stopChildLockTask(context)
@@ -387,13 +468,9 @@ private fun MitraNav(
                 state = state,
                 onPinChange = vm::updatePin,
                 onUnlock = vm::unlock,
-                onDeviceUnlock = {
-                    keyguard.createConfirmDeviceCredentialIntent(
-                        "Open Mitra Parent area",
-                        "Use fingerprint, face or the phone screen-lock credential.",
-                    )?.let(credentialLauncher::launch)
-                },
-                deviceUnlockAvailable = keyguard.isDeviceSecure,
+                onDeviceUnlock = ::launchParentDeviceUnlock,
+                deviceUnlockAvailable = biometricAvailable || deviceCredentialAvailable,
+                biometricAvailable = biometricAvailable,
                 onBack = { nav.popBackStack() },
             )
         }
@@ -568,13 +645,42 @@ private fun MitraNav(
 
         composable(Routes.Books) {
             ParentProtected(parentUnlocked, onLocked = { nav.navigate(Routes.ParentPin) }) {
+                val context = LocalContext.current
                 val vm: BookListViewModel = viewModel(
-                    factory = simpleViewModelFactory { BookListViewModel(container.bookRepository) }
+                    factory = simpleViewModelFactory {
+                        BookListViewModel(
+                            repository = container.bookRepository,
+                            preparedBookImportService = container.preparedBookImportService,
+                        )
+                    }
                 )
                 val books by vm.books.collectAsStateWithLifecycle()
+                val importState by vm.importState.collectAsStateWithLifecycle()
+                LaunchedEffect(importState.importedBookId) {
+                    importState.importedBookId?.let { id ->
+                        vm.consumeImportedBook()
+                        nav.navigate(Routes.book(id))
+                    }
+                }
                 BookListScreen(
                     books = books,
+                    importState = importState,
                     onAdd = { nav.navigate(Routes.AddBook) },
+                    onImportPrepared = vm::importPreparedBook,
+                    onCopyChatGptPrompt = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(
+                            ClipData.newPlainText("Mitra ChatGPT book preparation prompt", ChatGptBookPreparationPrompt.text)
+                        )
+                        Toast.makeText(context, "ChatGPT preparation prompt copied", Toast.LENGTH_SHORT).show()
+                    },
+                    onOpenChatGpt = {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://chatgpt.com/"))
+                        runCatching { context.startActivity(intent) }
+                            .onFailure {
+                                Toast.makeText(context, "Open chatgpt.com in your browser", Toast.LENGTH_LONG).show()
+                            }
+                    },
                     onOpen = { nav.navigate(Routes.book(it)) },
                     onBack = { nav.popBackStack() },
                 )

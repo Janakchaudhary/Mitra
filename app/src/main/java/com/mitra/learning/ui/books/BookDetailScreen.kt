@@ -81,13 +81,20 @@ fun BookDetailScreen(
                         Text("Medium: ${book.language}")
                         Text("Pages: ${book.pageCount}")
                         Text("Preparation: ${book.analysisStatus.name.replace('_', ' ')}")
-                        Button(onClick = onOpenPdf, modifier = Modifier.fillMaxWidth()) { Text("Open PDF") }
-                        Button(
-                            onClick = onSetupChapters,
-                            enabled = !preparingAll && preparingChapterId == null,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(if (chapters.isEmpty()) "Set up chapters" else "Review / edit chapters")
+                        if (book.localPdfPath.isNotBlank()) {
+                            Button(onClick = onOpenPdf, modifier = Modifier.fillMaxWidth()) { Text("Open PDF") }
+                            Button(
+                                onClick = onSetupChapters,
+                                enabled = !preparingAll && preparingChapterId == null,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(if (chapters.isEmpty()) "Set up chapters" else "Review / edit chapters")
+                            }
+                        } else {
+                            Text(
+                                "This ready-to-study package was prepared outside the app and imported from ChatGPT. It contains chapter knowledge and offline questions, but no PDF copy.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                         message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     }
@@ -97,26 +104,32 @@ fun BookDetailScreen(
                 item {
                     HorizontalDivider()
                     Text("Chapters", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp))
-                    Text("Prepare one chapter at a time or prepare the complete book. Prepared data is cached locally.")
-                    if (offlinePreparation) {
+                    if (book?.localPdfPath?.isNotBlank() == true) {
+                        Text("Prepare one chapter at a time or prepare the complete book. Prepared data is cached locally.")
+                    } else {
+                        Text("Imported chapter knowledge is ready for Mitra ne Puchiye, practice and tests.")
+                    }
+                    if (offlinePreparation && book?.localPdfPath?.isNotBlank() == true) {
                         Text(
                             "Offline Local keeps the PDF on this device. It extracts embedded text first and uses Gujarati/English OCR for scanned pages. Large scanned books can take longer.",
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
-                    if (!chapterPreparationSupported) {
-                        Text(
-                            "The selected AI provider cannot prepare this PDF. Change the provider in Parent settings.",
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    } else {
-                        Button(
-                            onClick = onPrepareAllChapters,
-                            enabled = !preparingAll && preparingChapterId == null,
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(if (preparingAll) "Preparing complete book…" else "Prepare all chapters")
+                    if (book?.localPdfPath?.isNotBlank() == true) {
+                        if (!chapterPreparationSupported) {
+                            Text(
+                                "The selected AI provider cannot prepare this PDF. Change the provider in Parent settings.",
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        } else {
+                            Button(
+                                onClick = onPrepareAllChapters,
+                                enabled = !preparingAll && preparingChapterId == null,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(if (preparingAll) "Preparing complete book…" else "Prepare all chapters")
+                            }
                         }
                     }
                 }
@@ -152,14 +165,16 @@ fun BookDetailScreen(
                                     if (detected.size > 4) Text("+ ${detected.size - 4} more", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
-                            Button(
-                                onClick = { onPrepareChapter(chapter.id) },
-                                enabled = chapterPreparationSupported &&
-                                    !preparingAll &&
-                                    preparingChapterId == null &&
-                                    chapter.analysisStatus != ChapterAnalysisStatus.PREPARING,
-                            ) {
-                                Text(if (preparingChapterId == chapter.id) "Preparing…" else if (chapter.analysisStatus == ChapterAnalysisStatus.READY) "Prepare again" else "Prepare")
+                            if (book?.localPdfPath?.isNotBlank() == true) {
+                                Button(
+                                    onClick = { onPrepareChapter(chapter.id) },
+                                    enabled = chapterPreparationSupported &&
+                                        !preparingAll &&
+                                        preparingChapterId == null &&
+                                        chapter.analysisStatus != ChapterAnalysisStatus.PREPARING,
+                                ) {
+                                    Text(if (preparingChapterId == chapter.id) "Preparing…" else if (chapter.analysisStatus == ChapterAnalysisStatus.READY) "Prepare again" else "Prepare")
+                                }
                             }
                         }
                         HorizontalDivider()

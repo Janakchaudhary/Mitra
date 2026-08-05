@@ -17,10 +17,10 @@ import com.mitra.learning.voice.VoiceStyle
 
 data class ParentSettingsUiState(
     val loading: Boolean = true,
-    val sessionMinutes: Int = 20,
-    val dailyMinutes: Int = 30,
+    val sessionMinutes: Int = 60,
+    val dailyMinutes: Int = 180,
     val parentAccessMinutes: Int = 5,
-    val voiceStyle: VoiceStyle = VoiceStyle.WARM,
+    val voiceStyle: VoiceStyle = VoiceStyle.CARTOON_ADVENTURE,
     val busy: Boolean = false,
     val message: String? = null,
     val fullResetCompleted: Boolean = false,

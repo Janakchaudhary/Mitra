@@ -52,6 +52,10 @@ class ParentPinViewModel(
         _state.value = _state.value.copy(unlocked = true, checking = false, error = null)
     }
 
+    fun onDeviceUnlockError(message: String) {
+        _state.value = _state.value.copy(checking = false, error = message)
+    }
+
     fun unlock() = viewModelScope.launch {
         val pin = _state.value.pin
         if (pin.length !in 4..6) {

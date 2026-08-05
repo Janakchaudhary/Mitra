@@ -36,6 +36,7 @@ fun ParentPinScreen(
     onUnlock: () -> Unit,
     onDeviceUnlock: () -> Unit,
     deviceUnlockAvailable: Boolean,
+    biometricAvailable: Boolean,
     onBack: () -> Unit,
 ) {
     Column(
@@ -44,6 +45,22 @@ fun ParentPinScreen(
     ) {
         Text("Parent area", style = MaterialTheme.typography.headlineLarge)
         Spacer(Modifier.height(16.dp))
+        if (deviceUnlockAvailable) {
+            Button(onClick = onDeviceUnlock, enabled = !state.checking, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.Fingerprint, contentDescription = null)
+                Text(if (biometricAvailable) "  Fingerprint / biometric unlock" else "  Phone screen-lock unlock")
+            }
+            Text(
+                if (biometricAvailable) {
+                    "Fingerprint is the first parent-unlock option. You can use the phone PIN/pattern from the system prompt when offered."
+                } else {
+                    "Use the phone PIN, pattern or password."
+                },
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Spacer(Modifier.height(14.dp))
+        }
+        Text("Or use Mitra parent PIN", style = MaterialTheme.typography.titleMedium)
         OutlinedTextField(
             value = state.pin,
             onValueChange = onPinChange,
@@ -54,16 +71,10 @@ fun ParentPinScreen(
             modifier = Modifier.fillMaxWidth(),
         )
         state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(10.dp))
         Text("છેલ્લો PIN અંક દાખલ થતાં Parent area આપમેળે ખુલશે.", style = MaterialTheme.typography.bodySmall)
         Button(onClick = onUnlock, enabled = !state.checking, modifier = Modifier.fillMaxWidth()) {
             Text(if (state.checking) "Checking…" else "Unlock with parent PIN")
-        }
-        if (deviceUnlockAvailable) {
-            OutlinedButton(onClick = onDeviceUnlock, enabled = !state.checking, modifier = Modifier.fillMaxWidth()) {
-                Icon(Icons.Default.Fingerprint, contentDescription = null)
-                Text("  Fingerprint / phone lock")
-            }
         }
         OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
     }
@@ -84,7 +95,7 @@ fun ParentHomeScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         Text("Parent dashboard", style = MaterialTheme.typography.headlineLarge)
-        Text("Mitra 20 — voice tutor, 20/25-mark tests, visual lessons and offline books")
+        Text("Mitra 22 — ChatGPT book import, biometric-first parent access and offline smart teaching")
         Button(onClick = onBooks, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.AutoMirrored.Filled.MenuBook, contentDescription = null)
             Text("  My books")

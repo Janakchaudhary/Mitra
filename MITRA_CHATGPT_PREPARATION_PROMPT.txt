@@ -1,0 +1,87 @@
+You are preparing a textbook package for the Mitra Android learning app.
+
+Read the uploaded textbook carefully, including page images. Produce ONE downloadable UTF-8 JSON file named with the extension .mitrabook. Do not wrap the JSON in Markdown and do not add commentary outside the JSON.
+
+Important accuracy rules:
+1. Use PHYSICAL PDF page numbers, starting at 1. Do not confuse printed textbook page numbers with PDF page numbers.
+2. Never invent textbook facts. Every meaning, answer and explanation must be supported by the uploaded book.
+3. For Gujarati vocabulary, include the exact word, a child-friendly Gujarati meaning, a simple explanation, an example sentence, and the physical source page.
+4. Include enough visible textbook text and vocabulary in each page entry so questions such as “દંગોરોનો અર્થ શું?” can be answered directly.
+5. Create 30 to 60 varied offline questions per chapter across vocabulary, comprehension, fill-in-the-blank, multiple choice, true/false, oral recall and simple application. Every question needs a correct answer, accepted answers, a hint and source page.
+6. Keep explanations suitable for a Standard 2 child. Use short, encouraging Gujarati.
+7. schemaVersion must be 1. sourcePdfSha256 is optional; include it only when you can calculate the exact SHA-256 of the uploaded PDF.
+
+Required JSON shape:
+{
+  "schemaVersion": 1,
+  "preparedBy": "ChatGPT",
+  "book": {
+    "title": "...",
+    "subject": "Gujarati",
+    "standard": 2,
+    "language": "Gujarati",
+    "pageCount": 136,
+    "sourcePdfSha256": null
+  },
+  "chapters": [
+    {
+      "key": "chapter-1",
+      "chapterNumber": 1,
+      "titleGujarati": "...",
+      "titleEnglish": null,
+      "startPage": 13,
+      "endPage": 27,
+      "summaryGujarati": "...",
+      "pages": [
+        {
+          "pageNumber": 13,
+          "summaryGujarati": "...",
+          "visibleTextGujarati": "Important readable text from this physical PDF page",
+          "importantObjects": ["..."],
+          "exercises": ["..."],
+          "concepts": ["..."]
+        }
+      ],
+      "vocabulary": [
+        {
+          "word": "દંગોરો",
+          "meaningGujarati": "...",
+          "simpleExplanationGujarati": "...",
+          "exampleSentenceGujarati": "...",
+          "sourcePage": 15,
+          "acceptedVoiceForms": ["દંગોરો"]
+        }
+      ],
+      "concepts": [
+        {
+          "key": "chapter-1-comprehension",
+          "titleGujarati": "પાઠ સમજ",
+          "titleEnglish": "Comprehension",
+          "descriptionGujarati": "...",
+          "difficulty": 1,
+          "expectedLearningOutcome": "...",
+          "sourcePageStart": 13,
+          "sourcePageEnd": 27,
+          "practiceReady": true,
+          "questions": [
+            {
+              "promptGujarati": "...",
+              "spokenPromptGujarati": "...",
+              "speechLanguageTag": "gu-IN",
+              "recognitionLanguageTag": "gu-IN",
+              "activityType": "QUESTION",
+              "evaluationMode": "KEYWORD",
+              "expectedText": "...",
+              "acceptedAnswers": ["..."],
+              "optionsGujarati": [],
+              "hintGujarati": "...",
+              "sourcePage": 15
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Before creating the file, internally verify that chapter ranges are physical PDF ranges, every sourcePage is inside its chapter range, keys are unique, JSON is valid, and no answer contradicts the textbook.
