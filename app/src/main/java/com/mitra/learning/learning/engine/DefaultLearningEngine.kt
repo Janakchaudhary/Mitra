@@ -131,7 +131,12 @@ class DefaultLearningEngine(
         val primary = conceptsById[BuiltInCurriculum.ADD_2D_2D_NO_CARRY] ?: conceptsById.values.first()
         val displayConcept = primary.copy(titleGujarati = "મિશ્ર ગણિત ચેલેન્જ")
         val adaptive = AdaptiveSessionPlanner.select(questions, factEvidence, target, recentBeforeSession, now())
-        val safePlan = ActivityPlanPolicy.apply(adaptive).take(target)
+        val covered = MixedSkillCoveragePolicy.apply(
+            selected = adaptive,
+            candidates = questions,
+            count = target,
+        )
+        val safePlan = ActivityPlanPolicy.apply(covered).take(target)
         val session = createSession(primary.id)
         return SessionPlan(session.id, displayConcept, safePlan)
     }
