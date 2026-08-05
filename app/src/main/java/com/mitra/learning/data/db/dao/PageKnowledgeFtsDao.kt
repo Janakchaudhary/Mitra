@@ -8,7 +8,14 @@ import com.mitra.learning.data.db.entity.PageKnowledgeFtsEntity
 
 @Dao
 interface PageKnowledgeFtsDao {
-    @Query("SELECT * FROM page_knowledge_fts WHERE page_knowledge_fts MATCH :query LIMIT :limit")
+    @Query(
+        """
+        SELECT rowid, pageKnowledgeId, bookId, chapterId, pageNumberText, content
+        FROM page_knowledge_fts
+        WHERE page_knowledge_fts MATCH :query
+        LIMIT :limit
+        """
+    )
     suspend fun search(query: String, limit: Int = 80): List<PageKnowledgeFtsEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
