@@ -40,22 +40,38 @@ class OfflineStudyAnswerer {
         val normalizedQuestion = normalize(request.question)
         if (DEFINITION_MARKERS.none { normalizedQuestion.contains(" $it ") }) return null
 
-        val entry = GLOSSARY.entries.firstOrNull { (word, _) ->
-            normalizedQuestion.contains(" $word ") || normalizedQuestion.contains(word)
-        } ?: return null
-        val source = request.sources.firstOrNull { source ->
-            val text = normalize(source.text)
-            text.contains(" ${entry.key} ") || text.contains(entry.key)
-        } ?: return null
-
-        return StudyAnswer(
-            answerGujarati = "‘${entry.key}’ એટલે ${entry.value}. પુસ્તકના આ પાઠમાં પણ આ શબ્દ એ જ અર્થમાં વપરાયો છે.",
-            followUpGujarati = "હવે ‘${entry.key}’ શબ્દ વાપરીને એક નાનું વાક્ય બોલશો?",
-            sourceLabels = listOf("${source.bookTitle} • p.${source.pageNumber}"),
-            grounded = true,
-            responseKind = StudyResponseKind.TEXTBOOK,
-        )
+        request.sources.forEach { source ->
+            val match = VOCABULARY_BLOCK.find(source.text) ?: return@forEach
+            val word = match.groupValues[1].trim()
+            val meaning = match.groupValues[2].trim()
+            val simple = SIMPLE_BLOCK.find(source.text)?.groupValues?.get(1)?.trim()
+            val example = EXAMPLE_BLOCK.find(source.text)?.groupValues?.get(1)?.trim()
+            val askedTokens = tokens(request.question).map(::gujaratiStem)
+            if (askedTokens.none { token -> token == gujaratiStem(word) || token.contains(gujaratiStem(word)) }) return@forEach
+            val explanation = listOfNotNull(
+                "‘$word’ એટલે $meaning.",
+                simple?.takeIf(String::isNotBlank),
+                example?.takeIf(String::isNotBlank)?.let { "ઉદાહરણ: $it" },
+            ).joinToString(" ")
+            return StudyAnswer(
+                answerGujarati = explanation,
+                followUpGujarati = "હવે ‘$word’ શબ્દ વાપરીને એક નાનું વાક્ય બોલશો?",
+                sourceLabels = listOf("${source.bookTitle} • p.${source.pageNumber}"),
+                grounded = true,
+                responseKind = StudyResponseKind.TEXTBOOK,
+            )
+        }
+        return null
     }
+
+    private fun gujaratiStem(value: String): String {
+        var result = value.lowercase()
+        listOf("માંથી", "વાળો", "વાળી", "વાળું", "શબ્દનો", "શબ્દની", "શબ્દનું", "નો", "ની", "નું", "ને", "માં", "થી").forEach { suffix ->
+            if (result.length > suffix.length + 1 && result.endsWith(suffix)) result = result.dropLast(suffix.length)
+        }
+        return result
+    }
+
 
     private fun normalize(value: String): String = " " + value
         .lowercase()
@@ -94,14 +110,9 @@ class OfflineStudyAnswerer {
 
     companion object {
         private val DEFINITION_MARKERS = setOf("અર્થ", "એટલે", "મતલબ", "meaning")
-        private val DEFINITION_FILLERS = setOf("શબ્દ", "શબ્દનો", "શબ્દની", "શું", "કયો", "કહો")
-        private val GLOSSARY = linkedMapOf(
-            "દંગોરો" to "હાથમાં ટેકો લેવા અથવા હાંકવા માટે વપરાતી લાંબી અને મજબૂત લાકડી",
-            "ઘોડો" to "ચાર પગવાળું દોડતું પ્રાણી",
-            "ફૂદવું" to "ઉછળીને આગળ વધવું",
-            "ઘમઘમ" to "જોરથી અથવા સતત થતો અવાજ",
-            "ધમધમ" to "ભારે વસ્તુ અથડાય કે ચાલે ત્યારે થતો જોરદાર અવાજ",
-        )
+        private val VOCABULARY_BLOCK = Regex("""શબ્દ\s*:\s*([^\n]+)\nઅર્થ\s*:\s*([^\n]+)""")
+        private val SIMPLE_BLOCK = Regex("""સરળ સમજ\s*:\s*([^\n]+)""")
+        private val EXAMPLE_BLOCK = Regex("""ઉદાહરણ\s*:\s*([^\n]+)""")
 
         private val STOP_WORDS = setOf(
             "શું", "કેમ", "ક્યાં", "કોણ", "વિશે", "વાત", "કરીએ", "છે", "હતું", "હતી", "હતા",

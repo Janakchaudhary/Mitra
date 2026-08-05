@@ -62,7 +62,7 @@ import com.mitra.learning.ui.animation.SuccessBurst
 import com.mitra.learning.voice.SpeechInput
 import com.mitra.learning.voice.SpeechInputState
 import com.mitra.learning.voice.SpeechOutput
-import kotlinx.coroutines.delay
+import com.mitra.learning.voice.speakAndAwait
 import kotlinx.coroutines.launch
 
 private data class LearnColor(val gujarati: String, val english: String, val color: Color)
@@ -142,8 +142,7 @@ fun ColorLabScreen(
             }
         }
         if (correct) scope.launch {
-            speechOutput.speak(message.orEmpty(), "gu-IN")
-            delay(1_350)
+            speechOutput.speakAndAwait(message.orEmpty(), "gu-IN")
             correct = false
             answer = ""
             message = null
@@ -197,12 +196,25 @@ fun ColorLabScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
             ) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(item.emoji, style = MaterialTheme.typography.displayLarge)
-                    Text("${item.gujarati} • ${item.english}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("રંગનો નમૂનો")
-                        Box(Modifier.size(42.dp).background(target.color, CircleShape).border(2.dp, MaterialTheme.colorScheme.outline, CircleShape))
+                    Box(
+                        modifier = Modifier
+                            .size(112.dp)
+                            .background(target.color, RoundedCornerShape(28.dp))
+                            .border(3.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(28.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(item.emoji, style = MaterialTheme.typography.displayLarge)
                     }
+                    Text(
+                        when (task) {
+                            ColorTask.PICK, ColorTask.SAY_GUJARATI -> "${item.gujarati} • ${item.english}"
+                            ColorTask.SAY_ENGLISH -> "${target.gujarati} ${item.gujarati}"
+                            ColorTask.SPELL -> target.english.uppercase()
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text("વસ્તુ પર રંગ લાગેલો જુઓ, પછી ઓળખો અને બોલો.")
                     Text(
                         when (task) {
                             ColorTask.PICK -> "નમૂના જેવો રંગ પસંદ કરો."

@@ -1,25 +1,26 @@
 package com.mitra.learning.study.practice
 
 import com.mitra.learning.ai.AiGateway
-import com.mitra.learning.ai.PracticeContext
 import com.mitra.learning.data.db.dao.BookDao
 import com.mitra.learning.data.db.dao.ChapterDao
 import com.mitra.learning.data.db.dao.ConceptDao
 import com.mitra.learning.data.db.dao.PageKnowledgeDao
+import com.mitra.learning.data.db.dao.PreparedQuestionDao
 import com.mitra.learning.data.db.entity.ChapterAnalysisStatus
 import com.mitra.learning.data.db.entity.ConceptEntity
 import com.mitra.learning.learning.model.EvaluationMode
 import com.mitra.learning.learning.model.LearningQuestion
 import com.mitra.learning.learning.offline.OfflineQuestionBank
+import com.mitra.learning.learning.offline.toLearningQuestion
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Creates and evaluates short voice-friendly Standard 2 challenges.
  *
- * Prepared-book questions are loaded from the same grounded offline question bank created while
- * preparing a chapter. If the bank is empty, the configured AI provider gets one chance to build
- * questions from the saved page text; a conservative concept question is the final offline fallback.
+ * Prepared-book questions are loaded from Room/the grounded offline bank created while preparing
+ * the chapter. Child practice never waits for an AI request; a conservative local concept question
+ * is used only when the parent has not prepared a full question bank.
  */
 class MitraVoicePracticeService(
     private val conceptDao: ConceptDao,
@@ -27,6 +28,7 @@ class MitraVoicePracticeService(
     private val bookDao: BookDao,
     private val pageKnowledgeDao: PageKnowledgeDao,
     private val questionBank: OfflineQuestionBank,
+    private val preparedQuestionDao: PreparedQuestionDao? = null,
     private val aiGateway: AiGateway,
 ) {
     private val sequence = AtomicInteger(0)
@@ -37,13 +39,23 @@ class MitraVoicePracticeService(
     ): MitraVoiceChallenge {
         val topic = if (requestedTopic == MitraPracticeTopic.MIXED) nextMixedTopic() else requestedTopic
         return when (topic) {
-            MitraPracticeTopic.BOOK -> bookChallenge(previousChallengeId)
+            MitraPracticeTopic.BOOK -> bookChallenge(previousChallengeId = previousChallengeId)
             MitraPracticeTopic.TABLES -> tableChallenge(previousChallengeId)
             MitraPracticeTopic.NUMBER_NEIGHBORS -> numberNeighborChallenge(previousChallengeId)
             MitraPracticeTopic.SPELLING -> spellingChallenge(previousChallengeId)
             MitraPracticeTopic.MIXED -> error("Mixed topic must be resolved before challenge creation")
         }
     }
+
+    suspend fun nextBookChallenge(
+        bookId: String,
+        chapterId: String,
+        previousChallengeId: String? = null,
+    ): MitraVoiceChallenge = bookChallenge(
+        requestedBookId = bookId,
+        requestedChapterId = chapterId,
+        previousChallengeId = previousChallengeId,
+    )
 
     fun detectTopic(request: String): MitraPracticeTopic? {
         val value = normalize(request)
@@ -140,12 +152,20 @@ class MitraVoicePracticeService(
         )
     }
 
-    private suspend fun bookChallenge(previousId: String?): MitraVoiceChallenge {
+    private suspend fun bookChallenge(
+        requestedBookId: String? = null,
+        requestedChapterId: String? = null,
+        previousChallengeId: String? = null,
+    ): MitraVoiceChallenge {
         val chapters = chapterDao.getAll()
             .filter { it.analysisStatus == ChapterAnalysisStatus.READY }
+            .filter { requestedBookId == null || it.bookId == requestedBookId }
+            .filter { requestedChapterId == null || it.id == requestedChapterId }
             .associateBy { it.id }
         val concepts = conceptDao.getPracticeReady()
             .filter { !it.builtIn && it.chapterId in chapters.keys }
+            .filter { requestedBookId == null || it.bookId == requestedBookId }
+            .filter { requestedChapterId == null || it.chapterId == requestedChapterId }
         if (concepts.isEmpty()) return noPreparedBookChallenge()
 
         val start = Math.floorMod(sequence.getAndIncrement(), concepts.size)
@@ -159,49 +179,18 @@ class MitraVoicePracticeService(
                 concept.sourcePageStart?.let { "p.$it" },
             ).joinToString(" • ")
 
-            var candidates = questionBank.load(concept.id, 20)
+            var candidates = preparedQuestionDao?.forConcept(concept.id, 80).orEmpty()
+                .map { it.toLearningQuestion() }
+                .ifEmpty { questionBank.load(concept.id, 80) }
                 .filter(::isVoiceEvaluatable)
-                .filter { "book-${it.id}" != previousId }
-
-            if (candidates.isEmpty()) {
-                val pages = pageKnowledgeDao.forChapter(chapter.id)
-                    .filter { page ->
-                        val startPage = concept.sourcePageStart ?: chapter.startPage
-                        val endPage = concept.sourcePageEnd ?: chapter.endPage
-                        page.pageNumber in startPage..endPage
-                    }
-                val groundedText = pages.joinToString("\n\n") { page ->
-                    buildString {
-                        append("Page ${page.pageNumber}: ${page.summaryGujarati}")
-                        page.visibleTextGujarati?.takeIf(String::isNotBlank)?.let { append("\nText: $it") }
-                        page.exercisesJson?.takeIf(String::isNotBlank)?.let { append("\nExercises: $it") }
-                    }
-                }.take(12_000)
-                val generated = runCatching {
-                    aiGateway.createPracticeQuestions(
-                        concept = concept,
-                        count = 20,
-                        context = PracticeContext(
-                            bookTitle = book?.title,
-                            chapterTitleGujarati = chapter.titleGujarati,
-                            groundedBookText = groundedText,
-                        ),
-                    )
-                }.getOrDefault(emptyList())
-                    .map { it.copy(conceptId = it.conceptId ?: concept.id) }
-                    .filter(::isVoiceEvaluatable)
-                if (generated.isNotEmpty()) {
-                    questionBank.save(concept.id, generated)
-                    candidates = generated
-                }
-            }
+                .filter { "book-${it.id}" != previousChallengeId }
 
             if (candidates.isNotEmpty()) {
                 val question = candidates[Math.floorMod(sequence.getAndIncrement(), candidates.size)]
                 return question.toVoiceChallenge(sourceLabel)
             }
 
-            return conceptFallbackChallenge(concept, sourceLabel, previousId)
+            return conceptFallbackChallenge(concept, sourceLabel, previousChallengeId)
         }
         return noPreparedBookChallenge()
     }

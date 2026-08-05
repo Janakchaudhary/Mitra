@@ -33,9 +33,12 @@ class AppDataResetService(
 
     suspend fun resetBookAnalysis() = withContext(Dispatchers.IO) {
         questionBank?.clear()
+        database.preparationJobDao().deleteAll()
         database.bookDao().getAll().forEach { book ->
             bookKnowledgeRepository.chaptersForBook(book.id).forEach { chapter ->
                 bookKnowledgeRepository.replacePageKnowledge(chapter.id, emptyList())
+                database.vocabularyDao().deleteForChapter(chapter.id)
+                database.preparedQuestionDao().deleteForChapter(chapter.id)
                 bookKnowledgeRepository.replaceChapterConcepts(chapter.id, emptyList())
                 bookKnowledgeRepository.setChapterStatus(chapter.id, ChapterAnalysisStatus.NOT_PREPARED)
             }

@@ -13,6 +13,12 @@ import com.mitra.learning.data.db.dao.ChapterDao
 import com.mitra.learning.data.db.dao.ConceptDao
 import com.mitra.learning.data.db.dao.MasteryDao
 import com.mitra.learning.data.db.dao.PageKnowledgeDao
+import com.mitra.learning.data.db.dao.PageKnowledgeFtsDao
+import com.mitra.learning.data.db.dao.ParentQuizDao
+import com.mitra.learning.data.db.dao.PreparedQuestionDao
+import com.mitra.learning.data.db.dao.PreparationJobDao
+import com.mitra.learning.data.db.dao.RawPageTextDao
+import com.mitra.learning.data.db.dao.VocabularyDao
 import com.mitra.learning.data.db.dao.SessionDao
 import com.mitra.learning.data.db.entity.AttemptEntity
 import com.mitra.learning.data.db.entity.BookEntity
@@ -21,6 +27,13 @@ import com.mitra.learning.data.db.entity.ConceptEntity
 import com.mitra.learning.data.db.entity.ConceptPrerequisiteEntity
 import com.mitra.learning.data.db.entity.MasteryEntity
 import com.mitra.learning.data.db.entity.PageKnowledgeEntity
+import com.mitra.learning.data.db.entity.PageKnowledgeFtsEntity
+import com.mitra.learning.data.db.entity.ParentQuizPlanEntity
+import com.mitra.learning.data.db.entity.ParentQuizQuestionEntity
+import com.mitra.learning.data.db.entity.PreparedQuestionEntity
+import com.mitra.learning.data.db.entity.PreparationJobEntity
+import com.mitra.learning.data.db.entity.RawPageTextEntity
+import com.mitra.learning.data.db.entity.VocabularyEntity
 import com.mitra.learning.data.db.entity.SessionEntity
 
 @Database(
@@ -33,8 +46,15 @@ import com.mitra.learning.data.db.entity.SessionEntity
         AttemptEntity::class,
         ChapterEntity::class,
         PageKnowledgeEntity::class,
+        PageKnowledgeFtsEntity::class,
+        VocabularyEntity::class,
+        PreparedQuestionEntity::class,
+        RawPageTextEntity::class,
+        PreparationJobEntity::class,
+        ParentQuizPlanEntity::class,
+        ParentQuizQuestionEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -46,6 +66,12 @@ abstract class MitraDatabase : RoomDatabase() {
     abstract fun attemptDao(): AttemptDao
     abstract fun chapterDao(): ChapterDao
     abstract fun pageKnowledgeDao(): PageKnowledgeDao
+    abstract fun pageKnowledgeFtsDao(): PageKnowledgeFtsDao
+    abstract fun vocabularyDao(): VocabularyDao
+    abstract fun preparedQuestionDao(): PreparedQuestionDao
+    abstract fun rawPageTextDao(): RawPageTextDao
+    abstract fun preparationJobDao(): PreparationJobDao
+    abstract fun parentQuizDao(): ParentQuizDao
 
     companion object {
         private val MIGRATION_1_2 = object : Migration(1, 2) {
@@ -185,13 +211,161 @@ abstract class MitraDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS vocabulary (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        bookId TEXT NOT NULL,
+                        chapterId TEXT NOT NULL,
+                        word TEXT NOT NULL,
+                        normalizedWord TEXT NOT NULL,
+                        meaningGujarati TEXT NOT NULL,
+                        simpleExplanationGujarati TEXT,
+                        exampleSentenceGujarati TEXT,
+                        sourcePage INTEGER NOT NULL,
+                        acceptedVoiceFormsJson TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_vocabulary_bookId ON vocabulary(bookId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_vocabulary_chapterId ON vocabulary(chapterId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_vocabulary_normalizedWord ON vocabulary(normalizedWord)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_vocabulary_chapterId_normalizedWord ON vocabulary(chapterId, normalizedWord)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS prepared_questions (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        bookId TEXT NOT NULL,
+                        chapterId TEXT NOT NULL,
+                        conceptId TEXT,
+                        promptGujarati TEXT NOT NULL,
+                        spokenPromptGujarati TEXT,
+                        speechLanguageTag TEXT,
+                        recognitionLanguageTag TEXT,
+                        expectedAnswer INTEGER,
+                        activityType TEXT NOT NULL,
+                        evaluationMode TEXT NOT NULL,
+                        expectedText TEXT,
+                        acceptedAnswersJson TEXT NOT NULL,
+                        optionsGujaratiJson TEXT NOT NULL,
+                        hintGujarati TEXT,
+                        completionButtonGujarati TEXT NOT NULL,
+                        sourcePage INTEGER,
+                        fingerprint TEXT NOT NULL,
+                        difficulty INTEGER NOT NULL,
+                        qualityStatus TEXT NOT NULL,
+                        usedCount INTEGER NOT NULL,
+                        lastUsedAt INTEGER
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_prepared_questions_bookId ON prepared_questions(bookId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_prepared_questions_chapterId ON prepared_questions(chapterId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_prepared_questions_conceptId ON prepared_questions(conceptId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_prepared_questions_chapterId_qualityStatus ON prepared_questions(chapterId, qualityStatus)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_prepared_questions_fingerprint ON prepared_questions(fingerprint)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS raw_page_text (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        sourceKey TEXT NOT NULL,
+                        pageNumber INTEGER NOT NULL,
+                        text TEXT NOT NULL,
+                        extractionMethod TEXT NOT NULL,
+                        extractionVersion INTEGER NOT NULL,
+                        confidence REAL,
+                        extractedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_raw_page_text_sourceKey ON raw_page_text(sourceKey)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_raw_page_text_sourceKey_pageNumber ON raw_page_text(sourceKey, pageNumber)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS preparation_jobs (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        bookId TEXT NOT NULL,
+                        chapterId TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        progressPercent INTEGER NOT NULL,
+                        currentStageGujarati TEXT NOT NULL,
+                        errorMessage TEXT,
+                        createdAt INTEGER NOT NULL,
+                        updatedAt INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_preparation_jobs_bookId ON preparation_jobs(bookId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_preparation_jobs_chapterId ON preparation_jobs(chapterId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_preparation_jobs_status ON preparation_jobs(status)")
+
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS parent_quiz_plans (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        title TEXT NOT NULL,
+                        topic TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        skillConceptId TEXT,
+                        skillTitleGujarati TEXT,
+                        bookId TEXT,
+                        bookTitle TEXT,
+                        chapterId TEXT,
+                        chapterTitleGujarati TEXT
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS parent_quiz_questions (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        planId TEXT NOT NULL,
+                        position INTEGER NOT NULL,
+                        promptGujarati TEXT NOT NULL,
+                        spokenPrompt TEXT NOT NULL,
+                        recognitionLanguageTag TEXT NOT NULL,
+                        kind TEXT NOT NULL,
+                        evaluationMode TEXT NOT NULL,
+                        expectedNumber INTEGER,
+                        expectedText TEXT,
+                        acceptedAnswersJson TEXT NOT NULL,
+                        hintGujarati TEXT,
+                        correctionGujarati TEXT NOT NULL,
+                        sourceLabelsJson TEXT NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_parent_quiz_questions_planId ON parent_quiz_questions(planId)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_parent_quiz_questions_planId_position ON parent_quiz_questions(planId, position)")
+
+                db.execSQL(
+                    "CREATE VIRTUAL TABLE IF NOT EXISTS page_knowledge_fts USING FTS4(pageKnowledgeId, bookId, chapterId, pageNumberText, content)"
+                )
+                db.execSQL(
+                    """
+                    INSERT INTO page_knowledge_fts(rowid, pageKnowledgeId, bookId, chapterId, pageNumberText, content)
+                    SELECT rowid, id, bookId, chapterId, CAST(pageNumber AS TEXT),
+                        summaryGujarati || ' ' || COALESCE(visibleTextGujarati, '') || ' ' ||
+                        COALESCE(importantObjectsJson, '') || ' ' || COALESCE(exercisesJson, '') || ' ' ||
+                        COALESCE(conceptsJson, '')
+                    FROM page_knowledge
+                    """.trimIndent()
+                )
+            }
+        }
+
         fun create(context: Context): MitraDatabase =
             Room.databaseBuilder(
                 context,
                 MitraDatabase::class.java,
                 "mitra.db",
             )
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
                 .build()
     }
 }

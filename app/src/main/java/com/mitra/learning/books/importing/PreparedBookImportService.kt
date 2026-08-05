@@ -10,13 +10,19 @@ import com.mitra.learning.data.db.entity.ChapterAnalysisStatus
 import com.mitra.learning.data.db.entity.ChapterEntity
 import com.mitra.learning.data.db.entity.ConceptEntity
 import com.mitra.learning.data.db.entity.PageKnowledgeEntity
+import com.mitra.learning.data.db.entity.PageKnowledgeFtsEntity
+import com.mitra.learning.data.db.entity.VocabularyEntity
 import com.mitra.learning.learning.model.ActivityType
 import com.mitra.learning.learning.model.EvaluationMode
 import com.mitra.learning.learning.model.LearningQuestion
 import com.mitra.learning.learning.offline.OfflineQuestionBank
+import com.mitra.learning.learning.offline.encodeStringList
+import com.mitra.learning.learning.offline.toPreparedQuestionEntity
+import com.mitra.learning.study.BookTextNormalizer
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
 import java.util.zip.ZipInputStream
@@ -182,6 +188,38 @@ class PreparedBookImportService(
             "Physical PDF pages cannot belong to multiple chapters: ${duplicatePages.sorted().joinToString()}"
         }
 
+        val vocabularyEntities = prepared.chapters.flatMap { chapter ->
+            val chapterId = chapterIds.getValue(chapter.key)
+            chapter.vocabulary.map { word ->
+                VocabularyEntity(
+                    id = "vocabulary:$bookId:$chapterId:${BookTextNormalizer.normalizeWord(word.word)}",
+                    bookId = bookId,
+                    chapterId = chapterId,
+                    word = word.word.trim(),
+                    normalizedWord = BookTextNormalizer.normalizeWord(word.word),
+                    meaningGujarati = word.meaningGujarati.trim(),
+                    simpleExplanationGujarati = word.simpleExplanationGujarati?.trim()?.takeIf(String::isNotBlank),
+                    exampleSentenceGujarati = word.exampleSentenceGujarati?.trim()?.takeIf(String::isNotBlank),
+                    sourcePage = word.sourcePage,
+                    acceptedVoiceFormsJson = encodeStringList(word.acceptedVoiceForms),
+                )
+            }
+        }
+
+        val conceptById = conceptEntities.associateBy { it.id }
+        val preparedQuestionEntities = questionsByConcept.flatMap { (conceptId, questions) ->
+            val concept = conceptById.getValue(conceptId)
+            questions.distinctBy { it.fingerprint }.take(250).map { question ->
+                question.toPreparedQuestionEntity(
+                    bookId = bookId,
+                    chapterId = requireNotNull(concept.chapterId),
+                    conceptIdOverride = conceptId,
+                    idOverride = question.id,
+                    difficulty = concept.difficulty,
+                )
+            }
+        }
+
         val book = if (existing != null) {
             existing.copy(
                 title = prepared.book.title,
@@ -211,23 +249,28 @@ class PreparedBookImportService(
             if (existing == null) {
                 database.bookDao().insert(book)
             } else {
+                database.pageKnowledgeFtsDao().deleteForBook(bookId)
                 database.pageKnowledgeDao().deleteForBook(bookId)
+                database.vocabularyDao().deleteForBook(bookId)
+                database.preparedQuestionDao().deleteForBook(bookId)
                 database.conceptDao().deleteForBook(bookId)
                 database.chapterDao().deleteForBook(bookId)
                 database.bookDao().update(book)
             }
             database.chapterDao().upsertAll(chapterEntities)
             database.pageKnowledgeDao().upsertAll(pageEntities)
+            database.pageKnowledgeFtsDao().upsertAll(pageEntities.map(::pageToFts))
             database.conceptDao().upsertAll(conceptEntities)
+            database.vocabularyDao().upsertAll(vocabularyEntities)
+            database.preparedQuestionDao().upsertAll(preparedQuestionEntities)
         }
 
         oldConceptIds.forEach(questionBank::deleteForConcept)
-        var questionCount = 0
+        var questionCount = preparedQuestionEntities.size
         questionsByConcept.forEach { (conceptId, questions) ->
             val clean = questions.distinctBy { it.fingerprint }.take(250)
             if (clean.isNotEmpty()) {
                 questionBank.save(conceptId, clean)
-                questionCount += clean.size
             }
         }
         if (packageFile.exists()) packageFile.delete()
@@ -290,6 +333,27 @@ class PreparedBookImportService(
                 )
             }
         }
+    }
+
+
+    private fun pageToFts(page: PageKnowledgeEntity): PageKnowledgeFtsEntity = PageKnowledgeFtsEntity(
+        rowId = stableRowId(page.id),
+        pageKnowledgeId = page.id,
+        bookId = page.bookId,
+        chapterId = page.chapterId,
+        pageNumberText = page.pageNumber.toString(),
+        content = listOfNotNull(
+            page.summaryGujarati,
+            page.visibleTextGujarati,
+            page.importantObjectsJson,
+            page.exercisesJson,
+            page.conceptsJson,
+        ).joinToString("\n"),
+    )
+
+    private fun stableRowId(value: String): Long {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(value.toByteArray())
+        return ByteBuffer.wrap(bytes.copyOfRange(0, 8)).long and Long.MAX_VALUE
     }
 
     private fun vocabularyQuestion(word: PreparedVocabulary, conceptId: String): LearningQuestion {

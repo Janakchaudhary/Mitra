@@ -11,6 +11,9 @@ interface PageKnowledgeDao {
     @Query("SELECT * FROM page_knowledge ORDER BY analyzedAt DESC, pageNumber")
     suspend fun getAll(): List<PageKnowledgeEntity>
 
+    @Query("SELECT COUNT(*) FROM page_knowledge")
+    suspend fun countAll(): Int
+
     @Query("SELECT * FROM page_knowledge WHERE chapterId = :chapterId ORDER BY pageNumber")
     suspend fun forChapter(chapterId: String): List<PageKnowledgeEntity>
 
@@ -27,6 +30,10 @@ interface PageKnowledgeDao {
         """
     )
     suspend fun searchCandidates(term: String, limit: Int = 80): List<PageKnowledgeEntity>
+
+
+    @Query("SELECT * FROM page_knowledge WHERE id IN (:ids)")
+    suspend fun findByIds(ids: List<String>): List<PageKnowledgeEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(items: List<PageKnowledgeEntity>)

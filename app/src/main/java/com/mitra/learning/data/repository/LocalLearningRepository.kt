@@ -51,4 +51,6 @@ class LocalLearningRepository(
 
     override suspend fun recentQuestionFingerprints(limit: Int): List<String> =
         attemptDao.recentQuestionFingerprints(limit)
+
+    override suspend fun recentAttempts(limit: Int): List<AttemptEntity> = attemptDao.recent(limit)
 }

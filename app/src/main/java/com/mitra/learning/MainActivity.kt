@@ -531,6 +531,11 @@ private fun MitraNav(
                         ParentQuizBuilderViewModel(
                             service = container.parentQuizService,
                             repository = container.parentQuizRepository,
+                            bookDao = container.database.bookDao(),
+                            chapterDao = container.database.chapterDao(),
+                            preparedQuestionDao = container.database.preparedQuestionDao(),
+                            conceptDao = container.database.conceptDao(),
+                            questionBank = container.offlineQuestionBank,
                         )
                     }
                 )
@@ -541,6 +546,8 @@ private fun MitraNav(
                     onTopic = vm::setTopic,
                     onCount = vm::setQuestionCount,
                     onSkill = vm::setSkillConcept,
+                    onBook = vm::setBook,
+                    onChapter = vm::setChapter,
                     onCreate = vm::create,
                     onClear = vm::clear,
                     onBack = { nav.popBackStack() },
@@ -723,6 +730,7 @@ private fun MitraNav(
                             repository = container.bookRepository,
                             knowledgeRepository = container.bookKnowledgeRepository,
                             preparationService = container.bookPreparationService,
+                            preparationCoordinator = container.bookPreparationCoordinator,
                             questionBank = container.offlineQuestionBank,
                         )
                     }

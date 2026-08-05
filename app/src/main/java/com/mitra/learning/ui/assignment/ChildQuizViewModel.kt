@@ -8,7 +8,7 @@ import com.mitra.learning.study.practice.MitraPracticeEvaluator
 import com.mitra.learning.voice.SpeechInput
 import com.mitra.learning.voice.SpeechInputState
 import com.mitra.learning.voice.SpeechOutput
-import kotlinx.coroutines.delay
+import com.mitra.learning.voice.speakAndAwait
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -105,8 +105,11 @@ class ChildQuizViewModel(
             listening = false,
         )
         viewModelScope.launch {
-            speechOutput.speakGujarati(feedback)
-            delay(if (evaluation.correct) 1_600 else 3_000)
+            speechOutput.speakAndAwait(
+                feedback,
+                languageTag = "gu-IN",
+                maximumMillis = if (evaluation.correct) 8_000L else 14_000L,
+            )
             moveNext(newMarks)
         }
     }

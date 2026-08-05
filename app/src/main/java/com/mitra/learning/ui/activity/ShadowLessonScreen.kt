@@ -28,11 +28,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,7 +53,7 @@ import com.mitra.learning.ui.animation.AnimatedLearningBackground
 import com.mitra.learning.ui.animation.AnimatedMitraMascot
 import com.mitra.learning.ui.animation.MascotMood
 import com.mitra.learning.voice.SpeechOutput
-import kotlinx.coroutines.delay
+import com.mitra.learning.voice.speakAndAwait
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -81,14 +83,21 @@ fun ShadowLessonScreen(
     val scope = rememberCoroutineScope()
     var stepIndex by remember { mutableIntStateOf(0) }
     var autoPlaying by remember { mutableStateOf(false) }
+    var experimentSunX by remember { mutableFloatStateOf(.28f) }
+    var prediction by remember(stepIndex) { mutableStateOf<String?>(null) }
     val step = shadowSteps[stepIndex]
     val sunX by animateFloatAsState(step.sunX, tween(900), label = "sun-x")
     val sunY by animateFloatAsState(step.sunY, tween(900), label = "sun-y")
     val direction by animateFloatAsState(step.shadowDirection, tween(900), label = "shadow-direction")
     val length by animateFloatAsState(step.shadowLength, tween(900), label = "shadow-length")
+    val experimentMode = stepIndex == shadowSteps.lastIndex
+    val shownSunX = if (experimentMode) experimentSunX else sunX
+    val shownDirection = if (experimentMode) if (experimentSunX < .5f) 1f else -1f else direction
+    val shownLength = if (experimentMode) (.15f + kotlin.math.abs(experimentSunX - .5f) * .9f) else length
+    val expectedPrediction = if (shownDirection >= 0f) "જમણે" else "ડાબે"
 
-    LaunchedEffect(stepIndex) {
-        speechOutput.speakGujarati("${step.title}. ${step.explanation}")
+    LaunchedEffect(stepIndex, autoPlaying) {
+        if (!autoPlaying) speechOutput.speakGujarati("${step.title}. ${step.explanation}")
     }
     DisposableEffect(Unit) { onDispose { speechOutput.stop() } }
 
@@ -122,7 +131,7 @@ fun ShadowLessonScreen(
                             val groundY = size.height * .76f
                             drawRect(Color(0xFFB9DD8B), topLeft = Offset(0f, groundY), size = Size(size.width, size.height - groundY))
 
-                            val sx = size.width * sunX
+                            val sx = size.width * shownSunX
                             val sy = size.height * sunY
                             drawCircle(Color(0xFFFFD54F), radius = size.minDimension * .075f, center = Offset(sx, sy))
                             repeat(12) { ray ->
@@ -143,8 +152,8 @@ fun ShadowLessonScreen(
                             drawRect(Color(0xFF795548), Offset(objectX - 11.dp.toPx(), objectTop), Size(22.dp.toPx(), objectBase - objectTop))
                             drawCircle(Color(0xFF4CAF50), size.minDimension * .09f, Offset(objectX, objectTop))
 
-                            val shadowEndX = objectX + size.width * length * direction
-                            val shadowWidth = size.minDimension * (.045f + .035f * abs(direction))
+                            val shadowEndX = objectX + size.width * shownLength * shownDirection
+                            val shadowWidth = size.minDimension * (.045f + .035f * abs(shownDirection))
                             val shadowPath = Path().apply {
                                 moveTo(objectX - shadowWidth, groundY + 4.dp.toPx())
                                 lineTo(shadowEndX, groundY + shadowWidth * .45f)
@@ -156,6 +165,34 @@ fun ShadowLessonScreen(
                         }
                     }
                     Text(step.explanation, style = MaterialTheme.typography.titleMedium, modifier = Modifier.fillMaxWidth())
+                    Text("પહેલાં અનુમાન કરો: પડછાયો કઈ બાજુ પડશે?", fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf("ડાબે", "જમણે").forEach { answer ->
+                            FilledTonalButton(
+                                onClick = {
+                                    prediction = if (answer == expectedPrediction) {
+                                        "સાચું! પ્રકાશની વિરુદ્ધ બાજુ પડછાયો પડે છે."
+                                    } else {
+                                        "ફરી જુઓ: પ્રકાશ ${if (shownSunX < .5f) "ડાબે" else "જમણે"} છે, એટલે પડછાયો $expectedPrediction પડશે."
+                                    }
+                                },
+                            ) { Text(answer) }
+                        }
+                    }
+                    prediction?.let { Text(it, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold) }
+                    if (experimentMode) {
+                        Text("ટોર્ચ ખસેડો", fontWeight = FontWeight.Bold)
+                        Slider(
+                            value = experimentSunX,
+                            onValueChange = {
+                                experimentSunX = it
+                                prediction = null
+                            },
+                            valueRange = 0.08f..0.92f,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text("ટોર્ચ જેટલી બાજુએ જશે, પડછાયો તેટલો વિરુદ્ધ તરફ જશે.")
+                    }
                     if (stepIndex == shadowSteps.lastIndex) {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
                             Text("સુરક્ષા: ટોર્ચ વાપરો; સૂર્ય તરફ સીધું ન જુઓ.", Modifier.padding(10.dp), fontWeight = FontWeight.SemiBold)
@@ -177,7 +214,8 @@ fun ShadowLessonScreen(
                             try {
                                 for (index in stepIndex..shadowSteps.lastIndex) {
                                     stepIndex = index
-                                    if (index < shadowSteps.lastIndex) delay(3_800)
+                                    val current = shadowSteps[index]
+                                    speechOutput.speakAndAwait("${current.title}. ${current.explanation}")
                                 }
                             } finally {
                                 autoPlaying = false

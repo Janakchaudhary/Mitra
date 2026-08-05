@@ -88,6 +88,13 @@ fun ChildQuizScreen(
                         )
                         Column(Modifier.weight(1f).padding(start = 8.dp)) {
                             Text(plan.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            plan.chapterTitleGujarati?.let { chapter ->
+                                Text(
+                                    listOfNotNull(plan.bookTitle, chapter).joinToString(" → "),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                             Text("દરેક પ્રશ્ન 1 ગુણ • ગુણ ${state.marks}/${plan.questions.size}")
                         }
                         IconButton(onClick = onReplay, enabled = !state.completed) { Icon(Icons.Default.VolumeUp, "પ્રશ્ન સાંભળો") }

@@ -2,6 +2,7 @@ package com.mitra.learning.learning.engine
 
 import com.mitra.learning.ai.AiGateway
 import com.mitra.learning.ai.PracticeContext
+import com.mitra.learning.data.db.dao.PreparedQuestionDao
 import com.mitra.learning.data.db.entity.AttemptEntity
 import com.mitra.learning.data.db.entity.AttemptResult
 import com.mitra.learning.data.db.entity.ConceptEntity
@@ -26,6 +27,7 @@ import com.mitra.learning.learning.model.LearningQuestion
 import com.mitra.learning.learning.model.SessionPlan
 import com.mitra.learning.learning.model.SessionSummary
 import com.mitra.learning.learning.offline.OfflineQuestionBank
+import com.mitra.learning.learning.offline.toLearningQuestion
 import java.util.UUID
 
 class DefaultLearningEngine(
@@ -34,6 +36,7 @@ class DefaultLearningEngine(
     private val bookKnowledgeRepository: BookKnowledgeRepository? = null,
     private val bookRepository: BookRepository? = null,
     private val questionBank: OfflineQuestionBank? = null,
+    private val preparedQuestionDao: PreparedQuestionDao? = null,
     private val now: () -> Long = { System.currentTimeMillis() },
 ) : LearningEngine {
 
@@ -44,16 +47,28 @@ class DefaultLearningEngine(
         repository.seedBuiltInCurriculumIfNeeded()
         val concept = repository.getConcepts().firstOrNull { it.id == conceptId && it.practiceReady } ?: return null
         val recent = repository.recentQuestionFingerprints(60).toSet()
+        val factEvidence = repository.recentAttempts(500)
         val requested = questionCount.coerceIn(1, 25)
-        val bank = if (!concept.builtIn) questionBank?.load(concept.id, requested, recent).orEmpty() else emptyList()
+        val bank = if (!concept.builtIn) {
+            val roomBank = preparedQuestionDao?.forConcept(concept.id, (requested * 3).coerceAtMost(75))
+                .orEmpty()
+                .map { it.toLearningQuestion() }
+                .filterNot { it.fingerprint in recent }
+            if (roomBank.isNotEmpty()) roomBank else questionBank?.load(concept.id, requested, recent).orEmpty()
+        } else emptyList()
         val generated = if (bank.size >= requested) emptyList() else aiGateway.createPracticeQuestions(
             concept = concept,
             count = (requested * 2).coerceIn(requested, 25),
             context = buildPracticeContext(concept, recent),
         ).map { it.copy(conceptId = it.conceptId ?: concept.id) }
         if (!concept.builtIn && generated.isNotEmpty()) questionBank?.save(concept.id, generated)
+        val variedPool = QuestionVarietyPolicy.select(
+            (bank + generated).distinctBy { it.fingerprint },
+            (requested * 3).coerceAtMost(75),
+            recent,
+        )
         val questions = ActivityPlanPolicy.apply(
-            QuestionVarietyPolicy.select((bank + generated).distinctBy { it.fingerprint }, requested, recent)
+            AdaptiveSessionPlanner.select(variedPool, factEvidence, requested, recent, now())
         ).take(requested)
         if (questions.isEmpty()) return null
         val session = createSession(concept.id)
@@ -67,7 +82,9 @@ class DefaultLearningEngine(
     override suspend fun startSkillSession(questionCount: Int): SessionPlan? {
         repository.seedBuiltInCurriculumIfNeeded()
         val conceptsById = repository.getConcepts().filter { it.builtIn }.associateBy { it.id }
-        val recent = repository.recentQuestionFingerprints(60).toMutableSet()
+        val recentBeforeSession = repository.recentQuestionFingerprints(60).toSet()
+        val generationExclusions = recentBeforeSession.toMutableSet()
+        val factEvidence = repository.recentAttempts(500)
         val tableId = listOf(
             BuiltInCurriculum.TABLE_2, BuiltInCurriculum.TABLE_3, BuiltInCurriculum.TABLE_4,
             BuiltInCurriculum.TABLE_5, BuiltInCurriculum.TABLE_6, BuiltInCurriculum.TABLE_7,
@@ -84,9 +101,10 @@ class DefaultLearningEngine(
             BuiltInCurriculum.ENG_SENTENCE_COMPLETION,
         )
         val target = questionCount.coerceIn(1, 25)
+        val poolTarget = (target * 3).coerceAtMost(75)
         val questions = mutableListOf<LearningQuestion>()
         var attempt = 0
-        while (questions.size < target && attempt < target * 6) {
+        while (questions.size < poolTarget && attempt < poolTarget * 6) {
             val id = requestedIds[attempt % requestedIds.size]
             val concept = conceptsById[id]
             if (concept != null) {
@@ -94,7 +112,7 @@ class DefaultLearningEngine(
                     concept = concept,
                     count = 1,
                     seed = now() + attempt * 9_973L,
-                    excludedFingerprints = recent,
+                    excludedFingerprints = generationExclusions,
                 ).ifEmpty {
                     Standard2SkillActivityFactory.create(concept, 1, now() + attempt * 19_997L)
                 }
@@ -102,7 +120,7 @@ class DefaultLearningEngine(
                     val tagged = question.copy(conceptId = concept.id)
                     if (questions.none { it.fingerprint == tagged.fingerprint }) {
                         questions += tagged
-                        recent += tagged.fingerprint
+                        generationExclusions += tagged.fingerprint
                     }
                 }
             }
@@ -112,7 +130,8 @@ class DefaultLearningEngine(
 
         val primary = conceptsById[BuiltInCurriculum.ADD_2D_2D_NO_CARRY] ?: conceptsById.values.first()
         val displayConcept = primary.copy(titleGujarati = "મિશ્ર ગણિત ચેલેન્જ")
-        val safePlan = ActivityPlanPolicy.apply(questions).take(target)
+        val adaptive = AdaptiveSessionPlanner.select(questions, factEvidence, target, recentBeforeSession, now())
+        val safePlan = ActivityPlanPolicy.apply(adaptive).take(target)
         val session = createSession(primary.id)
         return SessionPlan(session.id, displayConcept, safePlan)
     }
@@ -124,13 +143,20 @@ class DefaultLearningEngine(
         val prerequisites = repository.getPrerequisites()
         var concept = ConceptSelector.select(allConcepts, mastery, prerequisites) ?: return null
         val recent = repository.recentQuestionFingerprints(60).toSet()
+        val factEvidence = repository.recentAttempts(500)
 
         suspend fun activitiesFor(selected: ConceptEntity): List<LearningQuestion> {
             val bankQuestions = if (!selected.builtIn) {
-                questionBank?.load(selected.id, questionCount, recent).orEmpty()
+                val roomBank = preparedQuestionDao?.forConcept(selected.id, (questionCount * 3).coerceAtMost(75))
+                    .orEmpty()
+                    .map { it.toLearningQuestion() }
+                    .filterNot { it.fingerprint in recent }
+                if (roomBank.isNotEmpty()) roomBank else questionBank?.load(selected.id, questionCount, recent).orEmpty()
             } else emptyList()
             if (bankQuestions.size >= questionCount) {
-                return ActivityPlanPolicy.apply(bankQuestions).take(questionCount)
+                return ActivityPlanPolicy.apply(
+                    AdaptiveSessionPlanner.select(bankQuestions, factEvidence, questionCount, recent, now())
+                ).take(questionCount)
             }
 
             val generationCount = (questionCount * 2).coerceIn(questionCount, 25)
@@ -141,8 +167,9 @@ class DefaultLearningEngine(
             ).map { it.copy(conceptId = it.conceptId ?: selected.id) }
             if (!selected.builtIn && generated.isNotEmpty()) questionBank?.save(selected.id, generated)
             val combined = (bankQuestions + generated).distinctBy { it.fingerprint }
-            val varied = QuestionVarietyPolicy.select(combined, questionCount, recent)
-            return ActivityPlanPolicy.apply(varied).take(questionCount)
+            val varied = QuestionVarietyPolicy.select(combined, (questionCount * 3).coerceAtMost(75), recent)
+            val adaptive = AdaptiveSessionPlanner.select(varied, factEvidence, questionCount, recent, now())
+            return ActivityPlanPolicy.apply(adaptive).take(questionCount)
         }
 
         var activities = runCatching { activitiesFor(concept) }.getOrElse { failure ->

@@ -3,12 +3,16 @@ package com.mitra.learning.study
 import com.mitra.learning.data.db.dao.BookDao
 import com.mitra.learning.data.db.dao.ChapterDao
 import com.mitra.learning.data.db.dao.PageKnowledgeDao
+import com.mitra.learning.data.db.dao.PageKnowledgeFtsDao
+import com.mitra.learning.data.db.dao.VocabularyDao
 import com.mitra.learning.data.db.entity.ChapterAnalysisStatus
 
 class StudyContextService(
     private val bookDao: BookDao,
     private val chapterDao: ChapterDao,
     private val pageKnowledgeDao: PageKnowledgeDao,
+    private val vocabularyDao: VocabularyDao? = null,
+    private val pageKnowledgeFtsDao: PageKnowledgeFtsDao? = null,
 ) {
     suspend fun findSources(question: String, limit: Int = 8): List<StudySource> {
         val books = bookDao.getAll().associateBy { it.id }
@@ -16,22 +20,58 @@ class StudyContextService(
             .filter { it.analysisStatus == ChapterAnalysisStatus.READY }
             .associateBy { it.id }
         val tokens = tokens(question)
+        if (tokens.isEmpty()) return emptyList()
 
-        // Query a bounded candidate set instead of loading every prepared page from every book.
-        // Exact vocabulary/phrase hits are fetched first; Gujarati stemming and OCR-tolerant
-        // ranking are then applied only to those candidates in memory.
-        val candidatePages = if (tokens.isEmpty()) {
-            emptyList()
-        } else {
-            tokens
-                .sortedByDescending(String::length)
-                .take(5)
-                .flatMap { token -> pageKnowledgeDao.searchCandidates(token, 60) }
-                .distinctBy { it.id }
-                .take(180)
+        // Vocabulary is deterministic and always wins over general page retrieval. This lets a
+        // prepared package answer “દંગોરોનો અર્થ શું?” without asking a language model to infer it.
+        val vocabularySources = tokens
+            .sortedByDescending(String::length)
+            .flatMap { token ->
+                listOf(token, gujaratiStem(token))
+                    .map(BookTextNormalizer::normalizeWord)
+                    .distinct()
+                    .flatMap { candidate -> vocabularyDao?.findExact(candidate, 4).orEmpty() }
+            }
+            .distinctBy { it.id }
+            .mapNotNull { item ->
+                val book = books[item.bookId] ?: return@mapNotNull null
+                val chapter = chapters[item.chapterId] ?: return@mapNotNull null
+                StudySource(
+                    bookTitle = book.title,
+                    chapterTitle = chapter.titleGujarati,
+                    pageNumber = item.sourcePage,
+                    text = buildString {
+                        append("શબ્દ: ${item.word}\nઅર્થ: ${item.meaningGujarati}")
+                        item.simpleExplanationGujarati?.let { append("\nસરળ સમજ: $it") }
+                        item.exampleSentenceGujarati?.let { append("\nઉદાહરણ: $it") }
+                    },
+                )
+            }
+        if (vocabularySources.isNotEmpty()) return vocabularySources.take(limit.coerceIn(1, 10))
+
+        val ftsQuery = BookTextNormalizer.ftsQuery(question)
+        val ftsSources = if (ftsQuery.isBlank()) emptyList() else runCatching {
+            pageKnowledgeFtsDao?.search(ftsQuery, 100).orEmpty()
+        }.getOrDefault(emptyList()).mapNotNull { row ->
+            val book = books[row.bookId] ?: return@mapNotNull null
+            val chapter = chapters[row.chapterId] ?: return@mapNotNull null
+            val source = StudySource(
+                bookTitle = book.title,
+                chapterTitle = chapter.titleGujarati,
+                pageNumber = row.pageNumberText.toIntOrNull() ?: return@mapNotNull null,
+                text = row.content.take(4_500),
+            )
+            RankedSource(score("${book.title} ${chapter.titleGujarati} ${row.content}", tokens), source)
         }
 
-        return candidatePages
+        // Keep a bounded LIKE fallback for partially migrated/corrupt FTS rows so existing
+        // prepared books remain usable instead of silently losing textbook answers.
+        val fallbackSources = if (ftsSources.isNotEmpty()) emptyList() else tokens
+            .sortedByDescending(String::length)
+            .take(5)
+            .flatMap { token -> pageKnowledgeDao.searchCandidates(token, 50) }
+            .distinctBy { it.id }
+            .take(150)
             .mapNotNull { page ->
                 val book = books[page.bookId] ?: return@mapNotNull null
                 val chapter = chapters[page.chapterId] ?: return@mapNotNull null
@@ -41,29 +81,24 @@ class StudyContextService(
                     page.importantObjectsJson,
                     page.exercisesJson,
                     page.conceptsJson,
-                ).joinToString("\n").take(4500)
-                val score = score("${book.title} ${chapter.titleGujarati} ${chapter.titleEnglish.orEmpty()} $text", tokens)
+                ).joinToString("\n").take(4_500)
                 RankedSource(
-                    score = score,
-                    source = StudySource(
-                        bookTitle = book.title,
-                        chapterTitle = chapter.titleGujarati,
-                        pageNumber = page.pageNumber,
-                        text = text,
-                    ),
+                    score = score("${book.title} ${chapter.titleGujarati} $text", tokens),
+                    source = StudySource(book.title, chapter.titleGujarati, page.pageNumber, text),
                 )
             }
-            .sortedWith(compareByDescending<RankedSource> { it.score }.thenBy { it.source.pageNumber })
-            // Never feed unrelated first pages to the answerer. An empty result is safer and
-            // lets Mitra clearly say that this prepared chapter does not contain the requested word.
+
+        return (ftsSources + fallbackSources)
             .filter { it.score > 0 }
+            .distinctBy { "${it.source.bookTitle}|${it.source.chapterTitle}|${it.source.pageNumber}" }
+            .sortedWith(compareByDescending<RankedSource> { it.score }.thenBy { it.source.pageNumber })
             .take(limit.coerceIn(1, 10))
             .map { it.source }
     }
 
     suspend fun hasPreparedStudyMaterial(): Boolean =
         chapterDao.getAll().any { it.analysisStatus == ChapterAnalysisStatus.READY } &&
-            pageKnowledgeDao.getAll().isNotEmpty()
+            pageKnowledgeDao.countAll() > 0
 
     private fun score(text: String, tokens: Set<String>): Int {
         if (tokens.isEmpty()) return 0

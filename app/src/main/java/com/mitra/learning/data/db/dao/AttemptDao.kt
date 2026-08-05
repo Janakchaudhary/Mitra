@@ -19,6 +19,9 @@ interface AttemptDao {
     @Query("SELECT questionFingerprint FROM attempts WHERE questionFingerprint != '' ORDER BY createdAt DESC LIMIT :limit")
     suspend fun recentQuestionFingerprints(limit: Int): List<String>
 
+    @Query("SELECT * FROM attempts WHERE questionFingerprint != '' ORDER BY createdAt DESC LIMIT :limit")
+    suspend fun recent(limit: Int): List<AttemptEntity>
+
     @Query("DELETE FROM attempts")
     suspend fun deleteAll()
 }

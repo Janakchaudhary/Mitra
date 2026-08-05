@@ -60,8 +60,9 @@ import com.mitra.learning.ui.animation.SuccessBurst
 import com.mitra.learning.voice.SpeechInput
 import com.mitra.learning.voice.SpeechInputState
 import com.mitra.learning.voice.SpeechOutput
-import kotlinx.coroutines.delay
+import com.mitra.learning.voice.speakAndAwait
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 private data class SentencePuzzle(
     val emoji: String,
@@ -108,8 +109,12 @@ fun SentenceBuilderScreen(
     var index by remember { mutableIntStateOf(0) }
     val puzzle = sentencePuzzles[index % sentencePuzzles.size]
     var answer by remember(index) { mutableStateOf("") }
-    var selectedWords by remember(index) { mutableStateOf(emptyList<String>()) }
+    var selectedWordIndices by remember(index) { mutableStateOf(emptyList<Int>()) }
+    val shuffledWordIndices = remember(index) {
+        puzzle.words.indices.shuffled(Random(23_000 + index))
+    }
     var showHelp by remember(index) { mutableStateOf(false) }
+    var wrongAttempts by remember(index) { mutableIntStateOf(0) }
     var listening by remember { mutableStateOf(false) }
     var message by remember(index) { mutableStateOf<String?>(null) }
     var correct by remember(index) { mutableStateOf(false) }
@@ -122,20 +127,24 @@ fun SentenceBuilderScreen(
         val actual = SpokenAnswerNormalizer.text(candidate)
         val evaluation = EnglishSentenceEvaluator.evaluate(expected, actual)
         correct = evaluation.correct
+        if (!correct) {
+            wrongAttempts += 1
+            if (wrongAttempts >= 1) showHelp = true
+        }
         message = if (correct) {
             listOf("શાબાશ! સુંદર sentence.", "Perfect! બહુ સરસ બોલ્યા.", "વાહ! Grammar અને શબ્દક્રમ બંને સાચા.")[(index + actual.length) % 3]
         } else {
             val missing = evaluation.missingWords.take(3)
-            if (missing.isEmpty()) {
-                "Sentence લગભગ સાચું છે. શબ્દક્રમ ફરી સાંભળો અને એક વાર વધુ બોલો."
-            } else {
-                "આ શબ્દો ઉમેરવાનો પ્રયત્ન કરો: ${missing.joinToString(", ")}. Help words જોઈ શકો."
+            when {
+                evaluation.grammarHint != null -> evaluation.grammarHint
+                evaluation.orderIssue -> "શબ્દો સાચા છે, પણ ક્રમ સુધારીએ: ${puzzle.grammarHelp}"
+                missing.isNotEmpty() -> "આ શબ્દો ઉમેરવાનો પ્રયત્ન કરો: ${missing.joinToString(", ")}. Help words જોઈ શકો."
+                else -> "Sentence ફરી ધીમે બોલો અને ચિત્ર સાથે મેળવો."
             }
         }
         if (correct) {
             scope.launch {
-                speechOutput.speak(message.orEmpty(), "gu-IN")
-                delay(1_700)
+                speechOutput.speakAndAwait(message.orEmpty(), "gu-IN")
                 index = (index + 1) % sentencePuzzles.size
             }
         }
@@ -213,7 +222,13 @@ fun SentenceBuilderScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { showHelp = !showHelp }) { Icon(Icons.Default.HelpOutline, null); Text(" Help") }
                         OutlinedButton(onClick = { scope.launch { speechOutput.speak(puzzle.sentence, "en-IN") } }) { Icon(Icons.Default.VolumeUp, null); Text(" સાંભળો") }
-                        IconButton(onClick = { answer = ""; selectedWords = emptyList(); message = null; correct = false }) { Icon(Icons.Default.Refresh, "ફરી") }
+                        IconButton(onClick = {
+                            answer = ""
+                            selectedWordIndices = emptyList()
+                            message = null
+                            correct = false
+                            wrongAttempts = 0
+                        }) { Icon(Icons.Default.Refresh, "ફરી") }
                     }
 
                     AnimatedVisibility(showHelp) {
@@ -221,19 +236,32 @@ fun SentenceBuilderScreen(
                             Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
                                 Text("નિયમ: ${puzzle.grammarHelp}", Modifier.fillMaxWidth().padding(10.dp))
                             }
-                            Text("Help words — સાચા ક્રમમાં દબાવો:", fontWeight = FontWeight.SemiBold)
+                            Text("Help words — યોગ્ય ક્રમમાં ગોઠવો:", fontWeight = FontWeight.SemiBold)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(7.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                                puzzle.words.forEachIndexed { wordIndex, word ->
+                                shuffledWordIndices.forEach { wordIndex ->
+                                    val word = puzzle.words[wordIndex]
                                     AssistChip(
                                         onClick = {
-                                            val updated = selectedWords + word
-                                            selectedWords = updated
-                                            answer = updated.joinToString(" ")
+                                            val updated = selectedWordIndices + wordIndex
+                                            selectedWordIndices = updated
+                                            answer = updated.joinToString(" ") { puzzle.words[it] }
                                         },
                                         label = { Text(word) },
-                                        enabled = wordIndex == selectedWords.size,
+                                        enabled = wordIndex !in selectedWordIndices,
                                     )
                                 }
+                            }
+                            if (selectedWordIndices.isNotEmpty()) {
+                                OutlinedButton(
+                                    onClick = {
+                                        val updated = selectedWordIndices.dropLast(1)
+                                        selectedWordIndices = updated
+                                        answer = updated.joinToString(" ") { puzzle.words[it] }
+                                    },
+                                ) { Text("છેલ્લો શબ્દ પાછો લો") }
+                            }
+                            if (wrongAttempts >= 2) {
+                                Text("વધુ મદદ: sentence '${puzzle.words.first()}' થી શરૂ થાય છે.")
                             }
                         }
                     }

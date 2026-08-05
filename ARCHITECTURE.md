@@ -72,10 +72,11 @@ Hands-free mode is turn-based: Android recognition ends after one utterance, TTS
 - **v3:** chapters, page knowledge, `concepts.practiceReady`
 - **v4:** `attempts.questionFingerprint` for repetition control
 - **v5:** `mastery.nextReviewAt`, `reviewIntervalDays`, `consecutiveSuccesses`
+- **v6:** exact vocabulary, prepared questions, raw page-text cache, preparation jobs, FTS4 textbook index, and Room-backed parent quiz plans/questions
 
 Explicit migrations:
 
-`1 → 2`, `2 → 3`, `3 → 4`, `4 → 5`
+`1 → 2`, `2 → 3`, `3 → 4`, `4 → 5`, `5 → 6`
 
 Release behavior must never use destructive migration.
 
@@ -161,3 +162,20 @@ The general learning engine defaults to 20 questions and accepts up to 25. Arith
 Child home requests lock-task mode. On ordinary consumer devices this is screen pinning; policy-enforced lock task requires device-owner provisioning. Parent PIN or Android device-credential confirmation exits the app-level gate and releases lock task.
 
 Room remains schema 5. The only new persisted file is the parent quiz plan under app-private storage.
+
+
+# Milestone 23 Addendum — Focused learning and indexed prepared books
+
+The highest-traffic textbook data now lives in schema-6 Room tables instead of repeated whole-library scans and per-concept JSON reads. `VocabularyEntity` supports exact normalized word lookup. `PreparedQuestionEntity` stores approved questions, source pages, difficulty and usage metadata. `RawPageTextEntity` prevents repeated embedded-text extraction/OCR for an unchanged PDF page. `PageKnowledgeFtsEntity` is an FTS4 projection used before the bounded legacy LIKE fallback.
+
+Prepared chapter persistence follows a snapshot rule:
+
+`extract/cache pages → analyze chapter → generate/validate question bank → Room transaction(page knowledge + concepts + vocabulary + questions + READY) → refresh book status`
+
+A previous READY snapshot is left untouched until all required data passes validation. WorkManager executes each chapter as persistent foreground work, and full-book work is a sequential chain. Job progress is mirrored in `PreparationJobEntity`, allowing My Books to recover progress after navigation or process recreation.
+
+Parent prepared-book tests use a strict focus key `(bookId, chapterId)`. The builder only lists READY chapters, counts distinct approved fingerprints, and requires enough unique questions for the chosen 20/25 marks. `FocusedChapterQuestionSelector` balances activity type, physical source page and concept, but never pulls from another chapter. The resulting ordered plan is stored in Room and shown on Child Home.
+
+The general learning planner uses recent `AttemptEntity.questionFingerprint` evidence as fact-level signals. Incorrect/skipped fingerprints receive priority, recent successful fingerprints are delayed, and question-type repetition is penalized. Broad concept mastery remains for curriculum navigation and spaced-review dates; exact fingerprints guide the questions inside a session.
+
+Teaching screens use TTS-completion sequencing rather than fixed delays where automatic progression matters. Sentence Builder evaluates required content, grammar helpers and order while allowing safe article variations. The shadow lesson combines prediction with a draggable light-source experiment. Colour prompts keep the target answer hidden while rendering the object against the target colour.

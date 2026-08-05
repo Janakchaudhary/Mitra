@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.mitra.learning.books.analysis.BookPreparationResult
 import com.mitra.learning.books.analysis.BookPreparationService
+import com.mitra.learning.books.work.BookPreparationCoordinator
 import com.mitra.learning.data.db.entity.BookEntity
 import com.mitra.learning.data.db.entity.ChapterEntity
 import com.mitra.learning.data.db.entity.ConceptEntity
@@ -22,6 +23,7 @@ class BookDetailViewModel(
     private val repository: BookRepository,
     private val knowledgeRepository: BookKnowledgeRepository,
     private val preparationService: BookPreparationService,
+    private val preparationCoordinator: BookPreparationCoordinator? = null,
     private val questionBank: OfflineQuestionBank? = null,
 ) : ViewModel() {
     val book: StateFlow<BookEntity?> = repository.observeBook(bookId)
@@ -45,6 +47,8 @@ class BookDetailViewModel(
     private val _offlineQuestionCounts = MutableStateFlow<Map<String, Int>>(emptyMap())
     val offlineQuestionCounts: StateFlow<Map<String, Int>> = _offlineQuestionCounts.asStateFlow()
 
+    private val handledCompletedJobs = mutableSetOf<String>()
+
     init {
         viewModelScope.launch {
             chapters.collect { items ->
@@ -57,11 +61,38 @@ class BookDetailViewModel(
                 }
             }
         }
+        preparationCoordinator?.let { coordinator ->
+            viewModelScope.launch {
+                coordinator.observeJobs(bookId).collect { jobs ->
+                    val active = jobs.filter { it.status == "QUEUED" || it.status == "RUNNING" }
+                    _preparingAll.value = active.size > 1
+                    _preparingChapterId.value = active.firstOrNull { it.status == "RUNNING" }?.chapterId
+                        ?: active.firstOrNull()?.chapterId
+                    val latest = jobs.maxByOrNull { it.updatedAt }
+                    if (latest != null) {
+                        _message.value = when (latest.status) {
+                            "FAILED" -> "${latest.currentStageGujarati} ${latest.errorMessage.orEmpty()}".trim()
+                            "SUCCEEDED" -> latest.currentStageGujarati
+                            else -> "${latest.currentStageGujarati} ${latest.progressPercent}%"
+                        }
+                    }
+                    jobs.filter { it.status == "SUCCEEDED" && handledCompletedJobs.add(it.id) }
+                        .forEach { runCatching { refreshChapterConcepts(it.chapterId) } }
+                }
+            }
+        }
     }
 
     fun prepareChapter(chapterId: String) = viewModelScope.launch {
         if (_preparingChapterId.value != null || _preparingAll.value) return@launch
-        prepareOne(chapterId)
+        val coordinator = preparationCoordinator
+        if (coordinator != null) {
+            val chapter = knowledgeRepository.getChapter(chapterId) ?: return@launch
+            coordinator.enqueueChapter(chapter.bookId, chapter.id)
+            _message.value = "પાઠની તૈયારી background માં શરૂ થઈ. Parent બીજી screen ખોલી શકે છે."
+        } else {
+            prepareOne(chapterId)
+        }
     }
 
     fun prepareAllChapters() = viewModelScope.launch {
@@ -69,6 +100,11 @@ class BookDetailViewModel(
         val items = chapters.value
         if (items.isEmpty()) {
             _message.value = "Add or detect chapters first."
+            return@launch
+        }
+        preparationCoordinator?.let { coordinator ->
+            coordinator.enqueueBook(bookId, items.map { it.id })
+            _message.value = "${items.size} પાઠ ક્રમવાર background માં તૈયાર થશે."
             return@launch
         }
         _preparingAll.value = true

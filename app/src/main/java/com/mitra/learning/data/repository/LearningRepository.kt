@@ -26,4 +26,7 @@ interface LearningRepository {
     suspend fun insertAttempt(attempt: AttemptEntity)
     suspend fun attemptsForSession(sessionId: String): List<AttemptEntity>
     suspend fun recentQuestionFingerprints(limit: Int = 40): List<String>
+
+    /** Exact question/fact evidence used by the adaptive planner. */
+    suspend fun recentAttempts(limit: Int = 500): List<AttemptEntity> = emptyList()
 }

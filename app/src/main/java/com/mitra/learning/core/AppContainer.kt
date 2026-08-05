@@ -12,6 +12,7 @@ import com.mitra.learning.books.importing.PreparedBookImportService
 import com.mitra.learning.books.pdf.AndroidPdfPageRenderer
 import com.mitra.learning.books.text.AndroidOfflinePageTextExtractor
 import com.mitra.learning.books.text.TesseractOcrEngine
+import com.mitra.learning.books.work.BookPreparationCoordinator
 import com.mitra.learning.data.db.MitraDatabase
 import com.mitra.learning.data.backup.MitraBackupService
 import com.mitra.learning.data.repository.BookKnowledgeRepository
@@ -56,12 +57,16 @@ class AppContainer(context: Context) {
         context = appContext,
         renderer = pdfRenderer,
         ocr = tesseractOcrEngine,
+        rawPageTextDao = database.rawPageTextDao(),
     )
 
     val bookKnowledgeRepository: BookKnowledgeRepository = LocalBookKnowledgeRepository(
         chapterDao = database.chapterDao(),
         pageKnowledgeDao = database.pageKnowledgeDao(),
         conceptDao = database.conceptDao(),
+        pageKnowledgeFtsDao = database.pageKnowledgeFtsDao(),
+        vocabularyDao = database.vocabularyDao(),
+        preparedQuestionDao = database.preparedQuestionDao(),
     )
 
     val bookRepository: BookRepository = LocalBookRepository(
@@ -108,6 +113,11 @@ class AppContainer(context: Context) {
         questionBank = offlineQuestionBank,
     )
 
+    val bookPreparationCoordinator = BookPreparationCoordinator(
+        context = appContext,
+        jobDao = database.preparationJobDao(),
+    )
+
     val bookPreparationService = BookPreparationService(
         bookRepository = bookRepository,
         knowledgeRepository = bookKnowledgeRepository,
@@ -116,6 +126,9 @@ class AppContainer(context: Context) {
         aiGateway = aiGateway,
         pageTextExtractor = offlinePageTextExtractor,
         questionBank = offlineQuestionBank,
+        preparedQuestionDao = database.preparedQuestionDao(),
+        vocabularyDao = database.vocabularyDao(),
+        database = database,
     )
 
     val speechInput: SpeechInput = AndroidSpeechInput(appContext)
@@ -124,6 +137,8 @@ class AppContainer(context: Context) {
         bookDao = database.bookDao(),
         chapterDao = database.chapterDao(),
         pageKnowledgeDao = database.pageKnowledgeDao(),
+        vocabularyDao = database.vocabularyDao(),
+        pageKnowledgeFtsDao = database.pageKnowledgeFtsDao(),
     )
     val mitraVoicePracticeService = MitraVoicePracticeService(
         conceptDao = database.conceptDao(),
@@ -131,11 +146,20 @@ class AppContainer(context: Context) {
         bookDao = database.bookDao(),
         pageKnowledgeDao = database.pageKnowledgeDao(),
         questionBank = offlineQuestionBank,
+        preparedQuestionDao = database.preparedQuestionDao(),
         aiGateway = aiGateway,
     )
 
-    val parentQuizRepository = ParentQuizRepository(appContext)
-    val parentQuizService = ParentQuizService(mitraVoicePracticeService, parentQuizRepository)
+    val parentQuizRepository = ParentQuizRepository(appContext, database.parentQuizDao())
+    val parentQuizService = ParentQuizService(
+        practiceService = mitraVoicePracticeService,
+        repository = parentQuizRepository,
+        bookDao = database.bookDao(),
+        chapterDao = database.chapterDao(),
+        conceptDao = database.conceptDao(),
+        preparedQuestionDao = database.preparedQuestionDao(),
+        questionBank = offlineQuestionBank,
+    )
 
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
@@ -151,6 +175,7 @@ class AppContainer(context: Context) {
         bookKnowledgeRepository = bookKnowledgeRepository,
         bookRepository = bookRepository,
         questionBank = offlineQuestionBank,
+        preparedQuestionDao = database.preparedQuestionDao(),
     )
 
     val parentPinRepository = ParentPinRepository(appContext)

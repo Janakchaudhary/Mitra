@@ -5,8 +5,8 @@ import com.mitra.learning.study.practice.MitraChallengeKind
 import com.mitra.learning.study.practice.MitraVoiceChallenge
 
 enum class ParentQuizTopic(val titleGujarati: String) {
+    PREPARED_BOOK("પુસ્તકનો પાઠ"),
     SKILL("પસંદ કરેલું કૌશલ્ય"),
-    PREPARED_BOOK("તૈયાર પુસ્તક"),
     TABLES("ઘડિયા"),
     NUMBER_NEIGHBORS("પહેલાં-પછી"),
     SPELLING("English spelling"),
@@ -52,4 +52,8 @@ data class ParentQuizPlan(
     val questions: List<ParentQuizQuestion>,
     val skillConceptId: String? = null,
     val skillTitleGujarati: String? = null,
+    val bookId: String? = null,
+    val bookTitle: String? = null,
+    val chapterId: String? = null,
+    val chapterTitleGujarati: String? = null,
 )

@@ -2,6 +2,8 @@ package com.mitra.learning.books.text
 
 import android.content.Context
 import com.mitra.learning.books.pdf.PdfPageRenderer
+import com.mitra.learning.data.db.dao.RawPageTextDao
+import com.mitra.learning.data.db.entity.RawPageTextEntity
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
@@ -19,6 +21,8 @@ class AndroidOfflinePageTextExtractor(
     context: Context,
     private val renderer: PdfPageRenderer,
     private val ocr: TesseractOcrEngine,
+    private val rawPageTextDao: RawPageTextDao? = null,
+    private val now: () -> Long = { System.currentTimeMillis() },
 ) : OfflinePageTextExtractor {
     private val appContext = context.applicationContext
     private val cacheRoot = File(appContext.cacheDir, "book_page_text_v1").apply { mkdirs() }
@@ -31,13 +35,30 @@ class AndroidOfflinePageTextExtractor(
         val indices = pageIndices.distinct().sorted()
         if (indices.isEmpty()) return emptyList()
 
-        val cached = indices.mapNotNull { index -> readCache(path, index)?.let { index to it } }.toMap()
+        val sourceKey = sourceKey(path)
+        val roomCached = rawPageTextDao?.find(sourceKey, indices.map { it + 1 }).orEmpty()
+            .associateBy { it.pageNumber - 1 }
+            .mapValues { (_, entity) ->
+                ExtractedBookPage(
+                    pageNumber = entity.pageNumber,
+                    text = entity.text,
+                    method = runCatching { TextExtractionMethod.valueOf(entity.extractionMethod) }
+                        .getOrDefault(TextExtractionMethod.NO_READABLE_TEXT),
+                )
+            }
+        val fileCached = indices
+            .filterNot(roomCached::containsKey)
+            .mapNotNull { index -> readCache(path, index)?.let { index to it } }
+            .toMap()
+        val cached = roomCached + fileCached
         val missing = indices.filterNot(cached::containsKey)
         val embedded = if (missing.isEmpty()) emptyMap() else extractEmbeddedText(path, missing)
-        return indices.map { index ->
+        val newlyExtracted = mutableListOf<RawPageTextEntity>()
+
+        val result = indices.map { index ->
             cached[index] ?: run {
                 val text = embedded[index].orEmpty().normalizeRecognizedText()
-                val result = if (text.isUsefulBookText()) {
+                val page = if (text.isUsefulBookText()) {
                     ExtractedBookPage(
                         pageNumber = index + 1,
                         text = text,
@@ -64,11 +85,24 @@ class AndroidOfflinePageTextExtractor(
                         bitmap.recycle()
                     }
                 }
-                writeCache(path, index, result)
-                result
+                writeCache(path, index, page)
+                newlyExtracted += RawPageTextEntity(
+                    id = "$sourceKey:${index + 1}",
+                    sourceKey = sourceKey,
+                    pageNumber = index + 1,
+                    text = page.text,
+                    extractionMethod = page.method.name,
+                    extractionVersion = EXTRACTION_VERSION,
+                    confidence = null,
+                    extractedAt = now(),
+                )
+                page
             }
         }
+        if (newlyExtracted.isNotEmpty()) rawPageTextDao?.upsertAll(newlyExtracted)
+        return result
     }
+
 
 
     private fun readCache(path: String, pageIndex: Int): ExtractedBookPage? = runCatching {
@@ -93,6 +127,14 @@ class AndroidOfflinePageTextExtractor(
                 temporary.delete()
             }
         }
+    }
+
+    private fun sourceKey(path: String): String {
+        val source = File(path)
+        val identity = "$path|${source.length()}|${source.lastModified()}|$EXTRACTION_VERSION"
+        return MessageDigest.getInstance("SHA-256")
+            .digest(identity.toByteArray())
+            .joinToString("") { "%02x".format(it) }
     }
 
     private fun cacheFile(path: String, pageIndex: Int): File {
@@ -131,5 +173,6 @@ class AndroidOfflinePageTextExtractor(
 
     private companion object {
         const val OCR_RENDER_WIDTH_PX = 1800
+        const val EXTRACTION_VERSION = 2
     }
 }

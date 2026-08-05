@@ -7,15 +7,23 @@ import com.mitra.learning.ai.PracticeContext
 import com.mitra.learning.ai.local.parseOfflineTocLine
 import com.mitra.learning.books.pdf.PdfPageRenderer
 import com.mitra.learning.books.text.OfflinePageTextExtractor
+import androidx.room.withTransaction
+import com.mitra.learning.data.db.MitraDatabase
 import com.mitra.learning.data.db.dao.BookDao
+import com.mitra.learning.data.db.dao.PreparedQuestionDao
+import com.mitra.learning.data.db.dao.VocabularyDao
 import com.mitra.learning.data.db.entity.BookAnalysisStatus
 import com.mitra.learning.data.db.entity.ChapterAnalysisStatus
 import com.mitra.learning.data.db.entity.ChapterEntity
 import com.mitra.learning.data.db.entity.ConceptEntity
 import com.mitra.learning.data.db.entity.PageKnowledgeEntity
+import com.mitra.learning.data.db.entity.VocabularyEntity
 import com.mitra.learning.data.repository.BookKnowledgeRepository
 import com.mitra.learning.data.repository.BookRepository
 import com.mitra.learning.learning.offline.OfflineQuestionBank
+import com.mitra.learning.learning.offline.encodeStringList
+import com.mitra.learning.learning.offline.toPreparedQuestionEntity
+import com.mitra.learning.study.BookTextNormalizer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
@@ -34,6 +42,9 @@ class BookPreparationService(
     private val aiGateway: AiGateway,
     private val pageTextExtractor: OfflinePageTextExtractor? = null,
     private val questionBank: OfflineQuestionBank? = null,
+    private val preparedQuestionDao: PreparedQuestionDao? = null,
+    private val vocabularyDao: VocabularyDao? = null,
+    private val database: MitraDatabase? = null,
     private val now: () -> Long = { System.currentTimeMillis() },
 ) {
     companion object {
@@ -189,7 +200,10 @@ class BookPreparationService(
         chapter
     }
 
-    suspend fun prepareChapter(chapterId: String): BookPreparationResult {
+    suspend fun prepareChapter(
+        chapterId: String,
+        onProgress: suspend (percent: Int, stageGujarati: String) -> Unit = { _, _ -> },
+    ): BookPreparationResult {
         val originalChapter = knowledgeRepository.getChapter(chapterId)
             ?: return BookPreparationResult.Failure("Chapter not found")
         val book = bookRepository.getBook(originalChapter.bookId)
@@ -209,6 +223,7 @@ class BookPreparationService(
 
         val statusBeforePreparation = chapter.analysisStatus
         knowledgeRepository.setChapterStatus(chapterId, ChapterAnalysisStatus.PREPARING)
+        onProgress(5, "પાઠની તૈયારી શરૂ થાય છે…")
         return try {
             val allPages = mutableListOf<PageKnowledgeEntity>()
             val allConcepts = mutableListOf<ConceptEntity>()
@@ -216,7 +231,9 @@ class BookPreparationService(
             val pageIndices = (chapter.startPage..chapter.endPage).map { it - 1 }
 
             val chunkSize = 4
-            pageIndices.chunked(chunkSize).forEachIndexed { chunkIndex, chunk ->
+            val chunks = pageIndices.chunked(chunkSize)
+            chunks.forEachIndexed { chunkIndex, chunk ->
+                onProgress(10 + (chunkIndex * 45 / chunks.size.coerceAtLeast(1)), "PDF પાનું ${chunk.first() + 1}–${chunk.last() + 1} વાંચે છે…")
                 val inputs = prepareInputs(
                     path = book.localPdfPath,
                     pageIndices = chunk,
@@ -272,9 +289,7 @@ class BookPreparationService(
                 }
             }
 
-            knowledgeRepository.replacePageKnowledge(chapter.id, allPages.distinctBy { it.pageNumber })
-            val previousConceptIds = knowledgeRepository.conceptsForChapter(chapter.id).map { it.id }
-            previousConceptIds.forEach { questionBank?.deleteForConcept(it) }
+            onProgress(58, "પાઠના મુદ્દા ગોઠવે છે…")
             val mergedConcepts = allConcepts
                 .groupBy { it.titleGujarati.trim().lowercase() }
                 .values
@@ -285,33 +300,79 @@ class BookPreparationService(
                         sourcePageEnd = group.mapNotNull { it.sourcePageEnd }.maxOrNull(),
                     )
                 }
-            knowledgeRepository.replaceChapterConcepts(chapter.id, mergedConcepts)
 
-            // Prepare a reusable question bank during the same local or remote preparation pass.
+            // Generate and validate the complete bank before replacing any usable READY data.
+            // A transient AI failure therefore cannot erase a previously prepared chapter.
             val groundedText = allPages.sortedBy { it.pageNumber }.joinToString("\n\n") { page ->
                 buildString {
                     append("Page ${page.pageNumber}: ${page.summaryGujarati}")
                     page.visibleTextGujarati?.takeIf { it.isNotBlank() }?.let { append("\nVisible text: $it") }
                     page.exercisesJson?.takeIf { it.isNotBlank() }?.let { append("\nExercises: $it") }
                 }
-            }.take(16_000)
-            mergedConcepts.filter { it.practiceReady }.take(12).forEach { concept ->
-                runCatching {
-                    aiGateway.createPracticeQuestions(
-                        concept = concept,
-                        count = 20,
-                        context = PracticeContext(
-                            bookTitle = book.title,
-                            chapterTitleGujarati = chapter.titleGujarati,
-                            groundedBookText = groundedText,
-                        ),
-                    )
-                }.getOrNull()?.takeIf { it.isNotEmpty() }?.let { generated ->
-                    questionBank?.save(concept.id, generated.map { it.copy(conceptId = it.conceptId ?: concept.id) })
+            }.take(24_000)
+            val practiceConcepts = mergedConcepts.filter { it.practiceReady }.take(12)
+            val chapterQuestions = if (practiceConcepts.isNotEmpty()) {
+                generateChapterQuestionBank(
+                    bookTitle = book.title,
+                    chapter = chapter,
+                    concepts = practiceConcepts,
+                    groundedText = groundedText,
+                    onProgress = onProgress,
+                )
+            } else {
+                emptyList()
+            }
+            val bankPersistenceEnabled = preparedQuestionDao != null || questionBank != null
+            if (bankPersistenceEnabled && practiceConcepts.isNotEmpty()) {
+                require(chapterQuestions.size >= 20) {
+                    "પાઠનું જ્ઞાન મળ્યું, પરંતુ ઓછામાં ઓછા 20 સારા પ્રશ્નો તૈયાર થયા નહીં. ફરી પ્રયાસ કરો; જૂનો READY પાઠ સુરક્ષિત રાખ્યો છે."
                 }
             }
+            val preparedEntities = chapterQuestions
+                .distinctBy { it.fingerprint }
+                .take(100)
+                .map { question ->
+                    val concept = practiceConcepts.firstOrNull { it.id == question.conceptId } ?: practiceConcepts.first()
+                    question.toPreparedQuestionEntity(
+                        bookId = book.id,
+                        chapterId = chapter.id,
+                        conceptIdOverride = concept.id,
+                        idOverride = "prepared:${chapter.id}:${question.id}",
+                        difficulty = concept.difficulty,
+                    )
+                }
+            val vocabularyEntities = chapterQuestions.mapNotNull { question ->
+                question.toVocabularyEntityOrNull(book.id, chapter.id, chapter.startPage)
+            }.distinctBy { it.normalizedWord }
+            val groupedQuestions = chapterQuestions.groupBy { it.conceptId }
 
-            knowledgeRepository.setChapterStatus(chapter.id, ChapterAnalysisStatus.READY)
+            onProgress(92, "ચકાસેલું જ્ઞાન અને પ્રશ્નો એકસાથે સાચવે છે…")
+            val previousConceptIds = knowledgeRepository.conceptsForChapter(chapter.id).map { it.id }
+            // Save new legacy banks before deleting old files. Room replacements below are atomic
+            // per table, so a partially written question bank is never visible to the child.
+            practiceConcepts.forEach { concept ->
+                val questions = groupedQuestions[concept.id].orEmpty().distinctBy { it.fingerprint }.take(80)
+                if (questions.isNotEmpty()) questionBank?.save(concept.id, questions)
+            }
+            suspend fun commitPreparedChapter() {
+                knowledgeRepository.replacePageKnowledge(chapter.id, allPages.distinctBy { it.pageNumber })
+                knowledgeRepository.replaceChapterConcepts(chapter.id, mergedConcepts)
+                preparedQuestionDao?.replaceForChapter(chapter.id, preparedEntities)
+                vocabularyDao?.replaceForChapter(chapter.id, vocabularyEntities)
+                knowledgeRepository.setChapterStatus(chapter.id, ChapterAnalysisStatus.READY)
+            }
+            // All Room tables switch from the old READY snapshot to the new snapshot together.
+            // If Android or the database fails during commit, Room rolls back and the child keeps
+            // the complete previous lesson rather than seeing a half-prepared chapter.
+            if (database != null) {
+                database.withTransaction { commitPreparedChapter() }
+            } else {
+                commitPreparedChapter()
+            }
+            previousConceptIds.filterNot { oldId -> practiceConcepts.any { it.id == oldId } }
+                .forEach { questionBank?.deleteForConcept(it) }
+
+            onProgress(96, "શબ્દભંડોળ અને પ્રશ્નો સાચવે છે…")
             refreshBookStatus(book.id)
             BookPreparationResult.Success(sourceLabels.joinToString(" + ").ifBlank { "Prepared locally" })
         } catch (t: Throwable) {
@@ -326,6 +387,86 @@ class BookPreparationService(
             refreshBookStatus(book.id)
             BookPreparationResult.Failure(t.message ?: "Chapter preparation failed")
         }
+    }
+
+    private fun com.mitra.learning.learning.model.LearningQuestion.toVocabularyEntityOrNull(
+        bookId: String,
+        chapterId: String,
+        fallbackPage: Int,
+    ): VocabularyEntity? {
+        val isMeaningQuestion = activityType.equals("VOCABULARY", ignoreCase = true) ||
+            promptGujarati.contains("અર્થ") || promptGujarati.contains("એટલે")
+        val meaning = expectedText?.trim()?.takeIf(String::isNotBlank) ?: return null
+        if (!isMeaningQuestion) return null
+        val quoted = Regex("[‘'\"]([^’'\"]{2,40})[’'\"]").find(promptGujarati)?.groupValues?.get(1)
+        val beforeMarker = promptGujarati.substringBefore("શબ્દનો").substringBefore("નો અર્થ").trim()
+        val word = (quoted ?: beforeMarker).replace(Regex("""[^\p{L}\p{M}\p{N}]+"""), " ").trim()
+        val normalized = BookTextNormalizer.normalizeWord(word)
+        if (normalized.length < 2) return null
+        return VocabularyEntity(
+            id = "vocabulary:$bookId:$chapterId:$normalized",
+            bookId = bookId,
+            chapterId = chapterId,
+            word = word,
+            normalizedWord = normalized,
+            meaningGujarati = meaning,
+            simpleExplanationGujarati = hintGujarati,
+            exampleSentenceGujarati = null,
+            sourcePage = sourcePage ?: fallbackPage,
+            acceptedVoiceFormsJson = encodeStringList(acceptedAnswers),
+        )
+    }
+
+    private suspend fun generateChapterQuestionBank(
+        bookTitle: String,
+        chapter: ChapterEntity,
+        concepts: List<ConceptEntity>,
+        groundedText: String,
+        onProgress: suspend (Int, String) -> Unit = { _, _ -> },
+    ): List<com.mitra.learning.learning.model.LearningQuestion> {
+        val focusBatches = listOf(
+            "શબ્દભંડોળ અને સરળ અર્થ",
+            "પાઠની સમજ અને ટૂંકા જવાબ",
+            "ખાલી જગ્યા, સાચું-ખોટું અને બહુવિકલ્પ",
+            "મૌખિક યાદ, કારણ અને સરળ ઉપયોગ",
+        )
+        val conceptSummary = concepts.joinToString("; ") { "${it.titleGujarati}: ${it.descriptionGujarati}" }.take(3_500)
+        val generated = mutableListOf<com.mitra.learning.learning.model.LearningQuestion>()
+        focusBatches.forEachIndexed { batchIndex, focus ->
+            onProgress(65 + batchIndex * 7, "પ્રશ્નો બનાવે છે: $focus…")
+            val base = concepts[batchIndex % concepts.size]
+            val synthetic = base.copy(
+                id = "chapter-bank:${chapter.id}:$batchIndex",
+                titleGujarati = "${chapter.titleGujarati} – $focus",
+                descriptionGujarati = "આ આખા પાઠ માટે $focus પ્રકારના વિવિધ પ્રશ્નો બનાવો. પાઠના મુદ્દા: $conceptSummary",
+                sourcePageStart = chapter.startPage,
+                sourcePageEnd = chapter.endPage,
+            )
+            val batch = runCatching {
+                aiGateway.createPracticeQuestions(
+                    concept = synthetic,
+                    count = 25,
+                    context = PracticeContext(
+                        bookTitle = bookTitle,
+                        chapterTitleGujarati = chapter.titleGujarati,
+                        groundedBookText = groundedText,
+                    ),
+                )
+            }.getOrDefault(emptyList())
+            batch.forEachIndexed { index, question ->
+                val matched = question.sourcePage?.let { page ->
+                    concepts.firstOrNull { concept ->
+                        page in (concept.sourcePageStart ?: chapter.startPage)..(concept.sourcePageEnd ?: chapter.endPage)
+                    }
+                } ?: concepts[(batchIndex * 25 + index) % concepts.size]
+                generated += question.copy(
+                    id = "chapter-${chapter.id}-$batchIndex-${question.id}",
+                    conceptId = matched.id,
+                    sourcePage = question.sourcePage ?: matched.sourcePageStart ?: chapter.startPage,
+                )
+            }
+        }
+        return generated.distinctBy { it.fingerprint }.take(100)
     }
 
     /**

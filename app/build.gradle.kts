@@ -34,8 +34,8 @@ android {
         applicationId = "com.mitra.learning"
         minSdk = 26
         targetSdk = 35
-        versionCode = 43
-        versionName = "0.22.1"
+        versionCode = 44
+        versionName = "0.23.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -115,6 +115,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.8.9")
     implementation("androidx.biometric:biometric:1.1.0")
     implementation("androidx.fragment:fragment-ktx:1.8.6")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
 
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation-layout")
